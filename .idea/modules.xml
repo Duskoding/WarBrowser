@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/WarBrowser.iml" filepath="$PROJECT_DIR$/.idea/WarBrowser.iml" />
+      <module fileurl="file://$PROJECT_DIR$/WarBrowser.iml" filepath="$PROJECT_DIR$/WarBrowser.iml" />
     </modules>
   </component>
 </project>
