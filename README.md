@@ -38,17 +38,30 @@ The connection client is also available as `window.WarConnection` in
 delivered to the `onEvent` callback as `{ type: "game_message", payload }`.
 War rules and card state are intentionally left to the game implementation.
 
-## Deploy
+## Deploy to Render
 
-Run the Node.js server on a host that permits WebSocket connections and expose
-it over HTTPS. The browser automatically uses secure WebSockets (`wss`) when
-the page is served over HTTPS. Set `PORT` if the hosting platform provides a
-specific listening port. For production, terminate TLS at the hosting
-platform or a reverse proxy and forward WebSocket upgrades to this server.
+The repository includes a `render.yaml` Blueprint for the Node.js Web Service.
 
+1. Push the repository to GitHub.
+2. In Render, choose **New > Blueprint**, connect the repository, and select the
+   branch to deploy. Render will detect `render.yaml` and configure the service.
+3. Deploy the service and copy its `https://` URL when it is ready.
+
+Render supplies `PORT`, serves the browser client, and supports the `/ws`
+WebSocket endpoint. When the page is opened over HTTPS, the client uses secure
+WebSockets (`wss`) automatically.
+
+## Test with two computers
+
+1. Open the Render URL in a browser on both computers. Do not use
+   `localhost`, since that points to each computer itself.
+2. On the first computer, create a room and copy the displayed six-character
+   room code.
+3. On the second computer, enter the code and join the room.
+4. Confirm that the first browser reports the opponent joined and that game
+   messages appear in both browsers.
 
 ## Game Rules
-
 - A standard 52-card deck is split evenly between two players.
 - The higher card wins the round. Aces are high.
 - Matching cards trigger a war, with additional cards played to determine the winner.
@@ -58,4 +71,3 @@ platform or a reverse proxy and forward WebSocket upgrades to this server.
 ## Specification
 
 See [docs/SPEC.md](docs/SPEC.md) for the full project specification.
->>>>>>> 492bff1345287d1d05c9a8e5d21b6ec5222c6a22
