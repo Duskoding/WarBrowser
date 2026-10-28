@@ -1,0 +1,278 @@
+<title>Live War Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: two "browser windows" side by side (stacked on phones), server log underneath. */
+:root {
+  --bg: #eef1ec;
+  --panel: #ffffff;
+  --fg: #1c241f;
+  --muted: #5d6b62;
+  --line: #d3dbd5;
+  --accent: #1f6b3a;
+  --accent-fg: #ffffff;
+  --chrome: #e2e8e3;
+  --p1: #2a5db0;
+  --p2: #b0452a;
+  --srv: #7a5b12;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714; --panel: #1a211d; --fg: #e4ebe6; --muted: #9aa8a0; --line: #2c3631;
+    --accent: #5fbf82; --accent-fg: #0d1a12; --chrome: #232c27;
+    --p1: #8fb3f0; --p2: #f0a58f; --srv: #e0c06a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714; --panel: #1a211d; --fg: #e4ebe6; --muted: #9aa8a0; --line: #2c3631;
+  --accent: #5fbf82; --accent-fg: #0d1a12; --chrome: #232c27;
+  --p1: #8fb3f0; --p2: #f0a58f; --srv: #e0c06a; color-scheme: dark;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 6px; }
+h1 { font: 800 clamp(1.7rem, 4vw, 2.4rem)/1.1 var(--font-display); margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 65ch; }
+.steps { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.steps ol { margin: 0; padding-left: 1.2em; color: var(--muted); flex: 1 1 320px; min-width: 0; }
+.btn {
+  font: 600 0.95rem var(--font-body);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.btn.quiet { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn:focus-visible { outline: 3px solid var(--p1); outline-offset: 2px; }
+.windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.window {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+.bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.who { font: 600 0.85rem var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.who.p1 { color: var(--p1); } .who.p2 { color: var(--p2); }
+.url {
+  flex: 1; min-width: 0;
+  font: 0.8rem var(--font-mono); color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reload { font-size: 0.8rem; padding: 4px 10px; }
+iframe { width: 100%; height: 800px; border: 0; display: block; background: #1f6b3a; }
+.log {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  display: grid; grid-template-rows: auto 1fr; min-width: 0;
+}
+.log h2 { font: 600 1rem var(--font-display); margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.log h2 small { font: 400 0.85rem var(--font-body); color: var(--muted); }
+.log ol {
+  list-style: none; margin: 0; padding: 8px 14px; max-height: 260px; overflow: auto;
+  font: 0.8rem/1.6 var(--font-mono); display: grid; gap: 2px;
+}
+.log li { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.log .from-p1 { color: var(--p1); } .log .from-p2 { color: var(--p2); } .log .from-srv { color: var(--srv); }
+.log .empty { color: var(--muted); font-family: var(--font-body); }
+.note { margin: 0; font-size: 0.9rem; color: var(--muted); max-width: 75ch; }
+code { font: 0.88em var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Live War preview</h1>
+    <p class="lede">Your GUI from <code>gui/</code>, running twice as if on two computers. The pretend server in the middle follows the same rules as your teammate's <code>server.js</code>: it makes rooms and passes messages between the players.</p>
+  </header>
+
+  <div class="steps">
+    <ol>
+      <li>Click <b>Create room</b> in Player 1's window.</li>
+      <li>Type the room code into Player 2's window and click <b>Join</b>.</li>
+      <li>Click <b>Flip</b> in both windows.</li>
+    </ol>
+    <button class="btn" id="quick" type="button">Set up a game for me</button>
+  </div>
+
+  <div class="windows">
+    <section class="window" aria-label="Player 1's browser">
+      <div class="bar">
+        <span class="who p1">Player 1</span>
+        <span class="url" id="url-0">localhost:5173</span>
+        <button class="btn quiet reload" id="reload-0" type="button">Reload</button>
+      </div>
+      <iframe id="frame-0" title="Player 1's game window"></iframe>
+    </section>
+    <section class="window" aria-label="Player 2's browser">
+      <div class="bar">
+        <span class="who p2">Player 2</span>
+        <span class="url" id="url-1">localhost:5173</span>
+        <button class="btn quiet reload" id="reload-1" type="button">Reload</button>
+      </div>
+      <iframe id="frame-1" title="Player 2's game window"></iframe>
+    </section>
+  </div>
+
+  <section class="log" aria-label="Server log">
+    <h2>Server log <small>Every message that passes through the server, newest first</small></h2>
+    <ol id="log"><li class="empty">Nothing yet. Create a room to start.</li></ol>
+  </section>
+
+  <p class="note">The game rules here are the placeholder in <code>gui/src/game.ts</code>, running in Player 1's window because the server has no rules yet. Reloading a window disconnects that player, the same as closing a tab.</p>
+</div>
+
+<script>
+const GUI_HTML = /*GUI_HTML*/null;
+const frames = [0, 1].map((i) => document.getElementById("frame-" + i));
+const NAMES = ["P1", "P2"];
+
+// ---- Pretend server: same behavior as server.js on s8119-internet-multiplayer ----
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const rooms = new Map();        // code -> Set of player indexes
+const playerRoom = [null, null]; // player index -> code
+
+function newCode() {
+  let c;
+  do { c = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join(""); }
+  while (rooms.has(c));
+  return c;
+}
+
+function sendTo(i, event) {
+  log("srv", `server → ${NAMES[i]}  ${short(event)}`);
+  frames[i].contentWindow?.postMessage({ __sim: "evt", event }, "*");
+}
+
+function leave(i) {
+  const code = playerRoom[i];
+  if (!code) return;
+  playerRoom[i] = null;
+  const room = rooms.get(code);
+  if (!room) return;
+  room.delete(i);
+  for (const p of room) sendTo(p, { type: "opponent_disconnected" });
+  if (room.size === 0) rooms.delete(code);
+}
+
+function handle(i, msg) {
+  if (msg.type === "__hello") { sendTo(i, { type: "connected" }); return; }
+  log("p" + (i + 1), `${NAMES[i]} → server  ${short(msg)}`);
+  const err = (message) => sendTo(i, { type: "error", message });
+  switch (msg.type) {
+    case "create_room": {
+      if (playerRoom[i]) return err("Leave your current room first.");
+      const code = newCode();
+      rooms.set(code, new Set([i]));
+      playerRoom[i] = code;
+      setUrl(i, code);
+      return sendTo(i, { type: "room_created", roomCode: code });
+    }
+    case "join_room": {
+      if (playerRoom[i]) return err("Leave your current room first.");
+      if (typeof msg.roomCode !== "string") return err("Enter a valid room code.");
+      const code = msg.roomCode.trim().toUpperCase();
+      const room = rooms.get(code);
+      if (!room) return err("Room not found.");
+      if (room.size >= 2) return err("That room is full.");
+      room.add(i);
+      playerRoom[i] = code;
+      setUrl(i, code);
+      sendTo(i, { type: "room_joined", roomCode: code });
+      for (const p of room) if (p !== i) sendTo(p, { type: "opponent_joined" });
+      return;
+    }
+    case "game_message": {
+      const room = rooms.get(playerRoom[i]);
+      if (!room || room.size !== 2) return err("Wait for another player to join before playing.");
+      for (const p of room) if (p !== i) sendTo(p, { type: "game_message", payload: msg.payload });
+      return;
+    }
+    case "leave_room":
+      leave(i);
+      setUrl(i, null);
+      return sendTo(i, { type: "room_left" });
+    default:
+      return err("Unknown message type.");
+  }
+}
+
+window.addEventListener("message", (e) => {
+  const i = frames.findIndex((f) => f.contentWindow === e.source);
+  if (i === -1 || e.data?.__sim !== "msg") return;
+  handle(i, e.data.msg);
+});
+
+// ---- Page chrome ----
+function setUrl(i, code) {
+  document.getElementById("url-" + i).textContent = "localhost:5173/" + (code ? "?room=" + code : "");
+}
+
+function load(i) {
+  leave(i);
+  setUrl(i, null);
+  frames[i].srcdoc = GUI_HTML;
+}
+
+function card(c) { return c ? ({ 11: "J", 12: "Q", 13: "K", 14: "A" }[c.rank] ?? c.rank) + c.suit : "–"; }
+function short(m) {
+  const { type, ...rest } = m;
+  if (type === "game_message" && rest.payload) {
+    const p = rest.payload;
+    if (p.kind === "state") {
+      const v = p.view;
+      return `game_message state (receiver's view): their card ${card(v.yourCard)}, ${v.yourCount} left · opponent ${card(v.opponentCard)}, ${v.opponentCount} left · ${v.phase}`;
+    }
+    if (p.kind === "commentary") return `game_message commentary: "${p.text}"`;
+    return "game_message " + JSON.stringify(p);
+  }
+  return Object.keys(rest).length ? `${type} ${JSON.stringify(rest)}` : type;
+}
+
+const logEl = document.getElementById("log");
+function log(kind, text) {
+  logEl.querySelector(".empty")?.remove();
+  const li = document.createElement("li");
+  li.className = "from-" + kind;
+  li.textContent = text;
+  logEl.prepend(li);
+  while (logEl.children.length > 200) logEl.lastChild.remove();
+}
+
+[0, 1].forEach((i) => document.getElementById("reload-" + i).addEventListener("click", () => load(i)));
+
+document.getElementById("quick").addEventListener("click", () => {
+  if (!playerRoom[0]) frames[0].contentWindow.postMessage({ __sim: "do", action: "create" }, "*");
+  const tryJoin = (n) => {
+    const code = playerRoom[0];
+    if (code && !playerRoom[1]) frames[1].contentWindow.postMessage({ __sim: "do", action: "join", code }, "*");
+    else if (!code && n > 0) setTimeout(() => tryJoin(n - 1), 100);
+  };
+  tryJoin(20);
+});
+
+load(0);
+load(1);
+</script>

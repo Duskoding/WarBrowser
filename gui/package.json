@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:preview": "vite build --config preview/vite.config.ts && node preview/make.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.3",
