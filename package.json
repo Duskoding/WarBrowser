@@ -8,7 +8,7 @@
     "build:gui": "npm --prefix gui run build",
     "dev": "tsx server/src/index.ts",
     "start": "node server/dist/index.js",
-    "test": "node --test --import tsx server/src/**/*.test.ts"
+    "test": "node --test --import tsx src/engine/WarEngine.test.ts test/server.test.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
