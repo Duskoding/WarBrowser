@@ -18,8 +18,8 @@ export type ServerEvent =
   | { type: "error"; message: string };
 
 // ---- Game messages sent inside game_message ----
-// PLACEHOLDER: the server has no game rules yet, so the room creator's browser
-// runs a stand-in engine (game.ts) and sends each player's view to the other.
+// The server runs WarEngine: players send { kind: "flip" }, and the server
+// sends each player their own { kind: "state" } view (and later commentary).
 
 export type Suit = "♠" | "♥" | "♦" | "♣";
 
@@ -42,9 +42,9 @@ export type GameView = {
 };
 
 export type GamePayload =
-  | { kind: "flip" } // guest → host
-  | { kind: "state"; view: GameView } // host → guest
-  | { kind: "commentary"; text: string }; // host → guest
+  | { kind: "flip" } // player → server
+  | { kind: "state"; view: GameView } // server → player
+  | { kind: "commentary"; text: string }; // server → player
 
 // Same rule for the Flip button and the fake opponent.
 export const canFlip = (v: GameView) =>

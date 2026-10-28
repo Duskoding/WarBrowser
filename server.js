@@ -1,19 +1,30 @@
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
+import { WarEngine } from "./src/engine/WarEngine.ts";
 
+const guiDirectory = new URL("./gui/dist/", import.meta.url);
 const publicDirectory = new URL("./public/", import.meta.url);
 const roomCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const maxMessageBytes = 16 * 1024;
-const staticFiles = new Map([
-  ["/", ["index.html", "text/html; charset=utf-8"]],
-  ["/index.html", ["index.html", "text/html; charset=utf-8"]],
-  ["/client.js", ["client.js", "text/javascript; charset=utf-8"]],
-  ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
-  ["/styles.css", ["styles.css", "text/css; charset=utf-8"]]
-]);
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".json": "application/json; charset=utf-8"
+};
+
+// Serves the built GUI (gui/dist); falls back to the plain test page in public/.
+function clientDirectory() {
+  return existsSync(new URL("index.html", guiDirectory)) ? guiDirectory : publicDirectory;
+}
 
 function createRoomCode(rooms) {
   let roomCode;
@@ -33,26 +44,63 @@ function send(socket, message) {
   }
 }
 
+const suitSymbols = { S: "♠", H: "♥", D: "♦", C: "♣" };
+
+function toViewCard(card) {
+  return card && { rank: card.rank, suit: suitSymbols[card.suit] };
+}
+
+function toView(state, seat) {
+  const mine = seat === "A";
+  const winner = state.winner === null ? undefined : state.winner === seat ? "you" : "opponent";
+  return {
+    yourCard: toViewCard(state.yourCard),
+    opponentCard: toViewCard(state.opponentCard),
+    pile: state.pile,
+    yourCount: mine ? state.scoreA : state.scoreB,
+    opponentCount: mine ? state.scoreB : state.scoreA,
+    phase: state.phase,
+    winner
+  };
+}
+
+function sendStates(game) {
+  for (const [socket, seat] of game.seats) {
+    send(socket, {
+      type: "game_message",
+      payload: { kind: "state", view: toView(game.engine.getState(seat), seat) }
+    });
+  }
+}
+
 export function createWarServer() {
   const rooms = new Map();
+  const games = new Map();
   const httpServer = createServer(async (request, response) => {
     const pathname = new URL(request.url, "http://localhost").pathname;
-    const file = staticFiles.get(pathname);
+    const root = clientDirectory();
+    const target = new URL(`.${pathname === "/" ? "/index.html" : pathname}`, root);
+    const contentType = contentTypes[extname(target.pathname)];
 
-    if (!file || request.method !== "GET") {
+    if (!contentType || request.method !== "GET" || !target.href.startsWith(root.href)) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Not found");
       return;
     }
 
     try {
-      const contents = await readFile(new URL(file[0], publicDirectory));
+      const contents = await readFile(target);
       response.writeHead(200, {
-        "Content-Type": file[1],
+        "Content-Type": contentType,
         "X-Content-Type-Options": "nosniff"
       });
       response.end(contents);
     } catch (error) {
+      if (error.code === "ENOENT" || error.code === "EISDIR") {
+        response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end("Not found");
+        return;
+      }
       response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Unable to load the game client");
       console.error("Failed to load a static file:", error);
@@ -72,6 +120,7 @@ export function createWarServer() {
     if (!room) return;
 
     room.delete(socket);
+    games.delete(roomCode);
     for (const player of room) {
       send(player, { type: "opponent_disconnected" });
     }
@@ -148,6 +197,14 @@ export function createWarServer() {
             send(player, { type: "opponent_joined" });
           }
         }
+
+        const [host, guest] = room;
+        const game = {
+          engine: new WarEngine(),
+          seats: new Map([[host, "A"], [guest, "B"]])
+        };
+        games.set(roomCode, game);
+        sendStates(game);
         return;
       }
 
@@ -162,6 +219,22 @@ export function createWarServer() {
         }
         if (!Object.hasOwn(message, "payload")) {
           send(socket, { type: "error", message: "Game message needs a payload." });
+          return;
+        }
+
+        const kind = message.payload?.kind;
+        if (kind === "flip") {
+          const game = games.get(socket.roomCode);
+          const result = game.engine.flip(game.seats.get(socket));
+          if (!result.ok) {
+            send(socket, { type: "error", message: result.error });
+            return;
+          }
+          sendStates(game);
+          return;
+        }
+        if (kind === "state" || kind === "commentary") {
+          send(socket, { type: "error", message: "Only the server can send that." });
           return;
         }
 

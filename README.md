@@ -1,61 +1,79 @@
 # WarBrowser
 
-WarBrowser is a live, two-player version of the card game War. Players join a room through a shared link and play from separate browsers, with game updates appearing in real time.
+WarBrowser is a live, two-player version of the card game War. Players join a room through a shared link and play from separate browsers, with game updates appearing in real time. No accounts are needed.
 
-## How It Works
+## How it works
 
-The server manages the deck, player cards, and game rules. Each player clicks to flip, and the server reveals the cards and resolves the round once both players have flipped.
+The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator provides short descriptions of completed rounds without interrupting gameplay.
+An AI commentator will add short descriptions of completed rounds without blocking gameplay.
 
 ## Features
 
-- Shared game rooms for two players
+- Shared game rooms for two players, joined by room code or invite link
 - Live updates through WebSockets
 - Server-controlled game state
-- Standard War gameplay, including ties
-- AI-generated round commentary
-- No accounts required
+- Standard War gameplay, including chained wars and the all-in case
+- AI-generated round commentary (in progress)
 
-## Planned Stack
+## Game rules
 
-WarBrowser is the connection layer for playing War on two different computers.
-It includes a small Node.js WebSocket server and a browser client that lets one
-player create a room, another join with its six-character code, and both relay
-JSON game messages to each other.
+- A standard 52-card deck is split 26/26 between two players.
+- Both players flip their top card. The higher card wins both. Aces are high.
+- A tie starts a war: each player puts up to 3 cards face-down, then flips again. The winner takes the whole pot, and a tie on that flip starts another war. A player with fewer than 4 cards flips whatever they have left.
+- The winner's cards go to the bottom of their pile in random order.
+- The game ends when one player holds all 52 cards.
+
+## Project layout
+
+| Path | What it is |
+| --- | --- |
+| `src/engine/` | `WarEngine`: the rules and state, with no networking, plus its tests |
+| `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
+| `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
+| `test/` | Server tests |
+| `SPEC.md` | The original project specification |
 
 ## Run locally
 
-1. Install Node.js 20 or later.
-2. Run `npm install`.
-3. Run `npm start`.
-4. Open `http://localhost:3000` in two browser windows. Create a room in one
-   window and join it from the other with the displayed code.
+Requires Node.js 24 or later.
 
-The connection client is also available as `window.WarConnection` in
-`public/client.js`. It provides `connect()`, `createRoom()`, `joinRoom(code)`,
-`sendGameMessage(payload)`, `leaveRoom()`, and `disconnect()`. Game events are
-delivered to the `onEvent` callback as `{ type: "game_message", payload }`.
-War rules and card state are intentionally left to the game implementation.
+```bash
+npm install
+npm run build
+npm start
+```
+
+Open `http://localhost:3000` in two browser windows. Create a room in one, then join it from the other with the room code or the invite link.
+
+For client development, run `npm start` in one terminal and `npm run dev` in another. The dev server proxies the WebSocket to the game server.
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm start` | Runs the server (serves `gui/dist`) |
+| `npm run build` | Type-checks and builds the client |
+| `npm run dev` | Client dev server with hot reload |
+| `npm run typecheck` | Type-checks the engine and the client |
+| `npm test` | Builds the client, then runs engine and server tests |
+
+## Protocol
+
+Messages are JSON over a WebSocket at `/ws`.
+
+- **Client → server:** `create_room`, `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload of `{ "kind": "flip" }`.
+- **Server → client:** `room_created`, `room_joined`, `opponent_joined`, `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }`.
+
+The state view is specific to each player: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.
 
 ## Deploy
 
-Run the Node.js server on a host that permits WebSocket connections and expose
-it over HTTPS. The browser automatically uses secure WebSockets (`wss`) when
-the page is served over HTTPS. Set `PORT` if the hosting platform provides a
-specific listening port. For production, terminate TLS at the hosting
-platform or a reverse proxy and forward WebSocket upgrades to this server.
+Run the Node.js server on a host that supports WebSockets, such as Render.
 
+- **Build command:** `npm install && npm run build`
+- **Start command:** `npm start`
+- **Node version:** 24 or later (set by `engines` in `package.json`)
+- **Port:** the server reads `PORT` from the environment.
 
-## Game Rules
-
-- A standard 52-card deck is split evenly between two players.
-- The higher card wins the round. Aces are high.
-- Matching cards trigger a war, with additional cards played to determine the winner.
-- The winner collects the cards played.
-- The game ends when one player holds all 52 cards.
-
-## Specification
-
-See [docs/SPEC.md](docs/SPEC.md) for the full project specification.
->>>>>>> 492bff1345287d1d05c9a8e5d21b6ec5222c6a22
+The browser automatically uses `wss` when the page is served over HTTPS.

@@ -87,7 +87,14 @@ test('war: burn 3, flip 4th, winner takes all 10', () => {
   let s = e.getState('A');
   assert.equal(s.phase, 'war');
   assert.equal(s.pile, 8);
-  const r = play(e);
+  assert.deepEqual(s.yourCard, c(7));
+  assert.deepEqual(s.opponentCard, c(7, 'H'));
+  assert.deepEqual(e.getState('B').yourCard, c(7, 'H'));
+  e.flip('A');
+  s = e.getState('A');
+  assert.deepEqual(s.yourCard, c(12));
+  assert.equal(s.opponentCard, null);
+  const r = e.flip('B');
   assert.ok(r.ok && r.resolved);
   if (r.ok && r.resolved) {
     assert.equal(r.summary.winner, 'A');

@@ -1,5 +1,4 @@
 import { connect, createRoom, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
-import { HostGame } from "./game";
 import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
 
 const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
@@ -49,10 +48,8 @@ const flipBtn = $<HTMLButtonElement>("flip");
 const codeInput = $<HTMLInputElement>("room-code");
 
 // ---- Session state ----
-let role: "host" | "guest" | null = null;
 let roomCode: string | null = null;
 let opponentHere = false;
-let game: HostGame | null = null; // host only (PLACEHOLDER engine)
 let view: GameView | null = null;
 
 // ---- Toast ----
@@ -123,39 +120,25 @@ function setCommentary(text?: string) {
 }
 
 // ---- Game wiring ----
-function startHostGame() {
-  game = new HostGame(([hostView, guestView], commentary) => {
-    view = hostView;
-    setCommentary(commentary?.[0]);
-    sendGame({ kind: "state", view: guestView });
-    if (commentary) sendGame({ kind: "commentary", text: commentary[1] });
-    render();
-  });
-}
-
 function handleGamePayload(payload: unknown) {
   const p = payload as GamePayload | null;
   if (!p || typeof p !== "object") return;
-  if (role === "host" && p.kind === "flip") game?.flip(1);
-  else if (role === "guest" && p.kind === "state") {
+  if (p.kind === "state") {
     view = p.view;
     render();
-  } else if (role === "guest" && p.kind === "commentary") setCommentary(p.text);
+  } else if (p.kind === "commentary") setCommentary(p.text);
 }
 
 function resetRoom() {
-  role = null;
   roomCode = null;
   opponentHere = false;
-  game = null;
   view = null;
   const params = new URLSearchParams(location.search);
   params.delete("room");
   history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
 }
 
-function enterRoom(code: string, as: "host" | "guest") {
-  role = as;
+function enterRoom(code: string) {
   roomCode = code;
   const params = new URLSearchParams(location.search);
   params.set("room", code);
@@ -181,21 +164,18 @@ onEvent((e) => {
       $<HTMLButtonElement>("join-room").disabled = true;
       break;
     case "room_created":
-      enterRoom(e.roomCode, "host");
+      enterRoom(e.roomCode);
       break;
     case "room_joined":
-      enterRoom(e.roomCode, "guest");
+      enterRoom(e.roomCode);
       opponentHere = true;
       break;
     case "opponent_joined":
       opponentHere = true;
-      if (role === "host") startHostGame();
       break;
     case "opponent_disconnected":
       opponentHere = false;
-      game = null;
       view = null;
-      role = "host"; // the one left behind keeps the room and hosts the next game
       showToast("Your opponent disconnected.");
       break;
     case "room_left":
@@ -231,8 +211,7 @@ $("copy-link").addEventListener("click", async () => {
 });
 flipBtn.addEventListener("click", () => {
   flipBtn.disabled = true; // re-enabled by the next state
-  if (role === "host") game?.flip(0);
-  else sendGame({ kind: "flip" });
+  sendGame({ kind: "flip" });
 });
 
 render();

@@ -58,6 +58,7 @@ export class WarEngine {
       this.flipped = { A: null, B: null };
       this.phase = 'waiting';
     } else if (this.phase === 'war') {
+      this.flipped = { A: null, B: null };
       this.phase = 'waiting';
     }
 
@@ -119,7 +120,6 @@ export class WarEngine {
       const burn = Math.min(WAR_BURN, this.piles[p].length - 1);
       this.pot.push(...this.piles[p].splice(0, burn));
     }
-    this.flipped = { A: null, B: null };
     this.phase = 'war';
     return undefined;
   }
