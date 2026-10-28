@@ -1,0 +1,281 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live War Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: two "browser windows" side by side (stacked on phones), server log underneath. */
+:root {
+  --bg: #eef1ec;
+  --panel: #ffffff;
+  --fg: #1c241f;
+  --muted: #5d6b62;
+  --line: #d3dbd5;
+  --accent: #1f6b3a;
+  --accent-fg: #ffffff;
+  --chrome: #e2e8e3;
+  --p1: #2a5db0;
+  --p2: #b0452a;
+  --srv: #7a5b12;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714; --panel: #1a211d; --fg: #e4ebe6; --muted: #9aa8a0; --line: #2c3631;
+    --accent: #5fbf82; --accent-fg: #0d1a12; --chrome: #232c27;
+    --p1: #8fb3f0; --p2: #f0a58f; --srv: #e0c06a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714; --panel: #1a211d; --fg: #e4ebe6; --muted: #9aa8a0; --line: #2c3631;
+  --accent: #5fbf82; --accent-fg: #0d1a12; --chrome: #232c27;
+  --p1: #8fb3f0; --p2: #f0a58f; --srv: #e0c06a; color-scheme: dark;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 6px; }
+h1 { font: 800 clamp(1.7rem, 4vw, 2.4rem)/1.1 var(--font-display); margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 65ch; }
+.steps { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.steps ol { margin: 0; padding-left: 1.2em; color: var(--muted); flex: 1 1 320px; min-width: 0; }
+.btn {
+  font: 600 0.95rem var(--font-body);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.btn.quiet { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn:focus-visible { outline: 3px solid var(--p1); outline-offset: 2px; }
+.windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.window {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+.bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.who { font: 600 0.85rem var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.who.p1 { color: var(--p1); } .who.p2 { color: var(--p2); }
+.url {
+  flex: 1; min-width: 0;
+  font: 0.8rem var(--font-mono); color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reload { font-size: 0.8rem; padding: 4px 10px; }
+iframe { width: 100%; height: 800px; border: 0; display: block; background: #1f6b3a; }
+.log {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  display: grid; grid-template-rows: auto 1fr; min-width: 0;
+}
+.log h2 { font: 600 1rem var(--font-display); margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.log h2 small { font: 400 0.85rem var(--font-body); color: var(--muted); }
+.log ol {
+  list-style: none; margin: 0; padding: 8px 14px; max-height: 260px; overflow: auto;
+  font: 0.8rem/1.6 var(--font-mono); display: grid; gap: 2px;
+}
+.log li { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.log .from-p1 { color: var(--p1); } .log .from-p2 { color: var(--p2); } .log .from-srv { color: var(--srv); }
+.log .empty { color: var(--muted); font-family: var(--font-body); }
+.note { margin: 0; font-size: 0.9rem; color: var(--muted); max-width: 75ch; }
+code { font: 0.88em var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Live War preview</h1>
+    <p class="lede">Your GUI from <code>gui/</code>, running twice as if on two computers. The pretend server in the middle follows the same rules as your teammate's <code>server.js</code>: it makes rooms and passes messages between the players.</p>
+  </header>
+
+  <div class="steps">
+    <ol>
+      <li>Click <b>Create room</b> in Player 1's window.</li>
+      <li>Type the room code into Player 2's window and click <b>Join</b>.</li>
+      <li>Click <b>Flip</b> in both windows.</li>
+    </ol>
+    <button class="btn" id="quick" type="button">Set up a game for me</button>
+  </div>
+
+  <div class="windows">
+    <section class="window" aria-label="Player 1's browser">
+      <div class="bar">
+        <span class="who p1">Player 1</span>
+        <span class="url" id="url-0">localhost:5173</span>
+        <button class="btn quiet reload" id="reload-0" type="button">Reload</button>
+      </div>
+      <iframe id="frame-0" title="Player 1's game window"></iframe>
+    </section>
+    <section class="window" aria-label="Player 2's browser">
+      <div class="bar">
+        <span class="who p2">Player 2</span>
+        <span class="url" id="url-1">localhost:5173</span>
+        <button class="btn quiet reload" id="reload-1" type="button">Reload</button>
+      </div>
+      <iframe id="frame-1" title="Player 2's game window"></iframe>
+    </section>
+  </div>
+
+  <section class="log" aria-label="Server log">
+    <h2>Server log <small>Every message that passes through the server, newest first</small></h2>
+    <ol id="log"><li class="empty">Nothing yet. Create a room to start.</li></ol>
+  </section>
+
+  <p class="note">The game rules here are the placeholder in <code>gui/src/game.ts</code>, running in Player 1's window because the server has no rules yet. Reloading a window disconnects that player, the same as closing a tab.</p>
+</div>
+
+<script>
+const GUI_HTML = "\u003c!doctype html>\n\u003chtml lang=\"en\">\n  \u003chead>\n    \u003cmeta charset=\"UTF-8\" />\n    \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    \u003ctitle>Live War\u003c/title>\n    \u003cscript>{const o=history.replaceState.bind(history);history.replaceState=(...a)=>{try{o(...a)}catch{}}}\u003c/script>\u003cscript type=\"module\">const x=[],O=t=>x.forEach(e=>e(t));function T(t){x.push(t)}function d(t){parent.postMessage({__sim:\"msg\",msg:t},\"*\")}function M(){window.addEventListener(\"message\",t=>{const e=t.data;(e==null?void 0:e.__sim)===\"evt\"&&O(e.event),(e==null?void 0:e.__sim)===\"do\"&&e.action===\"create\"&&R(),(e==null?void 0:e.__sim)===\"do\"&&e.action===\"join\"&&w(e.code)}),d({type:\"__hello\"})}const R=()=>d({type:\"create_room\"}),w=t=>d({type:\"join_room\",roomCode:t}),W=()=>d({type:\"leave_room\"}),y=t=>d({type:\"game_message\",payload:t}),F=[\"♠\",\"♥\",\"♦\",\"♣\"];function G(){const t=F.flatMap(e=>Array.from({length:13},(n,i)=>({rank:i+2,suit:e})));for(let e=t.length-1;e>0;e--){const n=Math.floor(Math.random()*(e+1));[t[e],t[n]]=[t[n],t[e]]}return t}const m=t=>`${{11:\"J\",12:\"Q\",13:\"K\",14:\"A\"}[t.rank]??t.rank}${t.suit}`;class D{constructor(e){this.onUpdate=e,this.middle=[],this.faceUp=[null,null],this.revealed=!1,this.phase=\"waiting\",this.winner=null;const n=G();this.piles=[n.slice(0,26),n.slice(26)],this.emit()}flip(e){if(this.phase===\"gameOver\"||(this.revealed&&(this.faceUp=[null,null],this.revealed=!1),this.faceUp[e]))return;const n=this.piles[e].shift();this.faceUp[e]=n,this.middle.push(n),this.phase=\"flipped\";const[i,h]=this.faceUp;if(!i||!h)return this.emit();if(this.revealed=!0,i.rank===h.rank){for(const f of[0,1]){const A=Math.min(3,Math.max(0,this.piles[f].length-1));this.middle.push(...this.piles[f].splice(0,A))}this.phase=\"war\";const l=[0,1].find(f=>this.piles[f].length===0);return l!==void 0?this.finish(l===0?1:0,()=>\"A tie, and someone is out of cards!\"):this.emit(()=>`${m(i)} ties ${m(h)} — WAR!`)}const u=i.rank>h.rank?0:1,S=this.middle.length;this.piles[u].push(...this.middle),this.middle=[],this.phase=\"roundOver\";const C=l=>`${m(this.faceUp[l])} vs ${m(this.faceUp[l===0?1:0])}: ${l===u?\"you take\":\"opponent takes\"} ${S} cards.`,E=u===0?1:0;if(this.piles[E].length===0)return this.finish(u,C);this.emit(C)}finish(e,n){this.phase=\"gameOver\",this.winner=e,this.emit(i=>`${n(i)} Game over.`)}view(e){const n=e===0?1:0;return{yourCard:this.faceUp[e],opponentCard:this.revealed?this.faceUp[n]:null,pile:this.middle.length,yourCount:this.piles[e].length,opponentCount:this.piles[n].length,phase:this.phase,winner:this.winner===null?void 0:this.winner===e?\"you\":\"opponent\"}}emit(e){this.onUpdate([this.view(0),this.view(1)],e&&[e(0),e(1)])}}const H=t=>t.phase!==\"gameOver\"&&!(t.yourCard!==null&&t.opponentCard===null),I={11:\"J\",12:\"Q\",13:\"K\",14:\"A\"},P=document.querySelector(\"#app\");P.innerHTML=`\n  \u003cheader>\n    \u003ch1>Live War\u003c/h1>\n    \u003cp class=\"conn\" id=\"conn\">Connecting to the game server…\u003c/p>\n  \u003c/header>\n\n  \u003csection class=\"lobby\" id=\"lobby\">\n    \u003cbutton id=\"create-room\" disabled>Create room\u003c/button>\n    \u003cspan class=\"or\">or\u003c/span>\n    \u003cform class=\"join\" id=\"join-form\">\n      \u003cinput id=\"room-code\" maxlength=\"6\" placeholder=\"Room code\" autocomplete=\"off\" spellcheck=\"false\" />\n      \u003cbutton type=\"submit\" id=\"join-room\" disabled>Join\u003c/button>\n    \u003c/form>\n  \u003c/section>\n\n  \u003cmain class=\"table\" id=\"table\" hidden>\n    \u003cdiv class=\"room\">\n      Room \u003cstrong id=\"room-id\">\u003c/strong>\n      \u003cbutton id=\"copy-link\" class=\"small\">Copy invite link\u003c/button>\n      \u003cbutton id=\"leave-room\" class=\"small ghost\">Leave\u003c/button>\n    \u003c/div>\n    \u003csection class=\"player them\">\n      \u003ch2>Opponent \u003cspan class=\"count\" id=\"them-count\">\u003c/span>\u003c/h2>\n      \u003cdiv class=\"card\" id=\"them-card\">\u003cdiv class=\"face\">\u003c/div>\u003cdiv class=\"back\">\u003c/div>\u003c/div>\n    \u003c/section>\n    \u003cdiv class=\"middle\">\n      \u003cp class=\"status\" id=\"status\">\u003c/p>\n      \u003cp class=\"pile\" id=\"pile\">\u003c/p>\n    \u003c/div>\n    \u003csection class=\"player you\">\n      \u003cdiv class=\"card\" id=\"you-card\">\u003cdiv class=\"face\">\u003c/div>\u003cdiv class=\"back\">\u003c/div>\u003c/div>\n      \u003ch2>You \u003cspan class=\"count\" id=\"you-count\">\u003c/span>\u003c/h2>\n    \u003c/section>\n    \u003cbutton id=\"flip\" disabled>Flip\u003c/button>\n    \u003caside class=\"commentary\" id=\"commentary\">Commentary will appear here.\u003c/aside>\n  \u003c/main>\n  \u003cdiv class=\"toast\" id=\"toast\" hidden>\u003c/div>\n`;const o=t=>document.getElementById(t),g=o(\"flip\"),Y=o(\"room-code\");let a=null,c=null,r=!1,s=null,p=null,$;function v(t){const e=o(\"toast\");e.textContent=t,e.hidden=!1,clearTimeout($),$=window.setTimeout(()=>e.hidden=!0,3e3)}const _=new WeakMap;function L(t,e){const n=e?`${e.rank}${e.suit}`:\"\";if(_.get(t)===n)return;if(_.set(t,n),!e){t.classList.remove(\"flipped\");return}const i=t.querySelector(\".face\");i.textContent=`${I[e.rank]??e.rank}${e.suit}`,i.classList.toggle(\"red\",e.suit===\"♥\"||e.suit===\"♦\"),t.classList.remove(\"flipped\"),t.offsetWidth,t.classList.add(\"flipped\")}const B={waiting:\"Flip when ready\",flipped:\"Opponent flipped — your turn!\",war:\"WAR! Flip again\",roundOver:\"Flip for the next round\",gameOver:\"\"};function b(){const t=c!==null;if(o(\"lobby\").hidden=t,o(\"conn\").hidden=t,o(\"table\").hidden=!t,!t)return;o(\"room-id\").textContent=c;const e=p;o(\"you-count\").textContent=e?`(${e.yourCount})`:\"\",o(\"them-count\").textContent=e?`(${e.opponentCount})`:\"\",L(o(\"you-card\"),(e==null?void 0:e.yourCard)??null),L(o(\"them-card\"),(e==null?void 0:e.opponentCard)??null),o(\"pile\").textContent=e&&e.pile>0?`${e.pile} card${e.pile===1?\"\":\"s\"} in the middle`:\"\";let n=\"\";r?e?e.phase===\"gameOver\"?n=e.winner===\"you\"?\"You win!\":\"You lose.\":e.yourCard&&!e.opponentCard?n=\"Waiting for opponent to flip…\":n=B[e.phase]:n=\"Dealing…\":n=\"Waiting for opponent — share the invite link\",o(\"status\").textContent=n,document.body.classList.toggle(\"war\",(e==null?void 0:e.phase)===\"war\"),g.disabled=!r||!e||!H(e)}function j(t){t&&(o(\"commentary\").textContent=t)}function J(){s=new D(([t,e],n)=>{p=t,j(n==null?void 0:n[0]),y({kind:\"state\",view:e}),n&&y({kind:\"commentary\",text:n[1]}),b()})}function K(t){const e=t;!e||typeof e!=\"object\"||(a===\"host\"&&e.kind===\"flip\"?s==null||s.flip(1):a===\"guest\"&&e.kind===\"state\"?(p=e.view,b()):a===\"guest\"&&e.kind===\"commentary\"&&j(e.text))}function k(){a=null,c=null,r=!1,s=null,p=null;const t=new URLSearchParams(location.search);t.delete(\"room\"),history.replaceState(null,\"\",`${location.pathname}${t.size?`?${t}`:\"\"}`)}function U(t,e){a=e,c=t;const n=new URLSearchParams(location.search);n.set(\"room\",t),history.replaceState(null,\"\",`${location.pathname}?${n}`)}T(t=>{switch(t.type){case\"connected\":{o(\"conn\").textContent=\"Connected. Create a room or join one.\",o(\"create-room\").disabled=!1,o(\"join-room\").disabled=!1;const e=new URLSearchParams(location.search).get(\"room\");e&&w(e);break}case\"disconnected\":k(),o(\"conn\").textContent=\"Disconnected from the server. Refresh to reconnect.\",o(\"create-room\").disabled=!0,o(\"join-room\").disabled=!0;break;case\"room_created\":U(t.roomCode,\"host\");break;case\"room_joined\":U(t.roomCode,\"guest\"),r=!0;break;case\"opponent_joined\":r=!0,a===\"host\"&&J();break;case\"opponent_disconnected\":r=!1,s=null,p=null,a=\"host\",v(\"Your opponent disconnected.\");break;case\"room_left\":k();break;case\"game_message\":K(t.payload);break;case\"error\":v(t.message),c||k();break}b()});o(\"create-room\").addEventListener(\"click\",R);o(\"join-form\").addEventListener(\"submit\",t=>{t.preventDefault();const e=Y.value.trim().toUpperCase();e&&w(e)});o(\"leave-room\").addEventListener(\"click\",W);o(\"copy-link\").addEventListener(\"click\",async()=>{try{await navigator.clipboard.writeText(location.href),v(\"Invite link copied\")}catch{v(location.href)}});g.addEventListener(\"click\",()=>{g.disabled=!0,a===\"host\"?s==null||s.flip(0):y({kind:\"flip\"})});b();M();\n\u003c/script>\n    \u003cstyle>:root{--felt: #1f6b3a;--felt-war: #7a1f1f;--card-bg: #fff;--card-back: #24407a;--text: #f4f4f4;--red: #c62828;--card-w: 120px;--card-h: 170px}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:system-ui,sans-serif;background:var(--felt);color:var(--text);transition:background .3s}body.war{background:var(--felt-war)}header{text-align:center;padding:1rem}header h1{margin:0}.conn{margin:.5rem 0 0;opacity:.85}.lobby{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center;align-items:center;padding:2rem 1rem}.lobby .or{opacity:.7}.join{display:flex;gap:.5rem}.join input{width:8rem;font-size:1.1rem;padding:.5rem .75rem;border:none;border-radius:999px;text-transform:uppercase;letter-spacing:.1em}[hidden]{display:none!important}.room{display:flex;gap:.5rem;justify-content:center;align-items:center;flex-wrap:wrap}.room strong{letter-spacing:.1em}.table{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:1rem}.player{display:flex;flex-direction:column;align-items:center;gap:.5rem}.player h2{margin:0;font-size:1.1rem}.middle{text-align:center}.status{min-height:1.5em;font-size:1.5rem;font-weight:700;margin:0}.pile{min-height:1.2em;margin:.25rem 0 0;opacity:.85}.card{position:relative;width:var(--card-w);height:var(--card-h);perspective:600px;transform-style:preserve-3d}.card .face,.card .back{position:absolute;top:0;right:0;bottom:0;left:0;border-radius:10px;backface-visibility:hidden;transition:transform .5s;box-shadow:0 4px 12px #00000059}.card .back{background:repeating-linear-gradient(45deg,var(--card-back) 0 8px,#2f5299 8px 16px);border:4px solid #fff}.card .face{background:var(--card-bg);color:#111;display:grid;place-items:center;font-size:2.5rem;transform:rotateY(180deg)}.card .face.red{color:var(--red)}.card.flipped .face{transform:rotateY(0)}.card.flipped .back{transform:rotateY(-180deg)}button{font-size:1.2rem;padding:.6rem 2.5rem;border:none;border-radius:999px;background:#f5c542;color:#222;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}button.small{font-size:.85rem;padding:.3rem .9rem}button.ghost{background:transparent;color:var(--text);border:1px solid currentColor}.toast{position:fixed;left:50%;bottom:1.5rem;transform:translate(-50%);max-width:calc(100% - 2rem);padding:.6rem 1rem;border-radius:8px;background:#222;color:#fff;overflow-wrap:anywhere}.commentary{max-width:32rem;min-height:3em;padding:.75rem 1rem;border-radius:8px;background:#00000040;font-style:italic;text-align:center}\n\u003c/style>\n  \u003c/head>\n  \u003cbody>\n    \u003cdiv id=\"app\">\u003c/div>\n  \u003c/body>\n\u003c/html>\n";
+const frames = [0, 1].map((i) => document.getElementById("frame-" + i));
+const NAMES = ["P1", "P2"];
+
+// ---- Pretend server: same behavior as server.js on s8119-internet-multiplayer ----
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const rooms = new Map();        // code -> Set of player indexes
+const playerRoom = [null, null]; // player index -> code
+
+function newCode() {
+  let c;
+  do { c = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join(""); }
+  while (rooms.has(c));
+  return c;
+}
+
+function sendTo(i, event) {
+  log("srv", `server → ${NAMES[i]}  ${short(event)}`);
+  frames[i].contentWindow?.postMessage({ __sim: "evt", event }, "*");
+}
+
+function leave(i) {
+  const code = playerRoom[i];
+  if (!code) return;
+  playerRoom[i] = null;
+  const room = rooms.get(code);
+  if (!room) return;
+  room.delete(i);
+  for (const p of room) sendTo(p, { type: "opponent_disconnected" });
+  if (room.size === 0) rooms.delete(code);
+}
+
+function handle(i, msg) {
+  if (msg.type === "__hello") { sendTo(i, { type: "connected" }); return; }
+  log("p" + (i + 1), `${NAMES[i]} → server  ${short(msg)}`);
+  const err = (message) => sendTo(i, { type: "error", message });
+  switch (msg.type) {
+    case "create_room": {
+      if (playerRoom[i]) return err("Leave your current room first.");
+      const code = newCode();
+      rooms.set(code, new Set([i]));
+      playerRoom[i] = code;
+      setUrl(i, code);
+      return sendTo(i, { type: "room_created", roomCode: code });
+    }
+    case "join_room": {
+      if (playerRoom[i]) return err("Leave your current room first.");
+      if (typeof msg.roomCode !== "string") return err("Enter a valid room code.");
+      const code = msg.roomCode.trim().toUpperCase();
+      const room = rooms.get(code);
+      if (!room) return err("Room not found.");
+      if (room.size >= 2) return err("That room is full.");
+      room.add(i);
+      playerRoom[i] = code;
+      setUrl(i, code);
+      sendTo(i, { type: "room_joined", roomCode: code });
+      for (const p of room) if (p !== i) sendTo(p, { type: "opponent_joined" });
+      return;
+    }
+    case "game_message": {
+      const room = rooms.get(playerRoom[i]);
+      if (!room || room.size !== 2) return err("Wait for another player to join before playing.");
+      for (const p of room) if (p !== i) sendTo(p, { type: "game_message", payload: msg.payload });
+      return;
+    }
+    case "leave_room":
+      leave(i);
+      setUrl(i, null);
+      return sendTo(i, { type: "room_left" });
+    default:
+      return err("Unknown message type.");
+  }
+}
+
+window.addEventListener("message", (e) => {
+  const i = frames.findIndex((f) => f.contentWindow === e.source);
+  if (i === -1 || e.data?.__sim !== "msg") return;
+  handle(i, e.data.msg);
+});
+
+// ---- Page chrome ----
+function setUrl(i, code) {
+  document.getElementById("url-" + i).textContent = "localhost:5173/" + (code ? "?room=" + code : "");
+}
+
+function load(i) {
+  leave(i);
+  setUrl(i, null);
+  frames[i].srcdoc = GUI_HTML;
+}
+
+function card(c) { return c ? ({ 11: "J", 12: "Q", 13: "K", 14: "A" }[c.rank] ?? c.rank) + c.suit : "–"; }
+function short(m) {
+  const { type, ...rest } = m;
+  if (type === "game_message" && rest.payload) {
+    const p = rest.payload;
+    if (p.kind === "state") {
+      const v = p.view;
+      return `game_message state (receiver's view): their card ${card(v.yourCard)}, ${v.yourCount} left · opponent ${card(v.opponentCard)}, ${v.opponentCount} left · ${v.phase}`;
+    }
+    if (p.kind === "commentary") return `game_message commentary: "${p.text}"`;
+    return "game_message " + JSON.stringify(p);
+  }
+  return Object.keys(rest).length ? `${type} ${JSON.stringify(rest)}` : type;
+}
+
+const logEl = document.getElementById("log");
+function log(kind, text) {
+  logEl.querySelector(".empty")?.remove();
+  const li = document.createElement("li");
+  li.className = "from-" + kind;
+  li.textContent = text;
+  logEl.prepend(li);
+  while (logEl.children.length > 200) logEl.lastChild.remove();
+}
+
+[0, 1].forEach((i) => document.getElementById("reload-" + i).addEventListener("click", () => load(i)));
+
+document.getElementById("quick").addEventListener("click", () => {
+  if (!playerRoom[0]) frames[0].contentWindow.postMessage({ __sim: "do", action: "create" }, "*");
+  const tryJoin = (n) => {
+    const code = playerRoom[0];
+    if (code && !playerRoom[1]) frames[1].contentWindow.postMessage({ __sim: "do", action: "join", code }, "*");
+    else if (!code && n > 0) setTimeout(() => tryJoin(n - 1), 100);
+  };
+  tryJoin(20);
+});
+
+load(0);
+load(1);
+</script>
