@@ -24,7 +24,30 @@ body.war { background: var(--felt-war); }
 
 header { text-align: center; padding: 1rem; }
 header h1 { margin: 0; }
-.room { margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; }
+.conn { margin: 0.5rem 0 0; opacity: 0.85; }
+
+.lobby {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+.lobby .or { opacity: 0.7; }
+.join { display: flex; gap: 0.5rem; }
+.join input {
+  width: 8rem;
+  font-size: 1.1rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+[hidden] { display: none !important; }
+
+.room { display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; }
 .room strong { letter-spacing: 0.1em; }
 
 .table {
@@ -86,6 +109,7 @@ button {
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.small { font-size: 0.85rem; padding: 0.3rem 0.9rem; }
+button.ghost { background: transparent; color: var(--text); border: 1px solid currentColor; }
 
 .toast {
   position: fixed;

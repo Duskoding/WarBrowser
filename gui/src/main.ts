@@ -1,28 +1,32 @@
 import "./style.css";
-import { connect, flip, onMessage } from "./connection";
-import type { Card, Phase, StatePayload } from "./types";
+import { connect, createRoom, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
+import { HostGame } from "./game";
+import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
 
 const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
-
-// Room comes from the shared link (?room=XXXX). No room in the URL → make one.
-const params = new URLSearchParams(location.search);
-let roomId = params.get("room");
-if (!roomId) {
-  roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
-  params.set("room", roomId);
-  history.replaceState(null, "", `${location.pathname}?${params}`);
-}
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <header>
     <h1>Live War</h1>
+    <p class="conn" id="conn">Connecting to the game server…</p>
+  </header>
+
+  <section class="lobby" id="lobby">
+    <button id="create-room" disabled>Create room</button>
+    <span class="or">or</span>
+    <form class="join" id="join-form">
+      <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" />
+      <button type="submit" id="join-room" disabled>Join</button>
+    </form>
+  </section>
+
+  <main class="table" id="table" hidden>
     <div class="room">
       Room <strong id="room-id"></strong>
       <button id="copy-link" class="small">Copy invite link</button>
+      <button id="leave-room" class="small ghost">Leave</button>
     </div>
-  </header>
-  <main class="table">
     <section class="player them">
       <h2>Opponent <span class="count" id="them-count"></span></h2>
       <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
@@ -35,29 +39,24 @@ app.innerHTML = `
       <div class="card" id="you-card"><div class="face"></div><div class="back"></div></div>
       <h2>You <span class="count" id="you-count"></span></h2>
     </section>
-    <button id="flip">Flip</button>
+    <button id="flip" disabled>Flip</button>
     <aside class="commentary" id="commentary">Commentary will appear here.</aside>
   </main>
   <div class="toast" id="toast" hidden></div>
 `;
 
-const $ = (id: string) => document.getElementById(id)!;
-const flipBtn = $("flip") as HTMLButtonElement;
-flipBtn.addEventListener("click", () => {
-  flipBtn.disabled = true; // re-enabled by the next state that allows a flip
-  flip();
-});
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const flipBtn = $<HTMLButtonElement>("flip");
+const codeInput = $<HTMLInputElement>("room-code");
 
-$("room-id").textContent = roomId;
-$("copy-link").addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(location.href);
-    showToast("Invite link copied");
-  } catch {
-    showToast(location.href);
-  }
-});
+// ---- Session state ----
+let role: "host" | "guest" | null = null;
+let roomCode: string | null = null;
+let opponentHere = false;
+let game: HostGame | null = null; // host only (PLACEHOLDER engine)
+let view: GameView | null = null;
 
+// ---- Toast ----
 let toastTimer: number | undefined;
 function showToast(text: string) {
   const toast = $("toast");
@@ -67,6 +66,7 @@ function showToast(text: string) {
   toastTimer = window.setTimeout(() => (toast.hidden = true), 3000);
 }
 
+// ---- Rendering ----
 const shown = new WeakMap<HTMLElement, string>();
 function renderCard(el: HTMLElement, card: Card | null) {
   const key = card ? `${card.rank}${card.suit}` : "";
@@ -86,34 +86,155 @@ function renderCard(el: HTMLElement, card: Card | null) {
 
 const STATUS: Record<Phase, string> = {
   waiting: "Flip when ready",
-  flipped: "",
-  war: "WAR!",
-  roundOver: "",
-  gameOver: "Game over",
+  flipped: "Opponent flipped — your turn!",
+  war: "WAR! Flip again",
+  roundOver: "Flip for the next round",
+  gameOver: "",
 };
 
-function render(s: StatePayload) {
-  $("you-count").textContent = `(${s.scoreA})`;
-  $("them-count").textContent = `(${s.scoreB})`;
-  renderCard($("you-card"), s.yourCard);
-  renderCard($("them-card"), s.opponentCard);
-  $("pile").textContent = s.pile > 0 ? `${s.pile} card${s.pile === 1 ? "" : "s"} in the middle` : "";
+function render() {
+  const inRoom = roomCode !== null;
+  $("lobby").hidden = inRoom;
+  $("conn").hidden = inRoom;
+  $("table").hidden = !inRoom;
+  if (!inRoom) return;
 
-  let status = STATUS[s.phase];
-  if (s.phase === "flipped") status = s.opponentCard ? "" : "Waiting for opponent to flip…";
-  if (s.phase === "gameOver") status = s.scoreA > s.scoreB ? "You win!" : "You lose.";
+  $("room-id").textContent = roomCode;
+  const v = view;
+  $("you-count").textContent = v ? `(${v.yourCount})` : "";
+  $("them-count").textContent = v ? `(${v.opponentCount})` : "";
+  renderCard($("you-card"), v?.yourCard ?? null);
+  renderCard($("them-card"), v?.opponentCard ?? null);
+  $("pile").textContent = v && v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
+
+  let status = "";
+  if (!opponentHere) status = "Waiting for opponent — share the invite link";
+  else if (!v) status = "Dealing…";
+  else if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : "You lose.";
+  else if (v.yourCard && !v.opponentCard) status = "Waiting for opponent to flip…";
+  else status = STATUS[v.phase];
   $("status").textContent = status;
 
-  document.body.classList.toggle("war", s.phase === "war");
-  // Can flip unless the game is over or you've already flipped this round.
-  flipBtn.disabled = s.phase === "gameOver" || (s.yourCard !== null && s.opponentCard === null);
+  document.body.classList.toggle("war", v?.phase === "war");
+  flipBtn.disabled = !opponentHere || !v || !canFlip(v);
 }
 
-onMessage((msg) => {
-  if (msg.type === "state") render(msg);
-  else if (msg.type === "commentary") $("commentary").textContent = msg.text;
-  else if (msg.type === "error") showToast(msg.message);
+function setCommentary(text?: string) {
+  if (text) $("commentary").textContent = text;
+}
+
+// ---- Game wiring ----
+function startHostGame() {
+  game = new HostGame(([hostView, guestView], commentary) => {
+    view = hostView;
+    setCommentary(commentary?.[0]);
+    sendGame({ kind: "state", view: guestView });
+    if (commentary) sendGame({ kind: "commentary", text: commentary[1] });
+    render();
+  });
+}
+
+function handleGamePayload(payload: unknown) {
+  const p = payload as GamePayload | null;
+  if (!p || typeof p !== "object") return;
+  if (role === "host" && p.kind === "flip") game?.flip(1);
+  else if (role === "guest" && p.kind === "state") {
+    view = p.view;
+    render();
+  } else if (role === "guest" && p.kind === "commentary") setCommentary(p.text);
+}
+
+function resetRoom() {
+  role = null;
+  roomCode = null;
+  opponentHere = false;
+  game = null;
+  view = null;
+  const params = new URLSearchParams(location.search);
+  params.delete("room");
+  history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+}
+
+function enterRoom(code: string, as: "host" | "guest") {
+  role = as;
+  roomCode = code;
+  const params = new URLSearchParams(location.search);
+  params.set("room", code);
+  history.replaceState(null, "", `${location.pathname}?${params}`);
+}
+
+// ---- Server events ----
+onEvent((e) => {
+  switch (e.type) {
+    case "connected": {
+      $("conn").textContent = "Connected. Create a room or join one.";
+      $<HTMLButtonElement>("create-room").disabled = false;
+      $<HTMLButtonElement>("join-room").disabled = false;
+      // Opened from an invite link → join straight away.
+      const linked = new URLSearchParams(location.search).get("room");
+      if (linked) joinRoom(linked);
+      break;
+    }
+    case "disconnected":
+      resetRoom();
+      $("conn").textContent = "Disconnected from the server. Refresh to reconnect.";
+      $<HTMLButtonElement>("create-room").disabled = true;
+      $<HTMLButtonElement>("join-room").disabled = true;
+      break;
+    case "room_created":
+      enterRoom(e.roomCode, "host");
+      break;
+    case "room_joined":
+      enterRoom(e.roomCode, "guest");
+      opponentHere = true;
+      break;
+    case "opponent_joined":
+      opponentHere = true;
+      if (role === "host") startHostGame();
+      break;
+    case "opponent_disconnected":
+      opponentHere = false;
+      game = null;
+      view = null;
+      role = "host"; // the one left behind keeps the room and hosts the next game
+      showToast("Your opponent disconnected.");
+      break;
+    case "room_left":
+      resetRoom();
+      break;
+    case "game_message":
+      handleGamePayload(e.payload);
+      break;
+    case "error":
+      showToast(e.message);
+      // A bad invite link shouldn't keep retrying.
+      if (!roomCode) resetRoom();
+      break;
+  }
+  render();
 });
 
-$("status").textContent = "Connecting…";
-connect(roomId);
+// ---- Controls ----
+$("create-room").addEventListener("click", createRoom);
+$("join-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const code = codeInput.value.trim().toUpperCase();
+  if (code) joinRoom(code);
+});
+$("leave-room").addEventListener("click", leaveRoom);
+$("copy-link").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    showToast("Invite link copied");
+  } catch {
+    showToast(location.href);
+  }
+});
+flipBtn.addEventListener("click", () => {
+  flipBtn.disabled = true; // re-enabled by the next state
+  if (role === "host") game?.flip(0);
+  else sendGame({ kind: "flip" });
+});
+
+render();
+connect();

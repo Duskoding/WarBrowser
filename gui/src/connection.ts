@@ -1,112 +1,76 @@
-// The only file that talks to the server. The rest of the GUI calls
-// connect(), flip() and onMessage().
-//
-// - Production build (served by the Node server): real WebSocket on the same host.
-// - `npm run dev` with VITE_WS_URL set (e.g. VITE_WS_URL=ws://localhost:3000):
-//   real WebSocket to that address.
-// - `npm run dev` without VITE_WS_URL: a fake server in the browser, so the UI
-//   can be worked on before the real one exists.
+// The only file that talks to the server.
+// Add ?fake to the page URL to play against a fake server + bot instead.
 
-import type { Card, ClientMessage, ServerMessage, StatePayload, Suit } from "./types";
+import { canFlip, type ClientMessage, type GamePayload, type ServerEvent } from "./types";
 
-type Listener = (msg: ServerMessage) => void;
+type Listener = (event: ServerEvent) => void;
 const listeners: Listener[] = [];
-const dispatch = (msg: ServerMessage) => listeners.forEach((cb) => cb(msg));
+const dispatch = (event: ServerEvent) => listeners.forEach((cb) => cb(event));
 
-export function onMessage(cb: Listener) {
+export function onEvent(cb: Listener) {
   listeners.push(cb);
 }
 
-const useFake = import.meta.env.DEV && !import.meta.env.VITE_WS_URL;
-
+const useFake = new URLSearchParams(location.search).has("fake");
 let socket: WebSocket | null = null;
-let send: (msg: ClientMessage) => void = () => {};
 
-export function connect(roomId: string) {
+export function connect() {
   if (useFake) {
-    send = fakeServer;
-    send({ type: "join", roomId });
-  } else {
-    const url =
-      import.meta.env.VITE_WS_URL ??
-      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
-    socket = new WebSocket(url);
-    socket.addEventListener("open", () => socket!.send(JSON.stringify({ type: "join", roomId })));
-    socket.addEventListener("message", (e) => {
-      try {
-        dispatch(JSON.parse(e.data) as ServerMessage);
-      } catch {
-        console.error("Bad message from server:", e.data);
-      }
-    });
-    socket.addEventListener("close", () =>
-      dispatch({ type: "error", message: "Disconnected from server." }),
-    );
-    send = (msg) => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
-    };
-  }
-}
-
-export function flip() {
-  send({ type: "flip" });
-}
-
-// ---------------------------------------------------------------------------
-// PLACEHOLDER fake server. Not real War rules — just enough to exercise every
-// phase of the UI. Delete once the real server is up.
-
-const SUITS: Suit[] = ["♠", "♥", "♦", "♣"];
-const randomCard = (): Card => ({
-  rank: 2 + Math.floor(Math.random() * 13),
-  suit: SUITS[Math.floor(Math.random() * 4)],
-});
-
-let fake: StatePayload = {
-  yourCard: null,
-  opponentCard: null,
-  pile: 0,
-  scoreA: 26,
-  scoreB: 26,
-  phase: "waiting",
-};
-
-function fakeEmit(patch: Partial<StatePayload>) {
-  fake = { ...fake, ...patch };
-  dispatch({ type: "state", ...fake });
-}
-
-function fakeServer(msg: ClientMessage) {
-  if (msg.type === "join") {
-    setTimeout(() => fakeEmit({}), 100);
+    setTimeout(() => dispatch({ type: "connected" }), 100);
     return;
   }
-  if (fake.phase === "gameOver" || fake.yourCard) return;
-
-  // You flip; opponent's card stays face-down until they "flip" a moment later.
-  const mine = randomCard();
-  fakeEmit({ yourCard: mine, opponentCard: null, phase: "flipped", pile: fake.pile + 1 });
-
-  setTimeout(() => {
-    const theirs = randomCard();
-    const pile = fake.pile + 1;
-    if (mine.rank === theirs.rank) {
-      fakeEmit({ opponentCard: theirs, phase: "war", pile: pile + 6 });
-      dispatch({ type: "commentary", text: "PLACEHOLDER: it's a WAR!" });
-    } else {
-      const youWin = mine.rank > theirs.rank;
-      const scoreA = fake.scoreA + (youWin ? pile / 2 : -pile / 2);
-      const scoreB = 52 - scoreA;
-      const over = scoreA <= 0 || scoreB <= 0;
-      fakeEmit({ opponentCard: theirs, phase: over ? "gameOver" : "roundOver", pile: 0, scoreA, scoreB });
-      dispatch({
-        type: "commentary",
-        text: `PLACEHOLDER: ${youWin ? "you take" : "they take"} the round.`,
-      });
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  socket = new WebSocket(`${protocol}//${location.host}/ws`);
+  socket.addEventListener("open", () => dispatch({ type: "connected" }));
+  socket.addEventListener("message", (e) => {
+    try {
+      dispatch(JSON.parse(e.data) as ServerEvent);
+    } catch {
+      dispatch({ type: "error", message: "Received an invalid server message." });
     }
-    // Next round: clear the table after a pause.
-    setTimeout(() => {
-      if (fake.phase !== "gameOver") fakeEmit({ yourCard: null, opponentCard: null, phase: "waiting" });
-    }, 1500);
-  }, 700);
+  });
+  socket.addEventListener("close", () => dispatch({ type: "disconnected" }));
+  socket.addEventListener("error", () =>
+    dispatch({ type: "error", message: "Could not connect to the game server." }),
+  );
+}
+
+function send(msg: ClientMessage) {
+  if (useFake) return fakeServer(msg);
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+  else dispatch({ type: "error", message: "Not connected to the game server." });
+}
+
+export const createRoom = () => send({ type: "create_room" });
+export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
+export const leaveRoom = () => send({ type: "leave_room" });
+export const sendGame = (payload: GamePayload) => send({ type: "game_message", payload });
+
+// ---------------------------------------------------------------------------
+// PLACEHOLDER fake server (?fake). You always create the room; a bot joins as
+// the guest and flips whenever it's allowed to.
+
+let botTimer: number | undefined;
+
+function fakeServer(msg: ClientMessage) {
+  const reply = (e: ServerEvent, ms = 50) => setTimeout(() => dispatch(e), ms);
+  switch (msg.type) {
+    case "create_room":
+    case "join_room":
+      reply({ type: "room_created", roomCode: "FAKE01" });
+      reply({ type: "opponent_joined" }, 1200);
+      break;
+    case "leave_room":
+      clearTimeout(botTimer);
+      reply({ type: "room_left" });
+      break;
+    case "game_message":
+      if (msg.payload.kind === "state" && canFlip(msg.payload.view) && botTimer === undefined) {
+        botTimer = window.setTimeout(() => {
+          botTimer = undefined;
+          dispatch({ type: "game_message", payload: { kind: "flip" } });
+        }, 900);
+      }
+      break;
+  }
 }
