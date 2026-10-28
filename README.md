@@ -1,21 +1,61 @@
 # WarBrowser
 
-WarBrowser is a live, two-player version of the card game War. Two players compete from separate browsers, with each card flip appearing on both screens at the same time.
+WarBrowser is a live, two-player version of the card game War. Players join a room through a shared link and play from separate browsers, with game updates appearing in real time.
 
-## Overview
+## How It Works
 
-The game rules run on a server using our Java card library. The server handles player actions, determines round results, and keeps both browsers synchronized.
+The server manages the deck, player cards, and game rules. Each player clicks to flip, and the server reveals the cards and resolves the round once both players have flipped.
 
-The project also includes a feature that calls an AI model through its API, such as a commentator that describes each round.
+An AI commentator provides short descriptions of completed rounds without interrupting gameplay.
 
 ## Features
 
-- Two-player gameplay in separate browsers
-- Live card reveals and synchronized game updates
-- Server-side game rules powered by the Java card library
-- An AI-powered feature using a model API
+- Shared game rooms for two players
+- Live updates through WebSockets
+- Server-controlled game state
+- Standard War gameplay, including ties
+- AI-generated round commentary
+- No accounts required
 
-## Deliverables
+## Planned Stack
 
-- A project specification using the provided template in `docs/SPEC.md`
-- A working game demonstrated live in class
+WarBrowser is the connection layer for playing War on two different computers.
+It includes a small Node.js WebSocket server and a browser client that lets one
+player create a room, another join with its six-character code, and both relay
+JSON game messages to each other.
+
+## Run locally
+
+1. Install Node.js 20 or later.
+2. Run `npm install`.
+3. Run `npm start`.
+4. Open `http://localhost:3000` in two browser windows. Create a room in one
+   window and join it from the other with the displayed code.
+
+The connection client is also available as `window.WarConnection` in
+`public/client.js`. It provides `connect()`, `createRoom()`, `joinRoom(code)`,
+`sendGameMessage(payload)`, `leaveRoom()`, and `disconnect()`. Game events are
+delivered to the `onEvent` callback as `{ type: "game_message", payload }`.
+War rules and card state are intentionally left to the game implementation.
+
+## Deploy
+
+Run the Node.js server on a host that permits WebSocket connections and expose
+it over HTTPS. The browser automatically uses secure WebSockets (`wss`) when
+the page is served over HTTPS. Set `PORT` if the hosting platform provides a
+specific listening port. For production, terminate TLS at the hosting
+platform or a reverse proxy and forward WebSocket upgrades to this server.
+
+
+## Game Rules
+
+- A standard 52-card deck is split evenly between two players.
+- The higher card wins the round. Aces are high.
+- Matching cards trigger a war, with additional cards played to determine the winner.
+- The winner collects the cards played.
+- The game ends when one player holds all 52 cards.
+
+## Specification
+
+See [docs/SPEC.md](docs/SPEC.md) for the full project specification.
+>>>>>>> 492bff1345287d1d05c9a8e5d21b6ec5222c6a22

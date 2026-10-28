@@ -1,11 +1,15 @@
 {
   "name": "warbrowser",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test src/**/*.test.ts",
+    "start": "node server.js",
+    "test": "node --test",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
