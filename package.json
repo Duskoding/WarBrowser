@@ -1,0 +1,22 @@
+{
+  "name": "warbrowser",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:gui && tsc -p server/tsconfig.json",
+    "build:gui": "npm --prefix gui run build",
+    "dev": "tsx server/src/index.ts",
+    "start": "node server/dist/index.js",
+    "test": "node --test --import tsx server/src/**/*.test.ts"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

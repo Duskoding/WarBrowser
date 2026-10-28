@@ -1,6 +1,3 @@
-// PLACEHOLDER: these shapes are a proposal. Replace with the types the
-// server team settles on (ideally imported from a shared file).
-
 export type Suit = "♠" | "♥" | "♦" | "♣";
 
 export type Card = {
@@ -18,5 +15,5 @@ export type GameState = {
   them: PlayerView;
   phase: "waiting" | "playing" | "war" | "over";
   winner?: "you" | "them";
-  commentary?: string; // PLACEHOLDER: text from the AI commentator
+  commentary?: string;
 };
