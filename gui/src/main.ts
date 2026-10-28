@@ -1,52 +1,37 @@
+<<<<<<< HEAD
 import { connect, createRoom, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
+=======
+import "./style.css";
+import { flip, onState } from "./connection";
+import type { Card, GameState } from "./types";
+>>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
 
 const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <header>
-    <h1>Live War</h1>
-    <p class="conn" id="conn">Connecting to the game server…</p>
-  </header>
-
-  <section class="lobby" id="lobby">
-    <button id="create-room" disabled>Create room</button>
-    <span class="or">or</span>
-    <form class="join" id="join-form">
-      <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" />
-      <button type="submit" id="join-room" disabled>Join</button>
-    </form>
-  </section>
-
-  <main class="table" id="table" hidden>
-    <div class="room">
-      Room <strong id="room-id"></strong>
-      <button id="copy-link" class="small">Copy invite link</button>
-      <button id="leave-room" class="small ghost">Leave</button>
-    </div>
+  <header><h1>Live War</h1></header>
+  <main class="table">
     <section class="player them">
       <h2>Opponent <span class="count" id="them-count"></span></h2>
       <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
     </section>
-    <div class="middle">
-      <p class="status" id="status"></p>
-      <p class="pile" id="pile"></p>
-    </div>
+    <p class="status" id="status"></p>
     <section class="player you">
       <div class="card" id="you-card"><div class="face"></div><div class="back"></div></div>
       <h2>You <span class="count" id="you-count"></span></h2>
     </section>
-    <button id="flip" disabled>Flip</button>
-    <aside class="commentary" id="commentary">Commentary will appear here.</aside>
+    <button id="flip">Flip</button>
+    <aside class="commentary" id="commentary"></aside>
   </main>
-  <div class="toast" id="toast" hidden></div>
 `;
 
-const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const flipBtn = $<HTMLButtonElement>("flip");
-const codeInput = $<HTMLInputElement>("room-code");
+const $ = (id: string) => document.getElementById(id)!;
+const flipBtn = $("flip") as HTMLButtonElement;
+flipBtn.addEventListener("click", flip);
 
+<<<<<<< HEAD
 // ---- Session state ----
 let roomCode: string | null = null;
 let opponentHere = false;
@@ -64,57 +49,42 @@ function showToast(text: string) {
 
 // ---- Rendering ----
 const shown = new WeakMap<HTMLElement, string>();
+=======
+>>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
 function renderCard(el: HTMLElement, card: Card | null) {
-  const key = card ? `${card.rank}${card.suit}` : "";
-  if (shown.get(el) === key) return; // don't replay the flip on unchanged cards
-  shown.set(el, key);
+  const face = el.querySelector<HTMLDivElement>(".face")!;
   if (!card) {
     el.classList.remove("flipped");
     return;
   }
-  const face = el.querySelector<HTMLDivElement>(".face")!;
   face.textContent = `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
   face.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
+  // Restart the flip animation on every new card.
   el.classList.remove("flipped");
-  void el.offsetWidth; // restart the animation
+  void el.offsetWidth;
   el.classList.add("flipped");
 }
 
-const STATUS: Record<Phase, string> = {
-  waiting: "Flip when ready",
-  flipped: "Opponent flipped — your turn!",
-  war: "WAR! Flip again",
-  roundOver: "Flip for the next round",
-  gameOver: "",
+const STATUS: Record<GameState["phase"], string> = {
+  waiting: "Waiting for opponent…",
+  playing: "",
+  war: "WAR!",
+  over: "Game over",
 };
 
-function render() {
-  const inRoom = roomCode !== null;
-  $("lobby").hidden = inRoom;
-  $("conn").hidden = inRoom;
-  $("table").hidden = !inRoom;
-  if (!inRoom) return;
-
-  $("room-id").textContent = roomCode;
-  const v = view;
-  $("you-count").textContent = v ? `(${v.yourCount})` : "";
-  $("them-count").textContent = v ? `(${v.opponentCount})` : "";
-  renderCard($("you-card"), v?.yourCard ?? null);
-  renderCard($("them-card"), v?.opponentCard ?? null);
-  $("pile").textContent = v && v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
-
-  let status = "";
-  if (!opponentHere) status = "Waiting for opponent — share the invite link";
-  else if (!v) status = "Dealing…";
-  else if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : "You lose.";
-  else if (v.yourCard && !v.opponentCard) status = "Waiting for opponent to flip…";
-  else status = STATUS[v.phase];
-  $("status").textContent = status;
-
-  document.body.classList.toggle("war", v?.phase === "war");
-  flipBtn.disabled = !opponentHere || !v || !canFlip(v);
+function render(state: GameState) {
+  $("you-count").textContent = `(${state.you.cardsLeft})`;
+  $("them-count").textContent = `(${state.them.cardsLeft})`;
+  renderCard($("you-card"), state.you.faceUp);
+  renderCard($("them-card"), state.them.faceUp);
+  $("status").textContent =
+    state.phase === "over" ? `Game over: ${state.winner === "you" ? "you win!" : "they win."}` : STATUS[state.phase];
+  document.body.classList.toggle("war", state.phase === "war");
+  flipBtn.disabled = state.phase === "waiting" || state.phase === "over";
+  $("commentary").textContent = state.commentary ?? "";
 }
 
+<<<<<<< HEAD
 function setCommentary(text?: string) {
   if (text) $("commentary").textContent = text;
 }
@@ -216,3 +186,6 @@ flipBtn.addEventListener("click", () => {
 
 render();
 connect();
+=======
+onState(render);
+>>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
