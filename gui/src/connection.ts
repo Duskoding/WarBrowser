@@ -1,67 +1,76 @@
-// PLACEHOLDER connection. The rest of the GUI only calls flip() and onState(),
-// so swapping in the real server means rewriting this file only.
-//
-// TODO: replace the fake game below with socket.io-client, e.g.
-//   const socket = io(SERVER_URL);
-//   export function flip() { socket.emit("flip"); }
-//   export function onState(cb) { socket.on("state", cb); }
+// The only file that talks to the server.
+// Add ?fake to the page URL to play against a fake server + bot instead.
 
-import type { Card, GameState, Suit } from "./types";
+import { canFlip, type ClientMessage, type GamePayload, type ServerEvent } from "./types";
 
-type Listener = (state: GameState) => void;
+type Listener = (event: ServerEvent) => void;
 const listeners: Listener[] = [];
+const dispatch = (event: ServerEvent) => listeners.forEach((cb) => cb(event));
 
-const SUITS: Suit[] = ["♠", "♥", "♦", "♣"];
-const randomCard = (): Card => ({
-  rank: 2 + Math.floor(Math.random() * 13),
-  suit: SUITS[Math.floor(Math.random() * 4)],
-});
-
-let state: GameState = {
-  you: { cardsLeft: 26, faceUp: null },
-  them: { cardsLeft: 26, faceUp: null },
-  phase: "waiting",
-  commentary: "Waiting for the other player…",
-};
-
-function emit() {
-  listeners.forEach((cb) => cb(state));
-}
-
-export function onState(cb: Listener) {
+export function onEvent(cb: Listener) {
   listeners.push(cb);
-  cb(state);
-  // Fake opponent joining shortly after load.
-  setTimeout(() => {
-    state = { ...state, phase: "playing", commentary: "Opponent joined. Flip!" };
-    emit();
-  }, 1000);
 }
 
-export function flip() {
-  if (state.phase === "over" || state.phase === "waiting") return;
-  // Fake rules: not real War logic, just enough to drive the screen.
-  const mine = randomCard();
-  const theirs = randomCard();
-  const you = { ...state.you, faceUp: mine };
-  const them = { ...state.them, faceUp: theirs };
-  let phase: GameState["phase"] = "playing";
-  let commentary = "PLACEHOLDER commentary";
-  if (mine.rank > theirs.rank) {
-    you.cardsLeft++; them.cardsLeft--;
-    commentary = "PLACEHOLDER: you take the round.";
-  } else if (mine.rank < theirs.rank) {
-    you.cardsLeft--; them.cardsLeft++;
-    commentary = "PLACEHOLDER: they take the round.";
-  } else {
-    phase = "war";
-    commentary = "PLACEHOLDER: WAR!";
+const useFake = new URLSearchParams(location.search).has("fake");
+let socket: WebSocket | null = null;
+
+export function connect() {
+  if (useFake) {
+    setTimeout(() => dispatch({ type: "connected" }), 100);
+    return;
   }
-  let winner: GameState["winner"];
-  if (you.cardsLeft <= 0 || them.cardsLeft <= 0) {
-    phase = "over";
-    winner = you.cardsLeft > 0 ? "you" : "them";
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  socket = new WebSocket(`${protocol}//${location.host}/ws`);
+  socket.addEventListener("open", () => dispatch({ type: "connected" }));
+  socket.addEventListener("message", (e) => {
+    try {
+      dispatch(JSON.parse(e.data) as ServerEvent);
+    } catch {
+      dispatch({ type: "error", message: "Received an invalid server message." });
+    }
+  });
+  socket.addEventListener("close", () => dispatch({ type: "disconnected" }));
+  socket.addEventListener("error", () =>
+    dispatch({ type: "error", message: "Could not connect to the game server." }),
+  );
+}
+
+function send(msg: ClientMessage) {
+  if (useFake) return fakeServer(msg);
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+  else dispatch({ type: "error", message: "Not connected to the game server." });
+}
+
+export const createRoom = () => send({ type: "create_room" });
+export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
+export const leaveRoom = () => send({ type: "leave_room" });
+export const sendGame = (payload: GamePayload) => send({ type: "game_message", payload });
+
+// ---------------------------------------------------------------------------
+// PLACEHOLDER fake server (?fake). You always create the room; a bot joins as
+// the guest and flips whenever it's allowed to.
+
+let botTimer: number | undefined;
+
+function fakeServer(msg: ClientMessage) {
+  const reply = (e: ServerEvent, ms = 50) => setTimeout(() => dispatch(e), ms);
+  switch (msg.type) {
+    case "create_room":
+    case "join_room":
+      reply({ type: "room_created", roomCode: "FAKE01" });
+      reply({ type: "opponent_joined" }, 1200);
+      break;
+    case "leave_room":
+      clearTimeout(botTimer);
+      reply({ type: "room_left" });
+      break;
+    case "game_message":
+      if (msg.payload.kind === "state" && canFlip(msg.payload.view) && botTimer === undefined) {
+        botTimer = window.setTimeout(() => {
+          botTimer = undefined;
+          dispatch({ type: "game_message", payload: { kind: "flip" } });
+        }, 900);
+      }
+      break;
   }
-  state = { you, them, phase, winner, commentary };
-  emit();
 }
