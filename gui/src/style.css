@@ -24,6 +24,8 @@ body.war { background: var(--felt-war); }
 
 header { text-align: center; padding: 1rem; }
 header h1 { margin: 0; }
+.room { margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; }
+.room strong { letter-spacing: 0.1em; }
 
 .table {
   display: flex;
@@ -36,7 +38,9 @@ header h1 { margin: 0; }
 .player { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
 .player h2 { margin: 0; font-size: 1.1rem; }
 
+.middle { text-align: center; }
 .status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; }
+.pile { min-height: 1.2em; margin: 0.25rem 0 0; opacity: 0.85; }
 
 /* Card flip: .back shows by default, .flipped rotates to .face. */
 .card {
@@ -81,6 +85,20 @@ button {
   cursor: pointer;
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.small { font-size: 0.85rem; padding: 0.3rem 0.9rem; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  max-width: calc(100% - 2rem);
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: #222;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
 
 .commentary {
   max-width: 32rem;

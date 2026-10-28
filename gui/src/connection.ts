@@ -1,15 +1,60 @@
-// PLACEHOLDER connection. The rest of the GUI only calls flip() and onState(),
-// so swapping in the real server means rewriting this file only.
+// The only file that talks to the server. The rest of the GUI calls
+// connect(), flip() and onMessage().
 //
-// TODO: replace the fake game below with socket.io-client, e.g.
-//   const socket = io(SERVER_URL);
-//   export function flip() { socket.emit("flip"); }
-//   export function onState(cb) { socket.on("state", cb); }
+// - Production build (served by the Node server): real WebSocket on the same host.
+// - `npm run dev` with VITE_WS_URL set (e.g. VITE_WS_URL=ws://localhost:3000):
+//   real WebSocket to that address.
+// - `npm run dev` without VITE_WS_URL: a fake server in the browser, so the UI
+//   can be worked on before the real one exists.
 
-import type { Card, GameState, Suit } from "./types";
+import type { Card, ClientMessage, ServerMessage, StatePayload, Suit } from "./types";
 
-type Listener = (state: GameState) => void;
+type Listener = (msg: ServerMessage) => void;
 const listeners: Listener[] = [];
+const dispatch = (msg: ServerMessage) => listeners.forEach((cb) => cb(msg));
+
+export function onMessage(cb: Listener) {
+  listeners.push(cb);
+}
+
+const useFake = import.meta.env.DEV && !import.meta.env.VITE_WS_URL;
+
+let socket: WebSocket | null = null;
+let send: (msg: ClientMessage) => void = () => {};
+
+export function connect(roomId: string) {
+  if (useFake) {
+    send = fakeServer;
+    send({ type: "join", roomId });
+  } else {
+    const url =
+      import.meta.env.VITE_WS_URL ??
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
+    socket = new WebSocket(url);
+    socket.addEventListener("open", () => socket!.send(JSON.stringify({ type: "join", roomId })));
+    socket.addEventListener("message", (e) => {
+      try {
+        dispatch(JSON.parse(e.data) as ServerMessage);
+      } catch {
+        console.error("Bad message from server:", e.data);
+      }
+    });
+    socket.addEventListener("close", () =>
+      dispatch({ type: "error", message: "Disconnected from server." }),
+    );
+    send = (msg) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+    };
+  }
+}
+
+export function flip() {
+  send({ type: "flip" });
+}
+
+// ---------------------------------------------------------------------------
+// PLACEHOLDER fake server. Not real War rules — just enough to exercise every
+// phase of the UI. Delete once the real server is up.
 
 const SUITS: Suit[] = ["♠", "♥", "♦", "♣"];
 const randomCard = (): Card => ({
@@ -17,51 +62,51 @@ const randomCard = (): Card => ({
   suit: SUITS[Math.floor(Math.random() * 4)],
 });
 
-let state: GameState = {
-  you: { cardsLeft: 26, faceUp: null },
-  them: { cardsLeft: 26, faceUp: null },
+let fake: StatePayload = {
+  yourCard: null,
+  opponentCard: null,
+  pile: 0,
+  scoreA: 26,
+  scoreB: 26,
   phase: "waiting",
-  commentary: "Waiting for the other player…",
 };
 
-function emit() {
-  listeners.forEach((cb) => cb(state));
+function fakeEmit(patch: Partial<StatePayload>) {
+  fake = { ...fake, ...patch };
+  dispatch({ type: "state", ...fake });
 }
 
-export function onState(cb: Listener) {
-  listeners.push(cb);
-  cb(state);
-  // Fake opponent joining shortly after load.
-  setTimeout(() => {
-    state = { ...state, phase: "playing", commentary: "Opponent joined. Flip!" };
-    emit();
-  }, 1000);
-}
+function fakeServer(msg: ClientMessage) {
+  if (msg.type === "join") {
+    setTimeout(() => fakeEmit({}), 100);
+    return;
+  }
+  if (fake.phase === "gameOver" || fake.yourCard) return;
 
-export function flip() {
-  if (state.phase === "over" || state.phase === "waiting") return;
-  // Fake rules: not real War logic, just enough to drive the screen.
+  // You flip; opponent's card stays face-down until they "flip" a moment later.
   const mine = randomCard();
-  const theirs = randomCard();
-  const you = { ...state.you, faceUp: mine };
-  const them = { ...state.them, faceUp: theirs };
-  let phase: GameState["phase"] = "playing";
-  let commentary = "PLACEHOLDER commentary";
-  if (mine.rank > theirs.rank) {
-    you.cardsLeft++; them.cardsLeft--;
-    commentary = "PLACEHOLDER: you take the round.";
-  } else if (mine.rank < theirs.rank) {
-    you.cardsLeft--; them.cardsLeft++;
-    commentary = "PLACEHOLDER: they take the round.";
-  } else {
-    phase = "war";
-    commentary = "PLACEHOLDER: WAR!";
-  }
-  let winner: GameState["winner"];
-  if (you.cardsLeft <= 0 || them.cardsLeft <= 0) {
-    phase = "over";
-    winner = you.cardsLeft > 0 ? "you" : "them";
-  }
-  state = { you, them, phase, winner, commentary };
-  emit();
+  fakeEmit({ yourCard: mine, opponentCard: null, phase: "flipped", pile: fake.pile + 1 });
+
+  setTimeout(() => {
+    const theirs = randomCard();
+    const pile = fake.pile + 1;
+    if (mine.rank === theirs.rank) {
+      fakeEmit({ opponentCard: theirs, phase: "war", pile: pile + 6 });
+      dispatch({ type: "commentary", text: "PLACEHOLDER: it's a WAR!" });
+    } else {
+      const youWin = mine.rank > theirs.rank;
+      const scoreA = fake.scoreA + (youWin ? pile / 2 : -pile / 2);
+      const scoreB = 52 - scoreA;
+      const over = scoreA <= 0 || scoreB <= 0;
+      fakeEmit({ opponentCard: theirs, phase: over ? "gameOver" : "roundOver", pile: 0, scoreA, scoreB });
+      dispatch({
+        type: "commentary",
+        text: `PLACEHOLDER: ${youWin ? "you take" : "they take"} the round.`,
+      });
+    }
+    // Next round: clear the table after a pause.
+    setTimeout(() => {
+      if (fake.phase !== "gameOver") fakeEmit({ yourCard: null, opponentCard: null, phase: "waiting" });
+    }, 1500);
+  }, 700);
 }
