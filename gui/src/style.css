@@ -1,0 +1,93 @@
+/* PLACEHOLDER styling: colors, fonts and sizes are meant to be replaced. */
+:root {
+  --felt: #1f6b3a;
+  --felt-war: #7a1f1f;
+  --card-bg: #fff;
+  --card-back: #24407a;
+  --text: #f4f4f4;
+  --red: #c62828;
+  --card-w: 120px;
+  --card-h: 170px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+  background: var(--felt);
+  color: var(--text);
+  transition: background 0.3s;
+}
+body.war { background: var(--felt-war); }
+
+header { text-align: center; padding: 1rem; }
+header h1 { margin: 0; }
+
+.table {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.player { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.player h2 { margin: 0; font-size: 1.1rem; }
+
+.status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; }
+
+/* Card flip: .back shows by default, .flipped rotates to .face. */
+.card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+.card .face,
+.card .back {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  backface-visibility: hidden;
+  transition: transform 0.5s;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+.card .back {
+  background: repeating-linear-gradient(45deg, var(--card-back) 0 8px, #2f5299 8px 16px);
+  border: 4px solid #fff;
+}
+.card .face {
+  background: var(--card-bg);
+  color: #111;
+  display: grid;
+  place-items: center;
+  font-size: 2.5rem;
+  transform: rotateY(180deg);
+}
+.card .face.red { color: var(--red); }
+.card.flipped .face { transform: rotateY(0deg); }
+.card.flipped .back { transform: rotateY(-180deg); }
+
+button {
+  font-size: 1.2rem;
+  padding: 0.6rem 2.5rem;
+  border: none;
+  border-radius: 999px;
+  background: #f5c542;
+  color: #222;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.commentary {
+  max-width: 32rem;
+  min-height: 3em;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.25);
+  font-style: italic;
+  text-align: center;
+}
