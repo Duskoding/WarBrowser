@@ -1,4 +1,3 @@
-import "./style.css";
 import { connect, createRoom, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { HostGame } from "./game";
 import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
