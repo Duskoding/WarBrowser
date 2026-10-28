@@ -31,5 +31,7 @@ bin/
 
 ### Node ###
 node_modules/
+dist/
 gui/dist/
 server/dist/
+.env

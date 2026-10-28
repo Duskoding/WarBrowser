@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WarBrowser</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main>
+      <h1>WarBrowser</h1>
+      <p>Play War with a friend online. Create a room and share its code.</p>
+
+      <section aria-labelledby="connection-heading">
+        <h2 id="connection-heading">Connect to a game</h2>
+        <p id="status" role="status">Connecting to the game server…</p>
+        <div class="room-controls">
+          <button id="create-room" type="button" disabled>Create room</button>
+          <label for="room-code">Room code</label>
+          <input id="room-code" maxlength="6" autocomplete="off" spellcheck="false">
+          <button id="join-room" type="button" disabled>Join room</button>
+          <button id="leave-room" type="button" disabled>Leave room</button>
+        </div>
+        <p id="share-code" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="messages-heading">
+        <h2 id="messages-heading">Game connection</h2>
+        <p>Send JSON game events to your opponent. This connection layer does not implement game rules.</p>
+        <form id="game-message-form">
+          <label for="game-message">Game message</label>
+          <textarea id="game-message" rows="3" disabled>{"type":"play","card":"AS"}</textarea>
+          <button type="submit" disabled>Send to opponent</button>
+        </form>
+        <ol id="messages" aria-live="polite"></ol>
+      </section>
+    </main>
+    <script src="/client.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
