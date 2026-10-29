@@ -3,9 +3,11 @@ services:
     name: warbrowser
     runtime: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "24"
+      - key: ANTHROPIC_API_KEY
+        sync: false
