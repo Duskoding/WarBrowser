@@ -80,14 +80,29 @@ Messages are JSON over a WebSocket at `/ws`.
 
 The state view is specific to each player: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.
 
-## Deploy
+## Deploy to Render
 
-Run the Node.js server on a host that supports WebSockets, such as Render.
+The repository includes a `render.yaml` Blueprint for the Node.js Web Service.
 
-- **Build command:** `npm install && npm run build`
+1. Push the repository to GitHub.
+2. In Render, choose **New > Blueprint**, connect the repository, and select the branch to deploy. Render will detect `render.yaml` and configure the service.
+3. When prompted, enter your `ANTHROPIC_API_KEY` to enable commentary. Commentary is skipped if no key is set.
+4. Deploy the service and copy its `https://` URL when it is ready.
+
+The Blueprint sets:
+
+- **Build command:** `npm ci --include=dev && npm run build`
 - **Start command:** `npm start`
-- **Node version:** 24 or later (set by `engines` in `package.json`)
-- **Port:** the server reads `PORT` from the environment.
-- **Commentary:** add `ANTHROPIC_API_KEY` as a secret environment variable (optional).
+- **Node version:** 24 (matches `engines` in `package.json`)
+- **Port:** Render supplies `PORT`, which the server reads.
 
-The browser automatically uses `wss` when the page is served over HTTPS.
+The server serves the browser client and the `/ws` WebSocket endpoint. When the page is opened over HTTPS, the client uses secure WebSockets (`wss`) automatically.
+
+On the free plan the service sleeps when idle, and games are kept in memory, so a restart ends any game in progress.
+
+## Test with two computers
+
+1. Open the Render URL in a browser on both computers. Do not use `localhost`, since that points to each computer itself.
+2. On the first computer, create a room and copy the displayed six-character room code or the invite link.
+3. On the second computer, enter the code (or open the link) and join the room.
+4. Both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears.
