@@ -6,6 +6,7 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { WarEngine } from "./src/engine/WarEngine.ts";
+import { ClaudeCommentator } from "./src/commentator.ts";
 
 const guiDirectory = new URL("./gui/dist/", import.meta.url);
 const publicDirectory = new URL("./public/", import.meta.url);
@@ -73,7 +74,7 @@ function sendStates(game) {
   }
 }
 
-export function createWarServer() {
+export function createWarServer({ commentator = new ClaudeCommentator() } = {}) {
   const rooms = new Map();
   const games = new Map();
   const httpServer = createServer(async (request, response) => {
@@ -231,6 +232,19 @@ export function createWarServer() {
             return;
           }
           sendStates(game);
+          if (result.resolved) {
+            const { summary } = result;
+            const roomCode = socket.roomCode;
+            void commentator.describe(summary).then((text) => {
+              if (!text || games.get(roomCode) !== game) return;
+              for (const player of game.seats.keys()) {
+                send(player, {
+                  type: "game_message",
+                  payload: { kind: "commentary", text, round: summary.round }
+                });
+              }
+            });
+          }
           return;
         }
         if (kind === "state" || kind === "commentary") {

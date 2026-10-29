@@ -6,8 +6,11 @@ import { createWarServer } from "../server.js";
 
 const servers = [];
 
-async function startServer() {
-  const instance = createWarServer();
+// Never calls the real API, whatever ANTHROPIC_API_KEY is set to.
+const silentCommentator = { describe: async () => null };
+
+async function startServer(commentator = silentCommentator) {
+  const instance = createWarServer({ commentator });
   instance.httpServer.listen(0, "127.0.0.1");
   await once(instance.httpServer, "listening");
   servers.push(instance);
@@ -38,8 +41,8 @@ async function connect(url) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom() {
-  const url = await startServer();
+async function startRoom(commentator) {
+  const url = await startServer(commentator);
   const host = await connect(url);
   const guest = await connect(url);
   post(host, { type: "create_room" });
@@ -122,6 +125,47 @@ test("flips are resolved by the server and each player gets their own view", asy
   assert.match(hostSecond.yourCard.suit, /^[♠♥♦♣]$/);
   assert.ok(["roundOver", "war"].includes(hostSecond.phase));
 
+  host.close();
+  guest.close();
+});
+
+test("sends commentary to both players after a round resolves, not before", async () => {
+  const summaries = [];
+  const { host, guest } = await startRoom({
+    describe: async (summary) => {
+      summaries.push(summary);
+      return "What a flip!";
+    }
+  });
+
+  post(host, { type: "game_message", payload: { kind: "flip" } });
+  await host.next();
+  await guest.next();
+  assert.equal(summaries.length, 0);
+
+  post(guest, { type: "game_message", payload: { kind: "flip" } });
+  assert.equal((await host.next()).payload.kind, "state");
+  assert.equal((await guest.next()).payload.kind, "state");
+
+  const expected = {
+    type: "game_message",
+    payload: { kind: "commentary", text: "What a flip!", round: 1 }
+  };
+  assert.deepEqual(await host.next(), expected);
+  assert.deepEqual(await guest.next(), expected);
+  assert.equal(summaries.length, 1);
+
+  host.close();
+  guest.close();
+});
+
+test("a failing commentator never blocks play", async () => {
+  const { host, guest } = await startRoom({ describe: async () => null });
+  post(host, { type: "game_message", payload: { kind: "flip" } });
+  await host.next();
+  await guest.next();
+  post(guest, { type: "game_message", payload: { kind: "flip" } });
+  assert.equal((await host.next()).payload.view.phase === "waiting", false);
   host.close();
   guest.close();
 });

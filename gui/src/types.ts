@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // ---- Server protocol (matches server.js on s8119-internet-multiplayer) ----
 
 export type ClientMessage =
@@ -22,8 +21,6 @@ export type ServerEvent =
 // The server runs WarEngine: players send { kind: "flip" }, and the server
 // sends each player their own { kind: "state" } view (and later commentary).
 
-=======
->>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
 export type Suit = "♠" | "♥" | "♦" | "♣";
 
 export type Card = {
@@ -31,26 +28,24 @@ export type Card = {
   suit: Suit;
 };
 
-export type PlayerView = {
-  cardsLeft: number;
-  faceUp: Card | null;
+export type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
+
+// One player's view of the table.
+export type GameView = {
+  yourCard: Card | null;
+  opponentCard: Card | null; // null = face-down until both have flipped
+  pile: number; // cards in the middle
+  yourCount: number;
+  opponentCount: number;
+  phase: Phase;
+  winner?: "you" | "opponent";
 };
 
-<<<<<<< HEAD
 export type GamePayload =
   | { kind: "flip" } // player → server
   | { kind: "state"; view: GameView } // server → player
-  | { kind: "commentary"; text: string }; // server → player
+  | { kind: "commentary"; text: string; round: number }; // server → player
 
 // Same rule for the Flip button and the fake opponent.
 export const canFlip = (v: GameView) =>
   v.phase !== "gameOver" && !(v.yourCard !== null && v.opponentCard === null);
-=======
-export type GameState = {
-  you: PlayerView;
-  them: PlayerView;
-  phase: "waiting" | "playing" | "war" | "over";
-  winner?: "you" | "them";
-  commentary?: string;
-};
->>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072

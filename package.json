@@ -1,13 +1,12 @@
 {
   "name": "warbrowser",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-<<<<<<< HEAD
     "start": "node server.js",
     "dev": "vite gui",
     "build": "tsc -p gui/tsconfig.json && vite build gui",
@@ -15,27 +14,13 @@
     "test": "node --test",
     "typecheck": "tsc -p tsconfig.json && tsc -p gui/tsconfig.json",
     "build:preview": "vite build --config gui/preview/vite.config.ts && node gui/preview/make.mjs"
-=======
-    "build": "npm run build:gui && tsc -p server/tsconfig.json",
-    "build:gui": "npm --prefix gui run build",
-    "dev": "tsx server/src/index.ts",
-    "start": "node server/dist/index.js",
-    "test": "node --test --import tsx src/engine/WarEngine.test.ts test/server.test.js"
->>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
-<<<<<<< HEAD
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vite": "^5.4.11"
-=======
-    "@types/node": "^22.10.2",
-    "@types/ws": "^8.5.13",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
->>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
   }
 }

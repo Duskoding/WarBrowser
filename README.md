@@ -6,87 +6,7 @@ WarBrowser is a live, two-player version of the card game War. Players join a ro
 
 The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator will add short descriptions of completed rounds without blocking gameplay.
-
-## Run the game in your browser (Windows)
-
-### First-time setup
-
-1. Install **Node.js LTS** from [nodejs.org](https://nodejs.org/). After installing, close and reopen Command Prompt.
-2. Open **Command Prompt**. Do not close this window while the game is running.
-3. Change to the project folder:
-
-   ```cmd
-   cd /d C:\Users\efrat\IdeaProjects\WarBrowser
-   ```
-
-4. Install the server dependencies:
-
-   ```cmd
-   npm install
-   ```
-
-5. Install the browser-client dependencies:
-
-   ```cmd
-   npm --prefix gui install
-   ```
-
-### Build and start the server
-
-Run this every time after changing the code:
-
-```cmd
-npm run build
-npm start
-```
-
-Wait for this message before opening the browser:
-
-```text
-WarBrowser listening on http://localhost:3000
-```
-
-Keep this Command Prompt window open. The running server provides the web page and the live WebSocket connection.
-
-### Open two players
-
-1. Open a browser and visit:
-
-   ```text
-   http://localhost:3000/?room=demo
-   ```
-
-2. Open a second browser window or an incognito/private window and visit the **same URL**.
-3. Click **Flip** in both browsers. The server waits until both players flip, then updates both screens.
-4. To create another game room, use a different room name in both browsers, such as:
-
-   ```text
-   http://localhost:3000/?room=classroom
-   ```
-
-The game currently supports two players per room. A third browser using the same room receives a room-full error.
-
-### Enable Claude commentary
-
-The game works without an API key, but commentary is skipped. To enable the Claude commentator, set your key in the same Command Prompt window **before** starting the server:
-
-```cmd
-set ANTHROPIC_API_KEY=your-real-anthropic-api-key
-npm start
-```
-
-Do not commit or share your API key. The `set` command only applies to the current Command Prompt window. If you open a new window, set it again.
-
-### Stop the server
-
-Return to the Command Prompt window running the server and press:
-
-```text
-Ctrl+C
-```
-
-If the Command Prompt window is closed or the server is stopped, `localhost:3000` shows a connection-refused error until you run `npm start` again.
+An AI commentator adds a short description after each completed round without blocking gameplay.
 
 ## Features
 
@@ -94,7 +14,7 @@ If the Command Prompt window is closed or the server is stopped, `localhost:3000
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated round commentary (in progress)
+- AI-generated round commentary (optional, needs an Anthropic API key)
 
 ## Game rules
 
@@ -109,6 +29,7 @@ If the Command Prompt window is closed or the server is stopped, `localhost:3000
 | Path | What it is |
 | --- | --- |
 | `src/engine/` | `WarEngine`: the rules and state, with no networking, plus its tests |
+| `src/commentator.ts` | `ClaudeCommentator`: one-sentence round commentary from the Claude API |
 | `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `test/` | Server tests |
@@ -125,6 +46,18 @@ npm start
 ```
 
 Open `http://localhost:3000` in two browser windows. Create a room in one, then join it from the other with the room code or the invite link.
+
+### Commentary (optional)
+
+The game works without an API key; commentary is simply skipped. To turn it on, set the key in the same terminal before `npm start`:
+
+```bash
+export ANTHROPIC_API_KEY=your-key   # PowerShell: $env:ANTHROPIC_API_KEY = "your-key"
+```
+
+`ANTHROPIC_MODEL` overrides the default model (`claude-haiku-5-5`). Never commit your key; `.env` is gitignored, and tests never call the API.
+
+### Client development
 
 For client development, run `npm start` in one terminal and `npm run dev` in another. The dev server proxies the WebSocket to the game server.
 
@@ -155,19 +88,6 @@ Run the Node.js server on a host that supports WebSockets, such as Render.
 - **Start command:** `npm start`
 - **Node version:** 24 or later (set by `engines` in `package.json`)
 - **Port:** the server reads `PORT` from the environment.
+- **Commentary:** add `ANTHROPIC_API_KEY` as a secret environment variable (optional).
 
-<<<<<<< HEAD
 The browser automatically uses `wss` when the page is served over HTTPS.
-=======
-## Game Rules
-
-- A standard 52-card deck is split evenly between two players.
-- The higher card wins the round. Aces are high.
-- Matching cards trigger a war, with additional cards played to determine the winner.
-- The winner collects the cards played.
-- The game ends when one player holds all 52 cards.
-
-## Specification
-
-See [docs/SPEC.md](docs/SPEC.md) for the full project specification.
->>>>>>> 6f99b8f94a76ecd356dc8a120372270be9562072
