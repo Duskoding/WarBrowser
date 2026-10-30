@@ -1,5 +1,7 @@
 # WarBrowser — Live War, Two Browsers
 
+*Spec v1: the original spec, kept as documentation. Spec v2 contains the up-to-date specification information.*
+
 Scope for this sprint (60 min): two anonymous players join a room via a shared link and play a live, server-authoritative game of War with an AI commentator. No accounts, no abstraction layers for hypothetical future games — just War, built directly.
 
 ## Stack
