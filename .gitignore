@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 .idea/
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

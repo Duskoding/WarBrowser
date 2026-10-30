@@ -14,6 +14,7 @@
   },
   "include": [
     "src",
-    "preview/sim-connection.ts"
+    "preview/sim-connection.ts",
+    "preview/sim-session.ts"
   ]
 }

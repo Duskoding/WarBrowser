@@ -9,9 +9,9 @@ export type ClientMessage =
 export type ServerEvent =
   | { type: "connected" } // local: socket opened
   | { type: "disconnected" } // local: socket closed
-  | { type: "room_created"; roomCode: string }
-  | { type: "room_joined"; roomCode: string }
-  | { type: "opponent_joined" }
+  | { type: "room_created"; roomCode: string; username?: string }
+  | { type: "room_joined"; roomCode: string; username?: string; opponentUsername?: string }
+  | { type: "opponent_joined"; username?: string }
   | { type: "opponent_disconnected" }
   | { type: "room_left" }
   | { type: "game_message"; payload: unknown } // relayed from the opponent, unchecked
@@ -39,6 +39,8 @@ export type GameView = {
   opponentCount: number;
   phase: Phase;
   winner?: "you" | "opponent";
+  yourName?: string;
+  opponentName?: string;
 };
 
 export type GamePayload =

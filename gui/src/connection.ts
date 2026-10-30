@@ -11,22 +11,37 @@ export function onEvent(cb: Listener) {
 }
 
 let socket: WebSocket | null = null;
+let generation = 0;
 
 export function connect() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  socket = new WebSocket(`${protocol}//${location.host}/ws`);
-  socket.addEventListener("open", () => dispatch({ type: "connected" }));
-  socket.addEventListener("message", (e) => {
+  const id = ++generation;
+  if (socket) socket.close();
+  const next = new WebSocket(`${protocol}//${location.host}/ws`);
+  socket = next;
+  next.addEventListener("open", () => {
+    if (id === generation) dispatch({ type: "connected" });
+  });
+  next.addEventListener("message", (e) => {
+    if (id !== generation) return;
     try {
       dispatch(JSON.parse(e.data) as ServerEvent);
     } catch {
       dispatch({ type: "error", message: "Received an invalid server message." });
     }
   });
-  socket.addEventListener("close", () => dispatch({ type: "disconnected" }));
-  socket.addEventListener("error", () =>
-    dispatch({ type: "error", message: "Could not connect to the game server." }),
-  );
+  next.addEventListener("close", () => {
+    if (id === generation) dispatch({ type: "disconnected" });
+  });
+  next.addEventListener("error", () => {
+    if (id === generation) dispatch({ type: "error", message: "Could not connect to the game server." });
+  });
+}
+
+export function disconnect() {
+  generation += 1;
+  socket?.close();
+  socket = null;
 }
 
 function send(msg: ClientMessage) {
