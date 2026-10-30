@@ -1,5 +1,7 @@
 # WarBrowser — Live War, Two Browsers
 
+*Spec v1: the original spec, kept as documentation. Spec v2 contains the up-to-date specification information.*
+
 Scope for this sprint (60 min): two anonymous players join a room via a shared link and play a live, server-authoritative game of War with an AI commentator. No accounts, no abstraction layers for hypothetical future games — just War, built directly.
 
 ## Stack
@@ -75,12 +77,3 @@ Both players always get an identical state broadcast (no hidden info beyond "opp
 - **10–40 min (parallel):** 1&2 build `WarEngine` against the interface with unit tests; 3 builds room manager + socket wiring against a stubbed engine; 4 builds client UI against the message protocol (can fake server responses locally); 5 builds the Claude API call against a mocked round summary; 6 sets up the Render service and env vars.
 - **40–55 min:** integrate everything — wire `WarEngine` into the server, client into real sockets, commentator into the real broadcast. Play a full game in two browser tabs.
 - **55–60 min:** deploy to Render, smoke test from two separate machines/networks if possible, run the demo script.
-
-## AI commentator: implementation notes
-
-After `WarEngine` resolves a round, the server asks Claude for one short sentence about it. The call is made by `ClaudeCommentator` in `src/commentator.ts`, which sends a compact round summary (cards, winner, whether it was a war, scores) to `POST https://api.anthropic.com/v1/messages`.
-
-- The model is set by `ANTHROPIC_MODEL` and defaults to `claude-haiku-5-5`. `ANTHROPIC_API_KEY` is required for commentary; without it the game plays normally and commentary is skipped.
-- Requests are capped at 80 output tokens and 8 seconds. Missing keys and API failures are logged and never interrupt gameplay.
-- The server sends the authoritative `state` immediately, then sends `{ kind: "commentary", text, round }` to both players when Claude replies. The client ignores a reply older than the commentary it already shows.
-- The commentator is injected into `createWarServer({ commentator })`, so tests never call the real API.

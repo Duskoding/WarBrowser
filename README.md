@@ -33,7 +33,8 @@ An AI commentator adds a short description after each completed round without bl
 | `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `test/` | Server tests |
-| `SPEC.md` | The original project specification |
+| `SPEC_v2.md` | The current specification, kept in line with the code |
+| `SPEC_v1.md` | The original sprint specification |
 
 ## Run locally
 
