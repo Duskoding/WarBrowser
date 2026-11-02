@@ -5,14 +5,27 @@ type Suit = "♠" | "♥" | "♦" | "♣";
 type Card = { rank: number; suit: Suit }; // rank 2–14 (11 = J, 12 = Q, 13 = K, 14 = A)
 type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
 
+// A pair of cards that tied and started (or extended) a war.
+type TiedPair = { yours: Card; opponent: Card };
+
+// How the last resolved round ended; cleared when the next round starts.
+type LastRound = {
+  wasWar: boolean;
+  winner: "you" | "opponent" | null; // null = draw
+  cardsWon: number;
+};
+
 // One player's view of the table, from src/games/war.ts on the server.
 type WarView = {
   yourCard: Card | null;
-  opponentCard: Card | null; // null = face-down until both have flipped
+  opponentCard: Card | null; // visible as soon as the opponent flips; null until then
   pile: number; // cards in the middle
   yourCount: number;
   opponentCount: number;
   phase: Phase;
+  inWar: boolean; // true for the whole war, until it resolves
+  warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
+  lastRound: LastRound | null;
   winner?: "you" | "opponent";
   yourName?: string;
   opponentName?: string;
@@ -28,6 +41,25 @@ const STATUS: Record<Phase, string> = {
   gameOver: ""
 };
 
+const cardLabel = (card: Card) => `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
+
+function tiedCard(card: Card): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = "tied-card";
+  el.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
+  el.textContent = cardLabel(card);
+  return el;
+}
+
+function warResult(v: WarView): string {
+  const round = v.lastRound;
+  if (!round || round.winner === null) return "The war ended in a draw.";
+  const cards = `${round.cardsWon} cards`;
+  return round.winner === "you"
+    ? `You won the war and took ${cards}!`
+    : `${v.opponentName || "Your opponent"} won the war and took ${cards}.`;
+}
+
 const canFlip = (v: WarView) => v.phase !== "gameOver" && !(v.yourCard !== null && v.opponentCard === null);
 
 export const war: ClientGame = {
@@ -42,6 +74,7 @@ export const war: ClientGame = {
         </section>
         <div class="middle">
           <p class="status" data-id="status"></p>
+          <div class="war-cards" data-id="war-cards" hidden></div>
           <p class="pile" data-id="pile"></p>
         </div>
         <section class="player you">
@@ -91,10 +124,24 @@ export const war: ClientGame = {
 
         let status = STATUS[v.phase];
         if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : v.winner ? "You lose." : "It's a draw.";
-        else if (v.yourCard && !v.opponentCard) status = "Waiting for opponent to flip…";
+        else if (v.yourCard && !v.opponentCard) status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
+        else if (v.inWar) status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
+        else if (v.phase === "roundOver" && v.lastRound?.wasWar) status = warResult(v);
         $("status").textContent = status;
 
-        document.body.classList.toggle("war", v.phase === "war");
+        const pairs = v.inWar ? v.warCards : [];
+        const warCards = $("war-cards");
+        warCards.hidden = pairs.length === 0;
+        warCards.replaceChildren(
+          ...pairs.map((pair) => {
+            const row = document.createElement("div");
+            row.className = "war-pair";
+            row.append("Tied: ", tiedCard(pair.yours), " vs ", tiedCard(pair.opponent));
+            return row;
+          })
+        );
+
+        document.body.classList.toggle("war", v.inWar);
         flipBtn.disabled = !canFlip(v);
       },
       commentary(text, round) {

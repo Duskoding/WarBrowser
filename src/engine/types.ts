@@ -9,6 +9,17 @@ export interface Card {
 export type PlayerId = 'A' | 'B';
 export type Phase = 'waiting' | 'flipped' | 'war' | 'roundOver' | 'gameOver';
 
+export interface TiedPair {
+  yours: Card;
+  opponent: Card;
+}
+
+export interface LastRound {
+  wasWar: boolean;
+  winner: PlayerId | null;
+  cardsWon: number;
+}
+
 export interface GameState {
   yourCard: Card | null;
   opponentCard: Card | null;
@@ -18,6 +29,9 @@ export interface GameState {
   phase: Phase;
   round: number;
   winner: PlayerId | null;
+  inWar: boolean;
+  warCards: TiedPair[];
+  lastRound: LastRound | null;
 }
 
 export interface RoundSummary {

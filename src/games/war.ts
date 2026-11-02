@@ -9,11 +9,16 @@ function toViewCard(card: Card | null) {
   return card && { rank: card.rank, suit: suitSymbols[card.suit] };
 }
 
+function toViewWinner(winner: PlayerId | null, seat: PlayerId) {
+  return winner === null ? null : winner === seat ? 'you' : 'opponent';
+}
+
 // Each player's view is relative to themselves: "your" card and count, and
 // winner as "you" / "opponent".
 function toView(state: GameState, seat: PlayerId, players: PlayerInfo[]) {
   const mine = seat === 'A';
   const opponentSeat = mine ? 'B' : 'A';
+  const { lastRound } = state;
   return {
     yourCard: toViewCard(state.yourCard),
     opponentCard: toViewCard(state.opponentCard),
@@ -21,6 +26,16 @@ function toView(state: GameState, seat: PlayerId, players: PlayerInfo[]) {
     yourCount: mine ? state.scoreA : state.scoreB,
     opponentCount: mine ? state.scoreB : state.scoreA,
     phase: state.phase,
+    inWar: state.inWar,
+    warCards: state.warCards.map((pair) => ({
+      yours: toViewCard(pair.yours),
+      opponent: toViewCard(pair.opponent),
+    })),
+    lastRound: lastRound && {
+      wasWar: lastRound.wasWar,
+      winner: toViewWinner(lastRound.winner, seat),
+      cardsWon: lastRound.cardsWon,
+    },
     winner: state.winner === null ? undefined : state.winner === seat ? 'you' : 'opponent',
     yourName: players[seatIds.indexOf(seat)]?.username,
     opponentName: players[seatIds.indexOf(opponentSeat)]?.username,

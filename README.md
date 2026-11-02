@@ -115,7 +115,7 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 - **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War).
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
 
 ## Deploy to Render
 

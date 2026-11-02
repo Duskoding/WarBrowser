@@ -48,18 +48,20 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | --- | --- | --- |
 | `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
 | `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when a second player joins, and the game is discarded when one leaves |
-| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
+| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |
 
-Each player gets their own view of the same state (`yourCard`/`opponentCard` and the two counts swap per player; `winner` is `"you"` or `"opponent"`). No hidden info beyond "opponent's card is face-down until both have flipped" — War has no secret info once revealed, so this is trivial to keep fair. Clients cannot send `state` or `commentary`; only the server can.
+Each player gets their own view of the same state (`yourCard`/`opponentCard` and the two counts swap per player; `winner` is `"you"` or `"opponent"`). There is no private information in War: each player sees the other's card the moment it is flipped, even if they have not flipped yet, so the two views always show the same cards. Clients cannot send `state` or `commentary`; only the server can.
+
+Three view fields make a war readable on screen: `inWar` stays `true` for the whole war (the phase alone is not enough, because it becomes `flipped` as soon as one player flips their war card), `warCards` lists the tied pairs so far as `{ yours, opponent }` (more than one when wars chain), and `lastRound` — `{ wasWar, winner: "you" | "opponent" | null, cardsWon }` — describes the round that just resolved until the next flip starts a new one.
 
 ## War rules (this implementation)
 
 - Standard 52-card deck, split 26/26, no jokers.
 - Both players flip their top card simultaneously (server waits for both `flip` messages before resolving).
 - Higher card takes both cards into the winner's pile. Ace high. Won cards go to the bottom of the winner's pile in random order.
-- Tie → "war": each player burns 3 cards face-down (the server does this automatically), then each sends one more `flip` for the face-up card, and both tied cards stay visible meanwhile. Winner of that flip takes the whole pot — the tied cards, the burned cards and the new flips (10 cards for a single war), or more if the new flips also tie — war chains. If a player has fewer than 4 cards left during a war, they burn what they can and flip whatever they have left, always keeping one card to flip (standard "all-in" tie-break). A player with no card left to continue after a tie loses the war; if both are out, the game is a draw.
+- Tie → "war": each player burns 3 cards face-down (the server does this automatically), then each sends one more `flip` for the face-up card. The tied cards stay on screen for the whole war (as `warCards`), and the UI keeps its war banner until the war resolves and then reports who won it and how many cards they took. Winner of that flip takes the whole pot — the tied cards, the burned cards and the new flips (10 cards for a single war), or more if the new flips also tie — war chains. If a player has fewer than 4 cards left during a war, they burn what they can and flip whatever they have left, always keeping one card to flip (standard "all-in" tie-break). A player with no card left to continue after a tie loses the war; if both are out, the game is a draw.
 - Game ends when one player holds all 52 cards, or (for sprint demo purposes) after a fixed round cap if you want a guaranteed-short demo — flag this as a `maxRounds` config, default off (an engine option; the server does not enable it).
 
 ## AI commentator
@@ -91,8 +93,9 @@ What changed from the original spec, and why:
 - **Protocol:** `join { roomId }` and top-level `flip` / `state` / `commentary` became `create_room` / `join_room` / `leave_room` plus a `game_message` envelope. The room server and client were built first as a generic two-player relay, and the engine was integrated behind it instead of rewriting both.
 - **Rooms:** a server-generated 6-character code (with a shareable `?room=CODE` link) replaced a caller-chosen `roomId`, so players can't collide on a name.
 - **State:** each player gets a view relative to themselves (`yourCount` / `opponentCount`) instead of `scoreA` / `scoreB`; the engine's own `getState(playerId)` still returns `scoreA` / `scoreB` plus `round` and `winner`, and the server converts it.
+- **Card visibility:** v1 kept the opponent's card face-down until both players had flipped. v2 shows each flipped card to the opponent immediately, because War has no private cards and players expect to see each other's flips as they happen.
 - **Commentary:** carries the round number, so the client can ignore a slow reply for an older round.
-- **War:** the burn is automatic and each player sends one flip after it; the tied cards stay visible during the war; the winner's collected cards are shuffled before they go to the bottom of their pile, which prevents endless identical cycles.
+- **War:** the burn is automatic and each player sends one flip after it; the tied cards, a war flag and the result of the last round are part of the state view, so the UI shows the whole war instead of only the moment of the tie; the winner's collected cards are shuffled before they go to the bottom of their pile, which prevents endless identical cycles.
 - **Game end:** a draw (both players out of cards) is possible and has no winner.
 - **Team:** the game engine was built by one person, so the two engine roles became one and the build order refers to 5 roles.
 - **Repo:** the client and server share one root `package.json` (one install, one build), and `render.yaml` defines the Render service.
