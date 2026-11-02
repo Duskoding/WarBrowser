@@ -1,6 +1,15 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { fetchMe, login, logout, register, type Me } from "./session";
-import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
+import { createPokerTable } from "./poker";
+import {
+  canFlip,
+  type Card,
+  type GamePayload,
+  type GameType,
+  type GameView,
+  type Phase,
+  type PokerView
+} from "./types";
 
 const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 
@@ -32,6 +41,10 @@ app.innerHTML = `
   </section>
 
   <section class="lobby" id="lobby" hidden>
+    <select id="game-picker" aria-label="Game">
+      <option value="war">War</option>
+      <option value="poker">Poker</option>
+    </select>
     <button id="create-room" disabled>Create room</button>
     <span class="or">or</span>
     <form class="join" id="join-form">
@@ -40,13 +53,18 @@ app.innerHTML = `
     </form>
   </section>
 
-  <main class="table" id="table" hidden>
+  <section class="room-bar" id="room-bar" hidden>
     <div class="room">
       Room <strong id="room-id"></strong>
       <button id="copy-link" class="small">Copy invite link</button>
       <button id="leave-room" class="small ghost">Leave</button>
     </div>
     <p class="invite-link" id="invite-link"></p>
+  </section>
+
+  <main class="table poker" id="poker-table" hidden></main>
+
+  <main class="table" id="table" hidden>
     <section class="player them">
       <h2><span id="them-name">Opponent</span> <span class="count" id="them-count"></span></h2>
       <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
@@ -83,6 +101,9 @@ let roomCode: string | null = null;
 let opponentHere = false;
 let opponentName = "";
 let view: GameView | null = null;
+let pokerView: PokerView | null = null;
+let roomGame: GameType = "war";
+const pokerTable = createPokerTable($("poker-table"));
 let statsRefreshed = false;
 
 // ---- Toast ----
@@ -115,6 +136,8 @@ function showAuth() {
   $("auth").hidden = false;
   $("lobby").hidden = true;
   $("table").hidden = true;
+  $("poker-table").hidden = true;
+  $("room-bar").hidden = true;
   $("conn").hidden = false;
   $("conn").textContent = "Log in to play.";
   renderUserBar();
@@ -199,12 +222,27 @@ function render() {
   $("auth").hidden = !sessionReady || loggedIn;
   $("lobby").hidden = !loggedIn || inRoom;
   $("conn").hidden = inRoom;
-  $("table").hidden = !inRoom;
+  $("room-bar").hidden = !inRoom;
+  $("table").hidden = !inRoom || roomGame !== "war";
+  $("poker-table").hidden = !inRoom || roomGame !== "poker";
   renderUserBar();
   if (!me || !inRoom) return;
 
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
+  if (roomGame === "poker") {
+    document.body.classList.remove("war");
+    pokerTable.render(pokerView, {
+      opponentHere,
+      name: me.username,
+      opponentName
+    });
+    if (pokerView?.phase === "gameOver" && !statsRefreshed) {
+      statsRefreshed = true;
+      void refreshMe();
+    }
+    return;
+  }
   const v = view;
   $("you-name").textContent = v?.yourName || me.username;
   $("them-name").textContent = opponentHere ? v?.opponentName || opponentName || "Opponent" : "Opponent";
@@ -258,6 +296,9 @@ function handleGamePayload(payload: unknown) {
   if (p.kind === "state") {
     view = p.view;
     render();
+  } else if (p.kind === "poker_state") {
+    pokerView = p.view;
+    render();
   } else if (p.kind === "commentary") setCommentary(p.text, p.round);
 }
 
@@ -266,6 +307,8 @@ function resetRoom() {
   opponentHere = false;
   opponentName = "";
   view = null;
+  pokerView = null;
+  roomGame = "war";
   statsRefreshed = false;
   clearCommentary();
   const params = new URLSearchParams(location.search);
@@ -324,9 +367,11 @@ onEvent((e) => {
       if (me) setLobbyDisconnected();
       break;
     case "room_created":
+      roomGame = e.game ?? "war";
       enterRoom(e.roomCode);
       break;
     case "room_joined":
+      roomGame = e.game ?? "war";
       enterRoom(e.roomCode);
       opponentHere = true;
       opponentName = e.opponentUsername ?? "";
@@ -340,6 +385,7 @@ onEvent((e) => {
       opponentHere = false;
       opponentName = "";
       view = null;
+      pokerView = null;
       clearCommentary();
       showToast("Your opponent disconnected.");
       break;
@@ -359,7 +405,10 @@ onEvent((e) => {
 });
 
 // ---- Controls ----
-$("create-room").addEventListener("click", createRoom);
+$("create-room").addEventListener("click", () => {
+  const game = $<HTMLSelectElement>("game-picker").value === "poker" ? "poker" : "war";
+  createRoom(game);
+});
 $("join-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const code = codeInput.value.trim().toUpperCase();

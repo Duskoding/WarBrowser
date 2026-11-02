@@ -191,3 +191,58 @@ button.ghost { background: transparent; color: var(--text); border: 1px solid cu
 .war-pair { background: rgba(0, 0, 0, 0.25); border-radius: 999px; padding: 0.25rem 0.9rem; }
 .tied-card { background: #fff; color: #111; border-radius: 4px; padding: 0 0.35rem; font-weight: bold; }
 .tied-card.red { color: var(--red); }
+
+.lobby select {
+  font-size: 1.1rem;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #222;
+}
+.room-bar { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0 1rem; }
+
+/* ---- Poker table ---- */
+.poker { --card-w: min(60px, 14vw); --card-h: min(86px, 20vw); gap: 0.6rem; }
+.poker .card .face { font-size: clamp(1rem, 5vw, 1.5rem); }
+.poker .card.slot .back { visibility: hidden; }
+.poker .card.slot { border: 2px dashed rgb(255 255 255 / 0.3); border-radius: 10px; }
+.poker .card .back { border-width: 3px; }
+.poker .hand { display: flex; gap: min(8px, 1.5vw); justify-content: center; }
+.poker .seat { display: flex; align-items: center; gap: 0.6rem; font-size: 1.1rem; }
+.poker .stack { background: rgb(0 0 0 / 0.3); border-radius: 999px; padding: 0.1rem 0.7rem; }
+.poker .dealer {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: #f5c542;
+  color: #222;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.poker .bet, .poker .pot { margin: 0; min-height: 1.2em; opacity: 0.9; }
+.poker .pot { font-size: 1.3rem; font-weight: bold; opacity: 1; }
+.poker .status { text-align: center; font-size: 1.3rem; }
+.poker .last-action { margin: 0; min-height: 1.2em; opacity: 0.85; text-align: center; }
+.poker .controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 28rem;
+}
+.poker .controls button { font-size: 1.05rem; padding: 0.55rem 1.2rem; }
+.poker .raise { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; width: 100%; }
+.poker .raise input {
+  width: 6.5rem;
+  font-size: 1.1rem;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  border-radius: 999px;
+  text-align: center;
+}
+.poker .hint { width: 100%; margin: 0; text-align: center; font-size: 0.85rem; opacity: 0.8; min-height: 1.2em; }

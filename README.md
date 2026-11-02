@@ -31,13 +31,31 @@ An AI commentator adds a short description after each completed round without bl
 | Path | What it is |
 | --- | --- |
 | `src/engine/` | `WarEngine`: the rules and state, with no networking, plus its tests |
+| `src/poker/` | Heads-up Texas Hold'em: hand evaluator and `PokerEngine`, with tests |
 | `src/auth.ts` | Users, hashed passwords, sessions, and win/loss counts (SQLite) |
 | `src/commentator.ts` | `ClaudeCommentator`: one-sentence round commentary from the Claude API |
 | `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `test/` | Server tests |
+| `SPEC_POKER.md` | The poker specification (rules, engine contract, server and client) |
 | `SPEC_v2.md` | The current specification, kept in line with the code |
 | `SPEC_v1.md` | The original sprint specification |
+
+## Poker
+
+Besides War, a room can play heads-up no-limit Texas Hold'em. In the lobby, pick **Poker** next to **Create room**; the second player joins with the code or invite link as usual (joining needs no picker, the room remembers its game).
+
+- Two players, 1,000 chips each, blinds 10/20. The button alternates every hand and posts the small blind; it acts first before the flop and the other player acts first after it.
+- Moves: fold, check, call, or bet/raise to a total (minimum raise rules apply; **All-in** raises to your maximum). Uncalled chips are returned.
+- The server deals and runs the hand, so you only ever see your own two cards. The opponent's cards are revealed only at a showdown.
+- After each hand both players press **Next hand**. The game ends when a player has no chips left, and the win/loss record is updated once.
+
+Poker messages inside `game_message` (War rooms reject them, and poker rooms reject `flip`):
+
+- **Client → server:** `{ "kind": "action", "action": { "type": "fold" | "check" | "call" } }`, `{ "kind": "action", "action": { "type": "raise", "to": 120 } }`, and `{ "kind": "next_hand" }`.
+- **Server → client:** `{ "kind": "poker_state", "view": ... }` after every change, with the view relative to the receiving player: phase, hand number, blinds, `youAreButton`, both names, `yourCards`, `opponentCards` (null until a showdown), `board`, `pot`, both stacks and street bets, `yourTurn`, `legal` (fold/check/call/min and max raise-to, or null), `lastAction`, `result` (reason, winners, chips won, hand names), ready flags and `winner`.
+
+`create_room` takes an optional `"game": "war" | "poker"` (default `"war"`), and `room_created` / `room_joined` include `game`.
 
 ## Run locally
 
@@ -89,7 +107,7 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- **Client → server:** `create_room`, `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload of `{ "kind": "flip" }`.
+- **Client → server:** `create_room`, `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload of `{ "kind": "flip" }` (War) or the poker payloads described in the Poker section. `create_room` accepts an optional `game`.
 - **Server → client:** `room_created`, `room_joined`, `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }`.
 
 The state view is specific to each player: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.

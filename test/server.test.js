@@ -169,7 +169,8 @@ test("creates a room and joins a second player", async () => {
     type: "room_joined",
     roomCode: created.roomCode,
     username: "guest",
-    opponentUsername: "host"
+    opponentUsername: "host",
+    game: "war"
   });
   assert.deepEqual(await host.next(), { type: "opponent_joined", username: "guest" });
 
@@ -466,6 +467,228 @@ test("records a win and a loss when a short game ends", async () => {
     assert.equal(losses, 0);
   }
 
+  host.close();
+  guest.close();
+});
+
+// ---- Poker ----
+
+const pokerRanks = { T: 10, J: 11, Q: 12, K: 13, A: 14 };
+const pokerCard = (text) => ({ rank: pokerRanks[text[0]] ?? Number(text[0]), suit: text[1] });
+
+// A shuffle that deals the engine's deal order: A's two, B's two, burn, flop, burn, turn, burn, river.
+function riggedPokerShuffle({ a, b, board }) {
+  return (items) => {
+    const picks = [...a.split(" "), ...b.split(" "), ...board.split(" ")].map(pokerCard);
+    const key = (card) => `${card.rank}${card.suit}`;
+    const used = new Set(picks.map(key));
+    const spare = items.filter((card) => !used.has(key(card)));
+    const [a1, a2, b1, b2, f1, f2, f3, turn, river] = picks;
+    return [a1, a2, b1, b2, spare.shift(), f1, f2, f3, spare.shift(), turn, spare.shift(), river, ...spare];
+  };
+}
+
+async function startPokerRoom(engineOptions = {}) {
+  const { wsUrl, httpUrl } = await startServer({ engineOptions });
+  const hostAuth = await register(httpUrl, "host");
+  const guestAuth = await register(httpUrl, "guest");
+  const host = await connect(wsUrl, hostAuth.cookie);
+  const guest = await connect(wsUrl, guestAuth.cookie);
+  post(host, { type: "create_room", game: "poker" });
+  const created = await host.next();
+  post(guest, { type: "join_room", roomCode: created.roomCode });
+  const joined = await guest.next();
+  assert.equal((await host.next()).type, "opponent_joined");
+  const hostView = (await host.next()).payload.view;
+  const guestView = (await guest.next()).payload.view;
+  return { httpUrl, host, guest, created, joined, hostView, guestView, hostAuth, guestAuth };
+}
+
+const pokerAct = (socket, action) =>
+  post(socket, { type: "game_message", payload: { kind: "action", action } });
+
+test("creates a poker room and deals each player only their own cards", async () => {
+  const { host, guest, created, joined, hostView, guestView } = await startPokerRoom();
+  assert.equal(created.game, "poker");
+  assert.equal(joined.game, "poker");
+  for (const view of [hostView, guestView]) {
+    assert.equal(view.phase, "preflop");
+    assert.equal(view.handNumber, 1);
+    assert.equal(view.yourCards.length, 2);
+    assert.equal(view.opponentCards, null);
+    assert.deepEqual(view.board, []);
+    assert.equal(view.pot, 0);
+    assert.equal(view.lastAction.type, "bigBlind");
+  }
+  assert.notDeepEqual(hostView.yourCards, guestView.yourCards);
+  assert.match(hostView.yourCards[0].suit, /^[♠♥♦♣]$/);
+  // Seat A (host) is the button on hand 1: small blind 10, acts first.
+  assert.equal(hostView.youAreButton, true);
+  assert.equal(hostView.yourTurn, true);
+  assert.equal(guestView.yourTurn, false);
+  assert.equal(hostView.yourCommitted, 10);
+  assert.equal(hostView.opponentCommitted, 20);
+  assert.equal(hostView.lastAction.who, "opponent");
+  assert.ok(hostView.legal);
+  assert.equal(guestView.legal, null);
+  host.close();
+  guest.close();
+});
+
+test("rejects unknown games and leaves War rooms working with no game field", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  post(host, { type: "create_room", game: "chess" });
+  assert.deepEqual(await host.next(), { type: "error", message: "Unknown game." });
+  post(host, { type: "create_room" });
+  const created = await host.next();
+  assert.equal(created.game, "war");
+
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+  post(guest, { type: "join_room", roomCode: created.roomCode });
+  assert.equal((await guest.next()).game, "war");
+  await host.next();
+  assert.equal((await host.next()).payload.kind, "state");
+  assert.equal((await guest.next()).payload.kind, "state");
+
+  pokerAct(host, { type: "fold" });
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "That move isn't part of this game."
+  });
+  host.close();
+  guest.close();
+});
+
+test("poker rejects out-of-turn actions, flip, and client-sent poker_state", async () => {
+  const { host, guest } = await startPokerRoom();
+  pokerAct(guest, { type: "call" });
+  const outOfTurn = await guest.next();
+  assert.equal(outOfTurn.type, "error");
+  assert.equal(outOfTurn.message, "It's not your turn.");
+
+  post(host, { type: "game_message", payload: { kind: "flip" } });
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "That move isn't part of this game."
+  });
+
+  post(host, { type: "game_message", payload: { kind: "poker_state", view: {} } });
+  assert.equal((await host.next()).type, "error");
+  host.close();
+  guest.close();
+});
+
+test("a poker fold ends the hand and next_hand from both deals hand 2", async () => {
+  const { host, guest } = await startPokerRoom();
+  pokerAct(host, { type: "fold" });
+  const hostView = (await host.next()).payload.view;
+  const guestView = (await guest.next()).payload.view;
+  assert.equal(hostView.phase, "handOver");
+  assert.equal(hostView.result.reason, "fold");
+  assert.deepEqual(hostView.result.winners, ["opponent"]);
+  assert.equal(hostView.result.youWon, 0);
+  assert.equal(hostView.result.opponentWon, 30);
+  assert.deepEqual(guestView.result.winners, ["you"]);
+  assert.equal(guestView.yourStack, 1010);
+  assert.equal(hostView.yourStack, 990);
+
+  post(host, { type: "game_message", payload: { kind: "next_hand" } });
+  const waiting = (await host.next()).payload.view;
+  await guest.next();
+  assert.equal(waiting.phase, "handOver");
+  assert.equal(waiting.youReady, true);
+  assert.equal(waiting.opponentReady, false);
+
+  post(guest, { type: "game_message", payload: { kind: "next_hand" } });
+  const next = (await host.next()).payload.view;
+  const nextGuest = (await guest.next()).payload.view;
+  assert.equal(next.phase, "preflop");
+  assert.equal(next.handNumber, 2);
+  assert.equal(next.youAreButton, false);
+  assert.equal(nextGuest.youAreButton, true);
+  assert.equal(nextGuest.yourTurn, true);
+  host.close();
+  guest.close();
+});
+
+test("a poker hand can be played by calling down to a showdown", async () => {
+  const shuffle = riggedPokerShuffle({
+    a: "AS AH",
+    b: "2C 7D",
+    board: "KD 9C 4H 5S JD"
+  });
+  const { host, guest } = await startPokerRoom({ poker: { shuffle } });
+  pokerAct(host, { type: "call" }); // button completes the small blind
+  await host.next();
+  await guest.next();
+  pokerAct(guest, { type: "check" });
+  let view = (await guest.next()).payload.view;
+  await host.next();
+  assert.equal(view.phase, "flop");
+  assert.equal(view.board.length, 3);
+  for (const phase of ["turn", "river"]) {
+    pokerAct(guest, { type: "check" });
+    await guest.next();
+    await host.next();
+    pokerAct(host, { type: "check" });
+    view = (await guest.next()).payload.view;
+    await host.next();
+    assert.equal(view.phase, phase);
+  }
+  pokerAct(guest, { type: "check" });
+  await guest.next();
+  await host.next();
+  pokerAct(host, { type: "check" });
+  view = (await guest.next()).payload.view;
+  const hostView = (await host.next()).payload.view;
+  assert.equal(view.phase, "handOver");
+  assert.equal(view.result.reason, "showdown");
+  assert.equal(view.board.length, 5);
+  assert.deepEqual(view.opponentCards, hostView.yourCards);
+  assert.deepEqual(hostView.result.winners, ["you"]);
+  assert.equal(hostView.result.youWon, 40);
+  assert.equal(hostView.result.yourHand, "Pair of Aces");
+  assert.equal(hostView.yourStack, 1020);
+  host.close();
+  guest.close();
+});
+
+test("an all-in poker game records a win and a loss exactly once", async () => {
+  const shuffle = riggedPokerShuffle({
+    a: "AS AH",
+    b: "2C 7D",
+    board: "KD 9C 4H 5S JD"
+  });
+  const { host, guest, httpUrl, hostAuth, guestAuth } = await startPokerRoom({
+    poker: { shuffle }
+  });
+  pokerAct(host, { type: "raise", to: 1000 });
+  await host.next();
+  await guest.next();
+  pokerAct(guest, { type: "call" });
+  const hostView = (await host.next()).payload.view;
+  const guestView = (await guest.next()).payload.view;
+  assert.equal(hostView.phase, "gameOver");
+  assert.equal(hostView.winner, "you");
+  assert.equal(guestView.winner, "opponent");
+  assert.equal(hostView.yourStack, 2000);
+  assert.equal(guestView.yourStack, 0);
+
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, {
+    username: "host",
+    wins: 1,
+    losses: 0
+  });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, {
+    username: "guest",
+    wins: 0,
+    losses: 1
+  });
+
+  post(host, { type: "game_message", payload: { kind: "next_hand" } });
+  assert.equal((await host.next()).type, "error");
+  assert.equal((await me(httpUrl, hostAuth.cookie)).body.wins, 1);
   host.close();
   guest.close();
 });

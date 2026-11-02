@@ -1,6 +1,6 @@
 // The only file that talks to the server.
 
-import type { ClientMessage, GamePayload, ServerEvent } from "./types";
+import type { ClientMessage, GamePayload, GameType, ServerEvent } from "./types";
 
 type Listener = (event: ServerEvent) => void;
 const listeners: Listener[] = [];
@@ -49,7 +49,7 @@ function send(msg: ClientMessage) {
   else dispatch({ type: "error", message: "Not connected to the game server." });
 }
 
-export const createRoom = () => send({ type: "create_room" });
+export const createRoom = (game: GameType = "war") => send({ type: "create_room", game });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
 export const leaveRoom = () => send({ type: "leave_room" });
 export const sendGame = (payload: GamePayload) => send({ type: "game_message", payload });

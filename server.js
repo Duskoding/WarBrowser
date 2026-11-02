@@ -6,6 +6,7 @@ import { dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { WarEngine } from "./src/engine/WarEngine.ts";
+import { PokerEngine } from "./src/poker/PokerEngine.ts";
 import { ClaudeCommentator } from "./src/commentator.ts";
 import {
   SESSION_COOKIE,
@@ -178,6 +179,61 @@ function sendStates(game) {
   }
 }
 
+const toViewSide = (seat, viewer) => (seat === viewer ? "you" : "opponent");
+
+function toPokerView(state, seat, names) {
+  const opp = seat === "A" ? "B" : "A";
+  const { lastAction, result } = state;
+  return {
+    phase: state.phase,
+    handNumber: state.handNumber,
+    smallBlind: state.smallBlind,
+    bigBlind: state.bigBlind,
+    youAreButton: state.button === seat,
+    yourName: names[seat],
+    opponentName: names[opp],
+    yourCards: state.yourHoleCards.map(toViewCard),
+    opponentCards: state.opponentHoleCards && state.opponentHoleCards.map(toViewCard),
+    board: state.board.map(toViewCard),
+    pot: state.pot,
+    yourStack: state.stacks[seat],
+    opponentStack: state.stacks[opp],
+    yourCommitted: state.committed[seat],
+    opponentCommitted: state.committed[opp],
+    yourTurn: state.toAct === seat,
+    legal: state.legal,
+    lastAction: lastAction && {
+      who: toViewSide(lastAction.seat, seat),
+      type: lastAction.type,
+      amount: lastAction.amount
+    },
+    result: result && {
+      reason: result.reason,
+      winners: result.winners.map((winner) => toViewSide(winner, seat)),
+      youWon: result.potWon[seat],
+      opponentWon: result.potWon[opp],
+      yourHand: result.hands ? result.hands[seat].name : null,
+      opponentHand: result.hands ? result.hands[opp].name : null
+    },
+    youReady: state.ready[seat],
+    opponentReady: state.ready[opp],
+    winner: state.winner === null ? null : toViewSide(state.winner, seat)
+  };
+}
+
+function sendPokerStates(game) {
+  const names = {
+    A: game.players.A.username,
+    B: game.players.B.username
+  };
+  for (const [socket, seat] of game.seats) {
+    send(socket, {
+      type: "game_message",
+      payload: { kind: "poker_state", view: toPokerView(game.engine.getState(seat), seat, names) }
+    });
+  }
+}
+
 function openDatabase(databasePath) {
   if (databasePath !== ":memory:") {
     mkdirSync(dirname(databasePath), { recursive: true });
@@ -193,6 +249,34 @@ export function createWarServer({
   const db = typeof database === "string" ? openDatabase(database) : database;
   const rooms = new Map();
   const games = new Map();
+  const roomGames = new Map(); // room code -> "war" | "poker"
+
+  function recordGameOver(game, summary) {
+    if (!summary.gameOver || game.recorded) return;
+    game.recorded = true;
+    const winnerSeat = summary.winner;
+    if (winnerSeat) {
+      const loserSeat = winnerSeat === "A" ? "B" : "A";
+      recordMatch(db, game.players[winnerSeat].id, game.players[loserSeat].id);
+    }
+  }
+
+  // Applies a poker move for one socket and broadcasts the result.
+  function handlePokerMessage(socket, game, payload) {
+    const seat = game.seats.get(socket);
+    let result;
+    if (payload.kind === "action") {
+      result = game.engine.act(seat, payload.action);
+    } else {
+      result = game.engine.ready(seat);
+    }
+    if (!result.ok) {
+      send(socket, { type: "error", message: result.error });
+      return;
+    }
+    if (result.handEnded) recordGameOver(game, result.summary);
+    sendPokerStates(game);
+  }
 
   async function handleApi(request, response, pathname) {
     if (pathname === "/api/register" && request.method === "POST") {
@@ -321,6 +405,7 @@ export function createWarServer({
 
     room.delete(socket);
     games.delete(roomCode);
+    roomGames.delete(roomCode);
     for (const player of room) {
       send(player, { type: "opponent_disconnected" });
     }
@@ -369,10 +454,22 @@ export function createWarServer({
           return;
         }
 
+        const gameType = message.game ?? "war";
+        if (gameType !== "war" && gameType !== "poker") {
+          send(socket, { type: "error", message: "Unknown game." });
+          return;
+        }
+
         const roomCode = createRoomCode(rooms);
         rooms.set(roomCode, new Set([socket]));
+        roomGames.set(roomCode, gameType);
         socket.roomCode = roomCode;
-        send(socket, { type: "room_created", roomCode, username: socket.user.username });
+        send(socket, {
+          type: "room_created",
+          roomCode,
+          username: socket.user.username,
+          game: gameType
+        });
         return;
       }
 
@@ -411,7 +508,8 @@ export function createWarServer({
           type: "room_joined",
           roomCode,
           username: guest.user.username,
-          opponentUsername: host.user.username
+          opponentUsername: host.user.username,
+          game: roomGames.get(roomCode) ?? "war"
         });
         for (const player of room) {
           if (player !== socket) {
@@ -419,8 +517,13 @@ export function createWarServer({
           }
         }
 
+        const gameType = roomGames.get(roomCode) ?? "war";
         const game = {
-          engine: new WarEngine(engineOptions),
+          type: gameType,
+          engine:
+            gameType === "poker"
+              ? new PokerEngine(engineOptions.poker)
+              : new WarEngine(engineOptions),
           seats: new Map([[host, "A"], [guest, "B"]]),
           players: {
             A: host.user,
@@ -429,7 +532,8 @@ export function createWarServer({
           recorded: false
         };
         games.set(roomCode, game);
-        sendStates(game);
+        if (gameType === "poker") sendPokerStates(game);
+        else sendStates(game);
         return;
       }
 
@@ -448,22 +552,27 @@ export function createWarServer({
         }
 
         const kind = message.payload?.kind;
+        const activeGame = games.get(socket.roomCode);
+        if (kind === "flip" || kind === "action" || kind === "next_hand") {
+          const isPokerMove = kind !== "flip";
+          if (!activeGame || (activeGame.type === "poker") !== isPokerMove) {
+            send(socket, { type: "error", message: "That move isn't part of this game." });
+            return;
+          }
+          if (isPokerMove) {
+            handlePokerMessage(socket, activeGame, message.payload);
+            return;
+          }
+        }
         if (kind === "flip") {
-          const game = games.get(socket.roomCode);
+          const game = activeGame;
           const result = game.engine.flip(game.seats.get(socket));
           if (!result.ok) {
             send(socket, { type: "error", message: result.error });
             return;
           }
           sendStates(game);
-          if (result.resolved && result.summary.gameOver && !game.recorded) {
-            game.recorded = true;
-            const winnerSeat = result.summary.winner;
-            if (winnerSeat) {
-              const loserSeat = winnerSeat === "A" ? "B" : "A";
-              recordMatch(db, game.players[winnerSeat].id, game.players[loserSeat].id);
-            }
-          }
+          if (result.resolved) recordGameOver(game, result.summary);
           if (result.resolved) {
             const { summary } = result;
             const roomCode = socket.roomCode;
@@ -479,7 +588,7 @@ export function createWarServer({
           }
           return;
         }
-        if (kind === "state" || kind === "commentary") {
+        if (kind === "state" || kind === "commentary" || kind === "poker_state") {
           send(socket, { type: "error", message: "Only the server can send that." });
           return;
         }
