@@ -12,7 +12,9 @@ const stub =
 const html = readFileSync(here("./dist/index.html"), "utf8")
   .replace(/<script type="module"[^>]*><\/script>/, () =>
     `${stub}<script type="module">${read(".js").replaceAll("</script", "<\\/script")}</script>`)
-  .replace(/<link rel="stylesheet"[^>]*>/, () => `<style>${read(".css")}</style>`);
+  // Keep Google Fonts <link>s; only inline the built app stylesheet.
+  .replace(/<link rel="stylesheet"[^>]*href="[^"]*assets\/[^"]+\.css"[^>]*>/, () =>
+    `<style>${read(".css")}</style>`);
 
 const page = readFileSync(here("./page.html"), "utf8").replace(
   "/*GUI_HTML*/null",

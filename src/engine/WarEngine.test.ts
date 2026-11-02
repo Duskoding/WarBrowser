@@ -95,6 +95,8 @@ test('war: burn 3, flip 4th, winner takes all 10', () => {
   assert.equal(s.opponentCard, null);
   assert.deepEqual(s.warCards, [{ yours: c(7), opponent: c(7, 'H') }]);
   assert.deepEqual(e.getState('B').warCards, [{ yours: c(7, 'H'), opponent: c(7) }]);
+  assert.deepEqual(s.yourStakes[0], { faceUp: true, card: c(7) });
+  assert.equal(s.yourStakes.filter((x) => !x.faceUp).length, 3);
   e.flip('A');
   s = e.getState('A');
   assert.equal(s.phase, 'flipped');
@@ -117,6 +119,11 @@ test('war: burn 3, flip 4th, winner takes all 10', () => {
   assert.equal(s.inWar, false);
   assert.deepEqual(s.warCards, []);
   assert.deepEqual(s.lastRound, { wasWar: true, winner: 'A', cardsWon: 10 });
+  // Burns stay in the lineup and are revealed after the war.
+  assert.equal(s.yourStakes.length, 5);
+  assert.ok(s.yourStakes.every((x) => x.faceUp));
+  assert.deepEqual(s.yourStakes[0], { faceUp: true, card: c(7) });
+  assert.deepEqual(s.yourStakes[4], { faceUp: true, card: c(12) });
 });
 
 test('last round result is reported, then cleared by the next flip', () => {
@@ -125,6 +132,7 @@ test('last round result is reported, then cleared by the next flip', () => {
   play(e);
   assert.deepEqual(e.getState('A').lastRound, { wasWar: false, winner: 'B', cardsWon: 2 });
   assert.equal(e.getState('A').inWar, false);
+  assert.deepEqual(e.getState('A').yourStakes, []);
   e.flip('A');
   assert.equal(e.getState('A').lastRound, null);
 });
