@@ -7,6 +7,7 @@ import type {
   PlayerId,
   Rank,
   RoundSummary,
+  StakeCard,
   Suit,
   WarEngineOptions,
 } from './types.ts';
@@ -33,9 +34,12 @@ export function fisherYates<T>(items: T[]): T[] {
 
 const other = (p: PlayerId): PlayerId => (p === 'A' ? 'B' : 'A');
 
+type InternalStake = { card: Card; faceUp: boolean };
+
 export class WarEngine {
   private piles: Record<PlayerId, Card[]> = { A: [], B: [] };
   private pot: Card[] = [];
+  private stakes: Record<PlayerId, InternalStake[]> = { A: [], B: [] };
   private flipped: Record<PlayerId, Card | null> = { A: null, B: null };
   private phase: Phase = 'waiting';
   private round = 0;
@@ -59,9 +63,11 @@ export class WarEngine {
 
     if (this.phase === 'roundOver') {
       this.flipped = { A: null, B: null };
+      this.stakes = { A: [], B: [] };
       this.lastRound = null;
       this.phase = 'waiting';
     } else if (this.phase === 'war') {
+      // New deciding flip; keep the lineup (ties + burns).
       this.flipped = { A: null, B: null };
       this.phase = 'waiting';
     }
@@ -71,6 +77,7 @@ export class WarEngine {
     const card = this.piles[playerId].shift();
     if (!card) return { ok: false, error: 'No cards left to flip' };
     this.flipped[playerId] = card;
+    if (this.inWar) this.stakes[playerId].push({ card, faceUp: true });
 
     if (!this.flipped[other(playerId)]) {
       this.phase = 'flipped';
@@ -91,8 +98,14 @@ export class WarEngine {
       winner: this.winner,
       inWar: this.inWar,
       warCards: this.tied.map((pair) => ({ yours: pair[playerId], opponent: pair[other(playerId)] })),
+      yourStakes: this.toStakeView(this.stakes[playerId]),
+      opponentStakes: this.toStakeView(this.stakes[other(playerId)]),
       lastRound: this.lastRound,
     };
+  }
+
+  private toStakeView(stakes: InternalStake[]): StakeCard[] {
+    return stakes.map((s) => (s.faceUp ? { faceUp: true, card: s.card } : { faceUp: false }));
   }
 
   private resolve(): FlipResult {
@@ -117,6 +130,15 @@ export class WarEngine {
   // or the player who is out of cards ('draw' if both are).
   private startWar(): PlayerId | 'draw' | undefined {
     this.inWar = true;
+    // First war only: seed the lineup with the tied face-up cards.
+    // Chained ties already pushed their battle cards on flip.
+    if (this.stakes.A.length === 0 && this.stakes.B.length === 0) {
+      for (const p of ['A', 'B'] as PlayerId[]) {
+        const tied = this.flipped[p];
+        if (tied) this.stakes[p].push({ card: tied, faceUp: true });
+      }
+    }
+
     const emptyA = this.piles.A.length === 0;
     const emptyB = this.piles.B.length === 0;
     if (emptyA && emptyB) return 'draw';
@@ -125,7 +147,11 @@ export class WarEngine {
 
     for (const p of ['A', 'B'] as PlayerId[]) {
       const burn = Math.min(WAR_BURN, this.piles[p].length - 1);
-      this.pot.push(...this.piles[p].splice(0, burn));
+      const burned = this.piles[p].splice(0, burn);
+      this.pot.push(...burned);
+      for (const card of burned) {
+        this.stakes[p].push({ card, faceUp: false });
+      }
     }
     this.flipped = { A: null, B: null };
     this.phase = 'war';
@@ -145,6 +171,17 @@ export class WarEngine {
     this.inWar = false;
     this.lastRound = { wasWar, winner, cardsWon };
     this.round++;
+
+    if (wasWar) {
+      // Reveal every face-down burn so both players see what was under there.
+      for (const p of ['A', 'B'] as PlayerId[]) {
+        for (const s of this.stakes[p]) s.faceUp = true;
+      }
+    } else {
+      this.stakes = { A: [], B: [] };
+    }
+
+    // Keep the deciding faces up for the client reveal beat.
     this.flipped = { A: cardA, B: cardB };
 
     const over = this.checkGameOver();

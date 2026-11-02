@@ -193,6 +193,8 @@ test("deals a fresh game to both players when the second one joins", async () =>
       phase: "waiting",
       inWar: false,
       warCards: [],
+      yourStakes: [],
+      opponentStakes: [],
       lastRound: null,
       yourName,
       opponentName
@@ -217,12 +219,24 @@ test("flips are resolved by the server and each player gets their own view", asy
   post(guest, { type: "game_message", payload: { kind: "flip" } });
   const hostSecond = (await host.next()).payload.view;
   const guestSecond = (await guest.next()).payload.view;
-  assert.deepEqual(hostSecond.yourCard, guestSecond.opponentCard);
-  assert.deepEqual(hostSecond.opponentCard, guestSecond.yourCard);
   assert.equal(hostSecond.yourCount, guestSecond.opponentCount);
   assert.equal(hostSecond.opponentCount, guestSecond.yourCount);
-  assert.match(hostSecond.yourCard.suit, /^[♠♥♦♣]$/);
   assert.ok(["roundOver", "war"].includes(hostSecond.phase));
+  if (hostSecond.phase === "war") {
+    // Tied battle cards move into warCards; main slots wait for the war flip.
+    assert.equal(hostSecond.yourCard, null);
+    assert.equal(hostSecond.opponentCard, null);
+    assert.equal(hostSecond.inWar, true);
+    assert.ok(hostSecond.warCards.length >= 1);
+    assert.match(hostSecond.warCards[0].yours.suit, /^[♠♥♦♣]$/);
+    assert.deepEqual(hostSecond.warCards[0].yours, guestSecond.warCards[0].opponent);
+  } else {
+    assert.ok(hostSecond.yourCard);
+    assert.ok(hostSecond.opponentCard);
+    assert.deepEqual(hostSecond.yourCard, guestSecond.opponentCard);
+    assert.deepEqual(hostSecond.opponentCard, guestSecond.yourCard);
+    assert.match(hostSecond.yourCard.suit, /^[♠♥♦♣]$/);
+  }
 
   host.close();
   guest.close();
@@ -298,6 +312,8 @@ test("a war stays visible to both players until it resolves", async () => {
   assert.deepEqual(guestTie.warCards, [
     { yours: { rank: 7, suit: "♦" }, opponent: { rank: 7, suit: "♠" } }
   ]);
+  assert.deepEqual(hostTie.yourStakes[0], { faceUp: true, card: { rank: 7, suit: "♠" } });
+  assert.equal(hostTie.yourStakes.filter((s) => !s.faceUp).length, 3);
 
   const [hostFlipped, guestWaiting] = await flip(host);
   assert.equal(hostFlipped.inWar, true);
@@ -316,6 +332,10 @@ test("a war stays visible to both players until it resolves", async () => {
   assert.deepEqual(guestDone.lastRound, { wasWar: true, winner: "opponent", cardsWon: 10 });
   assert.equal(hostDone.yourCount, 31);
   assert.equal(guestDone.opponentCount, 31);
+  assert.equal(hostDone.yourStakes.length, 5);
+  assert.ok(hostDone.yourStakes.every((s) => s.faceUp));
+  assert.deepEqual(hostDone.yourStakes[0], { faceUp: true, card: { rank: 7, suit: "♠" } });
+  assert.deepEqual(hostDone.yourStakes[4], { faceUp: true, card: { rank: 13, suit: "♠" } });
 
   host.close();
   guest.close();

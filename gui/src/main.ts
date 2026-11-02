@@ -1,6 +1,13 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { fetchMe, login, logout, register, type Me } from "./session";
-import { canFlip, type Card, type GamePayload, type GameView, type Phase } from "./types";
+import {
+  canFlip,
+  type Card,
+  type GamePayload,
+  type GameView,
+  type Phase,
+  type StakeCard
+} from "./types";
 
 const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 
@@ -50,13 +57,14 @@ app.innerHTML = `
     <section class="player them">
       <h2><span id="them-name">Opponent</span> <span class="count" id="them-count"></span></h2>
       <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
+      <div class="stakes" id="them-stakes" hidden aria-label="Opponent war cards"></div>
     </section>
     <div class="middle">
       <p class="status" id="status"></p>
-      <div class="war-cards" id="war-cards" hidden></div>
       <p class="pile" id="pile"></p>
     </div>
     <section class="player you">
+      <div class="stakes" id="you-stakes" hidden aria-label="Your war cards"></div>
       <div class="card" id="you-card"><div class="face"></div><div class="back"></div></div>
       <h2><span id="you-name">You</span> <span class="count" id="you-count"></span></h2>
     </section>
@@ -84,6 +92,11 @@ let opponentHere = false;
 let opponentName = "";
 let view: GameView | null = null;
 let statsRefreshed = false;
+/** After a round resolves, show faces briefly then tuck to backs. */
+const REVEAL_MS = 1500;
+let cardsTucked = false;
+let revealKey = "";
+let tuckTimer: number | undefined;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -162,24 +175,20 @@ const STATUS: Record<Phase, string> = {
 
 const cardLabel = (card: Card) => `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
 
-function tiedCard(card: Card): HTMLSpanElement {
-  const el = document.createElement("span");
-  el.className = "tied-card";
-  el.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
-  el.textContent = cardLabel(card);
-  return el;
-}
-
-function renderWarCards(v: GameView | null) {
-  const pairs = v?.inWar ? v.warCards : [];
-  const el = $("war-cards");
-  el.hidden = pairs.length === 0;
+function renderStakes(el: HTMLElement, stakes: StakeCard[]) {
+  el.hidden = stakes.length === 0;
   el.replaceChildren(
-    ...pairs.map((pair) => {
-      const row = document.createElement("div");
-      row.className = "war-pair";
-      row.append("Tied: ", tiedCard(pair.yours), " vs ", tiedCard(pair.opponent));
-      return row;
+    ...stakes.map((stake) => {
+      const chip = document.createElement("div");
+      if (!stake.faceUp) {
+        chip.className = "stake-card back";
+        chip.title = "Face-down";
+        return chip;
+      }
+      chip.className = "stake-card face";
+      chip.textContent = cardLabel(stake.card);
+      if (stake.card.suit === "♥" || stake.card.suit === "♦") chip.classList.add("red");
+      return chip;
     })
   );
 }
@@ -191,6 +200,48 @@ function warResult(v: GameView, opponent: string): string {
   return round.winner === "you"
     ? `You won the war and took ${cards}!`
     : `${opponent} won the war and took ${cards}.`;
+}
+
+function roundTakeResult(v: GameView): string {
+  const round = v.lastRound;
+  if (!round) return STATUS.roundOver;
+  if (round.winner === "you") return "You take the cards!";
+  if (round.winner === "opponent") return "Opponent takes the cards.";
+  return "Draw — cards go back.";
+}
+
+function syncReveal(v: GameView) {
+  const resolved = v.phase === "roundOver" || v.phase === "gameOver";
+  const hasFaces =
+    !!v.yourCard ||
+    !!v.opponentCard ||
+    (v.yourStakes?.length ?? 0) > 0 ||
+    (v.opponentStakes?.length ?? 0) > 0;
+  if (!resolved || !hasFaces) {
+    cardsTucked = false;
+    revealKey = "";
+    clearTimeout(tuckTimer);
+    return;
+  }
+  const key = [
+    v.phase,
+    v.yourCount,
+    v.opponentCount,
+    v.lastRound?.winner ?? "",
+    v.lastRound?.cardsWon ?? 0,
+    v.yourCard ? cardLabel(v.yourCard) : "",
+    v.opponentCard ? cardLabel(v.opponentCard) : "",
+    v.yourStakes?.length ?? 0,
+    v.opponentStakes?.length ?? 0
+  ].join(":");
+  if (key === revealKey) return;
+  revealKey = key;
+  cardsTucked = false;
+  clearTimeout(tuckTimer);
+  tuckTimer = window.setTimeout(() => {
+    cardsTucked = true;
+    render();
+  }, REVEAL_MS);
 }
 
 function render() {
@@ -205,31 +256,50 @@ function render() {
 
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
+  // Invite URL is only useful while waiting for someone to join.
+  $("invite-link").hidden = opponentHere;
   const v = view;
+  if (v) syncReveal(v);
+  const tuck =
+    cardsTucked && v && (v.phase === "roundOver" || v.phase === "gameOver");
+  const yourCard = tuck ? null : (v?.yourCard ?? null);
+  const themCard = tuck ? null : (v?.opponentCard ?? null);
+  const yourStakes = tuck ? [] : (v?.yourStakes ?? []);
+  const themStakes = tuck ? [] : (v?.opponentStakes ?? []);
+  const warLayout = yourStakes.length > 0 || themStakes.length > 0;
   $("you-name").textContent = v?.yourName || me.username;
   $("them-name").textContent = opponentHere ? v?.opponentName || opponentName || "Opponent" : "Opponent";
   $("you-count").textContent = v ? `(${v.yourCount})` : "";
   $("them-count").textContent = v ? `(${v.opponentCount})` : "";
-  renderCard($("you-card"), v?.yourCard ?? null);
-  renderCard($("them-card"), v?.opponentCard ?? null);
+  // During war the lineup carries the story — hide empty main backs so the table stays short.
+  $("you-card").hidden = warLayout && !yourCard;
+  $("them-card").hidden = warLayout && !themCard;
+  renderCard($("you-card"), yourCard);
+  renderCard($("them-card"), themCard);
+  renderStakes($("you-stakes"), yourStakes);
+  renderStakes($("them-stakes"), themStakes);
+  document.body.classList.toggle("war-layout", warLayout);
   $("pile").textContent = v && v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
 
   let status = "";
   if (!opponentHere) status = "Waiting for opponent — share the invite link";
   else if (!v) status = "Dealing…";
-  else if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : "You lose.";
+  else if (v.phase === "gameOver" && tuck) status = v.winner === "you" ? "You win!" : "You lose.";
+  else if (v.phase === "gameOver" && !tuck) status = roundTakeResult(v);
   else if (v.yourCard && !v.opponentCard) {
     status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
   } else if (v.inWar) {
     status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
-  } else if (v.phase === "roundOver" && v.lastRound?.wasWar) {
+  } else if (v.phase === "roundOver" && !tuck && v.lastRound?.wasWar) {
     status = warResult(v, v.opponentName || opponentName || "Your opponent");
+  } else if (v.phase === "roundOver" && !tuck) {
+    status = roundTakeResult(v);
   } else status = STATUS[v.phase];
   $("status").textContent = status;
-  renderWarCards(v);
 
-  document.body.classList.toggle("war", v?.inWar === true);
-  flipBtn.disabled = !opponentHere || !v || !canFlip(v);
+  document.body.classList.toggle("war", v?.inWar === true || (!!v?.lastRound?.wasWar && !tuck));
+  flipBtn.disabled =
+    !opponentHere || !v || !canFlip(v) || (v.phase === "roundOver" && !tuck);
 
   if (v?.phase === "gameOver" && !statsRefreshed) {
     statsRefreshed = true;
@@ -267,6 +337,13 @@ function resetRoom() {
   opponentName = "";
   view = null;
   statsRefreshed = false;
+  cardsTucked = false;
+  revealKey = "";
+  clearTimeout(tuckTimer);
+  document.body.classList.remove("war-layout");
+  $("you-card").hidden = false;
+  $("them-card").hidden = false;
+  $("invite-link").hidden = false;
   clearCommentary();
   const params = new URLSearchParams(location.search);
   params.delete("room");
@@ -375,12 +452,22 @@ function selectInviteLink() {
   selection?.addRange(range);
 }
 
-function copyInviteLink(): boolean {
-  selectInviteLink();
+/** Copy without highlighting the on-screen invite URL. */
+function copyInviteLink(text: string): boolean {
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;";
+  document.body.appendChild(field);
+  field.select();
+  field.setSelectionRange(0, text.length);
   try {
     return document.execCommand("copy");
   } catch {
     return false;
+  } finally {
+    field.remove();
+    window.getSelection()?.removeAllRanges();
   }
 }
 
@@ -388,7 +475,7 @@ $("copy-link").addEventListener("click", () => {
   const text = location.href;
   $("invite-link").textContent = text;
   // Copy during the click, before any await, or the browser drops the user gesture.
-  if (copyInviteLink()) {
+  if (copyInviteLink(text)) {
     showToast("Invite link copied");
     return;
   }

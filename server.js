@@ -133,6 +133,11 @@ function toViewCard(card) {
   return card && { rank: card.rank, suit: suitSymbols[card.suit] };
 }
 
+function toViewStake(stake) {
+  if (!stake.faceUp) return { faceUp: false };
+  return { faceUp: true, card: toViewCard(stake.card) };
+}
+
 function toViewWinner(winner, seat) {
   return winner === null ? null : winner === seat ? "you" : "opponent";
 }
@@ -154,6 +159,8 @@ function toView(state, seat, names) {
       yours: toViewCard(pair.yours),
       opponent: toViewCard(pair.opponent)
     })),
+    yourStakes: (state.yourStakes ?? []).map(toViewStake),
+    opponentStakes: (state.opponentStakes ?? []).map(toViewStake),
     lastRound: lastRound && {
       wasWar: lastRound.wasWar,
       winner: toViewWinner(lastRound.winner, seat),
