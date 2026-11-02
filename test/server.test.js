@@ -84,8 +84,8 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator) {
-  const { wsUrl, httpUrl } = await startServer({ commentator });
+async function startRoom(commentator = silentCommentator, engineOptions = {}) {
+  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
@@ -191,6 +191,9 @@ test("deals a fresh game to both players when the second one joins", async () =>
       yourCount: 26,
       opponentCount: 26,
       phase: "waiting",
+      inWar: false,
+      warCards: [],
+      lastRound: null,
       yourName,
       opponentName
     });
@@ -209,7 +212,7 @@ test("flips are resolved by the server and each player gets their own view", asy
   assert.ok(hostFirst.yourCard);
   assert.equal(hostFirst.opponentCard, null);
   assert.equal(guestFirst.yourCard, null);
-  assert.equal(guestFirst.opponentCard, null);
+  assert.deepEqual(guestFirst.opponentCard, hostFirst.yourCard);
 
   post(guest, { type: "game_message", payload: { kind: "flip" } });
   const hostSecond = (await host.next()).payload.view;
@@ -262,6 +265,58 @@ test("a failing commentator never blocks play", async () => {
   await guest.next();
   post(guest, { type: "game_message", payload: { kind: "flip" } });
   assert.equal((await host.next()).payload.view.phase === "waiting", false);
+  host.close();
+  guest.close();
+});
+
+test("a war stays visible to both players until it resolves", async () => {
+  const card = (rank, suit) => ({ rank, suit });
+  // Host (seat A) flips 7S, guest 7D: a tie. Then the war flips are KS vs 5D.
+  const deck = [
+    card(7, "S"), card(2, "S"), card(3, "S"), card(4, "S"), card(13, "S"),
+    ...Array.from({ length: 21 }, () => card(2, "C")),
+    card(7, "D"), card(2, "D"), card(3, "D"), card(4, "D"), card(5, "D"),
+    ...Array.from({ length: 21 }, () => card(3, "C"))
+  ];
+  const { host, guest } = await startRoom(undefined, {
+    shuffle: (items) => (items.length === 52 ? deck : items.slice())
+  });
+  const flip = async (player) => {
+    post(player, { type: "game_message", payload: { kind: "flip" } });
+    return [(await host.next()).payload.view, (await guest.next()).payload.view];
+  };
+
+  await flip(host);
+  const [hostTie, guestTie] = await flip(guest);
+  assert.equal(hostTie.phase, "war");
+  assert.equal(hostTie.inWar, true);
+  assert.equal(hostTie.pile, 8);
+  assert.equal(hostTie.yourCard, null);
+  assert.deepEqual(hostTie.warCards, [
+    { yours: { rank: 7, suit: "♠" }, opponent: { rank: 7, suit: "♦" } }
+  ]);
+  assert.deepEqual(guestTie.warCards, [
+    { yours: { rank: 7, suit: "♦" }, opponent: { rank: 7, suit: "♠" } }
+  ]);
+
+  const [hostFlipped, guestWaiting] = await flip(host);
+  assert.equal(hostFlipped.inWar, true);
+  assert.equal(guestWaiting.inWar, true);
+  assert.equal(guestWaiting.phase, "flipped");
+  assert.equal(guestWaiting.warCards.length, 1);
+  assert.deepEqual(hostFlipped.yourCard, { rank: 13, suit: "♠" });
+  assert.equal(hostFlipped.opponentCard, null);
+  assert.deepEqual(guestWaiting.opponentCard, { rank: 13, suit: "♠" });
+
+  const [hostDone, guestDone] = await flip(guest);
+  assert.equal(hostDone.phase, "roundOver");
+  assert.equal(hostDone.inWar, false);
+  assert.deepEqual(hostDone.warCards, []);
+  assert.deepEqual(hostDone.lastRound, { wasWar: true, winner: "you", cardsWon: 10 });
+  assert.deepEqual(guestDone.lastRound, { wasWar: true, winner: "opponent", cardsWon: 10 });
+  assert.equal(hostDone.yourCount, 31);
+  assert.equal(guestDone.opponentCount, 31);
+
   host.close();
   guest.close();
 });

@@ -53,6 +53,7 @@ app.innerHTML = `
     </section>
     <div class="middle">
       <p class="status" id="status"></p>
+      <div class="war-cards" id="war-cards" hidden></div>
       <p class="pile" id="pile"></p>
     </div>
     <section class="player you">
@@ -159,6 +160,39 @@ const STATUS: Record<Phase, string> = {
   gameOver: ""
 };
 
+const cardLabel = (card: Card) => `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
+
+function tiedCard(card: Card): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = "tied-card";
+  el.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
+  el.textContent = cardLabel(card);
+  return el;
+}
+
+function renderWarCards(v: GameView | null) {
+  const pairs = v?.inWar ? v.warCards : [];
+  const el = $("war-cards");
+  el.hidden = pairs.length === 0;
+  el.replaceChildren(
+    ...pairs.map((pair) => {
+      const row = document.createElement("div");
+      row.className = "war-pair";
+      row.append("Tied: ", tiedCard(pair.yours), " vs ", tiedCard(pair.opponent));
+      return row;
+    })
+  );
+}
+
+function warResult(v: GameView, opponent: string): string {
+  const round = v.lastRound;
+  if (!round || round.winner === null) return "The war ended in a draw.";
+  const cards = `${round.cardsWon} cards`;
+  return round.winner === "you"
+    ? `You won the war and took ${cards}!`
+    : `${opponent} won the war and took ${cards}.`;
+}
+
 function render() {
   const loggedIn = me !== null;
   const inRoom = roomCode !== null;
@@ -184,11 +218,17 @@ function render() {
   if (!opponentHere) status = "Waiting for opponent — share the invite link";
   else if (!v) status = "Dealing…";
   else if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : "You lose.";
-  else if (v.yourCard && !v.opponentCard) status = "Waiting for opponent to flip…";
-  else status = STATUS[v.phase];
+  else if (v.yourCard && !v.opponentCard) {
+    status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
+  } else if (v.inWar) {
+    status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
+  } else if (v.phase === "roundOver" && v.lastRound?.wasWar) {
+    status = warResult(v, v.opponentName || opponentName || "Your opponent");
+  } else status = STATUS[v.phase];
   $("status").textContent = status;
+  renderWarCards(v);
 
-  document.body.classList.toggle("war", v?.phase === "war");
+  document.body.classList.toggle("war", v?.inWar === true);
   flipBtn.disabled = !opponentHere || !v || !canFlip(v);
 
   if (v?.phase === "gameOver" && !statsRefreshed) {
