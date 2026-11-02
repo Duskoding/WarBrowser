@@ -27,7 +27,8 @@ export interface GameScreen {
 
 export interface ClientGame {
   id: string;
-  // This game's CSS, added inside its shadow root after games/base.css.
+  // This game's CSS, applied inside its shadow root after games/base.css (as
+  // adopted stylesheets, so setting root.innerHTML doesn't remove them).
   // Import it with `import styles from "./<id>.css?inline"`.
   styles: string;
   // Draws the game into `root` once the room is full and the first state arrives.

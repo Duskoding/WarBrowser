@@ -1,6 +1,10 @@
 import type { ClientGame } from "../types";
 import styles from "./war.css?inline";
 
+// The War table: felt, flipping cards, the war lineup and round commentary.
+// Drawn inside its own shadow root (see ../types.ts), so ids and CSS here
+// can't clash with the lobby or other games.
+
 type Suit = "♠" | "♥" | "♦" | "♣";
 type Card = { rank: number; suit: Suit }; // rank 2–14 (11 = J, 12 = Q, 13 = K, 14 = A)
 type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
@@ -15,6 +19,9 @@ type LastRound = {
   cardsWon: number;
 };
 
+/** Card in the war lineup; face-down burns omit rank/suit until the war ends. */
+type StakeCard = { faceUp: true; card: Card } | { faceUp: false };
+
 // One player's view of the table, from src/games/war.ts on the server.
 type WarView = {
   yourCard: Card | null;
@@ -25,6 +32,8 @@ type WarView = {
   phase: Phase;
   inWar: boolean; // true for the whole war, until it resolves
   warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
+  yourStakes?: StakeCard[];
+  opponentStakes?: StakeCard[];
   lastRound: LastRound | null;
   winner?: "you" | "opponent";
   yourName?: string;
@@ -41,15 +50,16 @@ const STATUS: Record<Phase, string> = {
   gameOver: ""
 };
 
+/** After a round resolves, show faces briefly then tuck to backs. */
+const REVEAL_MS = 1500;
+
+// Page backgrounds behind the table (set through the shell's setBackground).
+const FELT = "radial-gradient(ellipse 90% 70% at 50% 35%, #165a32 0%, #0e3d22 100%)";
+const FELT_WAR = "radial-gradient(ellipse 90% 70% at 50% 35%, #6b1a1a 0%, #3d0e0e 100%)";
+
 const cardLabel = (card: Card) => `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
 
-function tiedCard(card: Card): HTMLSpanElement {
-  const el = document.createElement("span");
-  el.className = "tied-card";
-  el.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
-  el.textContent = cardLabel(card);
-  return el;
-}
+const canFlip = (v: WarView) => v.phase !== "gameOver" && !(v.yourCard !== null && v.opponentCard === null);
 
 function warResult(v: WarView): string {
   const round = v.lastRound;
@@ -60,33 +70,42 @@ function warResult(v: WarView): string {
     : `${v.opponentName || "Your opponent"} won the war and took ${cards}.`;
 }
 
-const canFlip = (v: WarView) => v.phase !== "gameOver" && !(v.yourCard !== null && v.opponentCard === null);
+function roundTakeResult(v: WarView): string {
+  const round = v.lastRound;
+  if (!round) return STATUS.roundOver;
+  if (round.winner === "you") return "You take the cards!";
+  if (round.winner === "opponent") return "Opponent takes the cards.";
+  return "Draw — cards go back.";
+}
 
 export const war: ClientGame = {
   id: "war",
   styles,
   isFinished: (view) => (view as WarView).phase === "gameOver",
   mount(root, { send, setBackground }) {
-    root.innerHTML = `
-      <div class="war-table">
-        <section class="player them">
-          <h2><span data-id="them-name">Opponent</span> <span class="count" data-id="them-count"></span></h2>
-          <div class="card" data-id="them-card"><div class="face"></div><div class="back"></div></div>
-        </section>
-        <div class="middle">
-          <p class="status" data-id="status"></p>
-          <div class="war-cards" data-id="war-cards" hidden></div>
-          <p class="pile" data-id="pile"></p>
-        </div>
-        <section class="player you">
-          <div class="card" data-id="you-card"><div class="face"></div><div class="back"></div></div>
-          <h2><span data-id="you-name">You</span> <span class="count" data-id="you-count"></span></h2>
-        </section>
-        <button data-id="flip" disabled>Flip</button>
-        <aside class="commentary" data-id="commentary">Commentary will appear here.</aside>
+    const table = document.createElement("main");
+    table.className = "table";
+    table.innerHTML = `
+      <section class="player them">
+        <h2><span id="them-name">Opponent</span> <span class="count" id="them-count"></span></h2>
+        <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
+        <div class="stakes" id="them-stakes" hidden aria-label="Opponent war cards"></div>
+      </section>
+      <div class="middle">
+        <p class="status" id="status"></p>
+        <p class="pile" id="pile"></p>
       </div>
+      <section class="player you">
+        <div class="stakes" id="you-stakes" hidden aria-label="Your war cards"></div>
+        <div class="card" id="you-card"><div class="face"></div><div class="back"></div></div>
+        <h2><span id="you-name">You</span> <span class="count" id="you-count"></span></h2>
+      </section>
+      <button id="flip" disabled>Flip</button>
+      <aside class="commentary" id="commentary">Commentary will appear here.</aside>
     `;
-    const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector(`[data-id="${id}"]`) as T;
+    root.append(table);
+
+    const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.getElementById(id) as T;
     const flipBtn = $<HTMLButtonElement>("flip");
     flipBtn.addEventListener("click", () => {
       flipBtn.disabled = true; // re-enabled by the next state
@@ -103,52 +122,125 @@ export const war: ClientGame = {
         return;
       }
       const face = el.querySelector<HTMLDivElement>(".face")!;
-      face.textContent = `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
+      face.textContent = cardLabel(card);
       face.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
       el.classList.remove("flipped");
       void el.offsetWidth; // restart the animation
       el.classList.add("flipped");
     }
 
+    function renderStakes(el: HTMLElement, stakes: StakeCard[]) {
+      el.hidden = stakes.length === 0;
+      el.replaceChildren(
+        ...stakes.map((stake) => {
+          const chip = document.createElement("div");
+          if (!stake.faceUp) {
+            chip.className = "stake-card back";
+            chip.title = "Face-down";
+            return chip;
+          }
+          chip.className = "stake-card face";
+          chip.textContent = cardLabel(stake.card);
+          if (stake.card.suit === "♥" || stake.card.suit === "♦") chip.classList.add("red");
+          return chip;
+        })
+      );
+    }
+
+    let view: WarView | null = null;
+    let cardsTucked = false;
+    let revealKey = "";
+    let tuckTimer: number | undefined;
     let lastCommentaryRound = 0;
 
+    function syncReveal(v: WarView) {
+      const resolved = v.phase === "roundOver" || v.phase === "gameOver";
+      const hasFaces =
+        !!v.yourCard ||
+        !!v.opponentCard ||
+        (v.yourStakes?.length ?? 0) > 0 ||
+        (v.opponentStakes?.length ?? 0) > 0;
+      if (!resolved || !hasFaces) {
+        cardsTucked = false;
+        revealKey = "";
+        clearTimeout(tuckTimer);
+        return;
+      }
+      const key = [
+        v.phase,
+        v.yourCount,
+        v.opponentCount,
+        v.lastRound?.winner ?? "",
+        v.lastRound?.cardsWon ?? 0,
+        v.yourCard ? cardLabel(v.yourCard) : "",
+        v.opponentCard ? cardLabel(v.opponentCard) : "",
+        v.yourStakes?.length ?? 0,
+        v.opponentStakes?.length ?? 0
+      ].join(":");
+      if (key === revealKey) return;
+      revealKey = key;
+      cardsTucked = false;
+      clearTimeout(tuckTimer);
+      tuckTimer = window.setTimeout(() => {
+        cardsTucked = true;
+        render();
+      }, REVEAL_MS);
+    }
+
+    function render() {
+      const v = view;
+      if (!v) return;
+      syncReveal(v);
+      const tuck = cardsTucked && (v.phase === "roundOver" || v.phase === "gameOver");
+      const yourCard = tuck ? null : v.yourCard;
+      const themCard = tuck ? null : v.opponentCard;
+      const yourStakes = tuck ? [] : (v.yourStakes ?? []);
+      const themStakes = tuck ? [] : (v.opponentStakes ?? []);
+      const warLayout = yourStakes.length > 0 || themStakes.length > 0;
+      $("you-name").textContent = v.yourName || "You";
+      $("them-name").textContent = v.opponentName || "Opponent";
+      $("you-count").textContent = `(${v.yourCount})`;
+      $("them-count").textContent = `(${v.opponentCount})`;
+      // During war the lineup carries the story — hide empty main backs so the table stays short.
+      $("you-card").hidden = warLayout && !yourCard;
+      $("them-card").hidden = warLayout && !themCard;
+      renderCard($("you-card"), yourCard);
+      renderCard($("them-card"), themCard);
+      renderStakes($("you-stakes"), yourStakes);
+      renderStakes($("them-stakes"), themStakes);
+      table.classList.toggle("war-layout", warLayout);
+      $("pile").textContent = v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
+
+      let status: string;
+      if (v.phase === "gameOver" && tuck) status = v.winner === "you" ? "You win!" : v.winner ? "You lose." : "It's a draw.";
+      else if (v.phase === "gameOver" && !tuck) status = roundTakeResult(v);
+      else if (v.yourCard && !v.opponentCard) {
+        status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
+      } else if (v.inWar) {
+        status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
+      } else if (v.phase === "roundOver" && !tuck && v.lastRound?.wasWar) {
+        status = warResult(v);
+      } else if (v.phase === "roundOver" && !tuck) {
+        status = roundTakeResult(v);
+      } else status = STATUS[v.phase];
+      $("status").textContent = status;
+
+      setBackground(v.inWar || (!!v.lastRound?.wasWar && !tuck) ? FELT_WAR : FELT);
+      flipBtn.disabled = !canFlip(v) || (v.phase === "roundOver" && !tuck);
+    }
+
     return {
-      update(view) {
-        const v = view as WarView;
-        $("you-name").textContent = v.yourName || "You";
-        $("them-name").textContent = v.opponentName || "Opponent";
-        $("you-count").textContent = `(${v.yourCount})`;
-        $("them-count").textContent = `(${v.opponentCount})`;
-        renderCard($("you-card"), v.yourCard);
-        renderCard($("them-card"), v.opponentCard);
-        $("pile").textContent = v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
-
-        let status = STATUS[v.phase];
-        if (v.phase === "gameOver") status = v.winner === "you" ? "You win!" : v.winner ? "You lose." : "It's a draw.";
-        else if (v.yourCard && !v.opponentCard) status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
-        else if (v.inWar) status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
-        else if (v.phase === "roundOver" && v.lastRound?.wasWar) status = warResult(v);
-        $("status").textContent = status;
-
-        const pairs = v.inWar ? v.warCards : [];
-        const warCards = $("war-cards");
-        warCards.hidden = pairs.length === 0;
-        warCards.replaceChildren(
-          ...pairs.map((pair) => {
-            const row = document.createElement("div");
-            row.className = "war-pair";
-            row.append("Tied: ", tiedCard(pair.yours), " vs ", tiedCard(pair.opponent));
-            return row;
-          })
-        );
-
-        setBackground(v.inWar ? "var(--felt-war)" : null);
-        flipBtn.disabled = !canFlip(v);
+      update(next) {
+        view = next as WarView;
+        render();
       },
       commentary(text, round) {
         if (round <= lastCommentaryRound) return; // a slow reply for an older round
         lastCommentaryRound = round;
         $("commentary").textContent = text;
+      },
+      destroy() {
+        clearTimeout(tuckTimer);
       }
     };
   }

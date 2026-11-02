@@ -27,7 +27,8 @@ const stub =
 const html = readFileSync(here("./dist/index.html"), "utf8")
   .replace(/<script type="module"[^>]*src="[^"]*\/([^/"]+)"[^>]*><\/script>/, (_, file) =>
     `${stub}<script type="module">${asset(file).replaceAll("</script", "<\\/script")}</script>`)
-  .replace(/<link rel="stylesheet"[^>]*href="[^"]*\/([^/"]+)"[^>]*>/g, (_, file) => `<style>${asset(file)}</style>`);
+  // Keep Google Fonts <link>s; only inline the built app stylesheets.
+  .replace(/<link rel="stylesheet"[^>]*href="[^"]*assets\/([^/"]+\.css)"[^>]*>/g, (_, file) => `<style>${asset(file)}</style>`);
 
 const json = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
 const page = readFileSync(here("./page.html"), "utf8")

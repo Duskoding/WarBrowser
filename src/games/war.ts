@@ -1,5 +1,5 @@
 import { WarEngine } from '../engine/WarEngine.ts';
-import type { Card, GameState, PlayerId, WarEngineOptions } from '../engine/types.ts';
+import type { Card, GameState, PlayerId, StakeCard, WarEngineOptions } from '../engine/types.ts';
 import type { GameDefinition, PlayerInfo } from './types.ts';
 
 const seatIds: PlayerId[] = ['A', 'B'];
@@ -7,6 +7,11 @@ const suitSymbols = { S: '♠', H: '♥', D: '♦', C: '♣' } as const;
 
 function toViewCard(card: Card | null) {
   return card && { rank: card.rank, suit: suitSymbols[card.suit] };
+}
+
+function toViewStake(stake: StakeCard) {
+  if (!stake.faceUp) return { faceUp: false };
+  return { faceUp: true, card: toViewCard(stake.card) };
 }
 
 function toViewWinner(winner: PlayerId | null, seat: PlayerId) {
@@ -31,6 +36,8 @@ function toView(state: GameState, seat: PlayerId, players: PlayerInfo[]) {
       yours: toViewCard(pair.yours),
       opponent: toViewCard(pair.opponent),
     })),
+    yourStakes: (state.yourStakes ?? []).map(toViewStake),
+    opponentStakes: (state.opponentStakes ?? []).map(toViewStake),
     lastRound: lastRound && {
       wasWar: lastRound.wasWar,
       winner: toViewWinner(lastRound.winner, seat),

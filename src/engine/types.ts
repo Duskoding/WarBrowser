@@ -20,6 +20,11 @@ export interface LastRound {
   cardsWon: number;
 }
 
+/** One card in the war lineup. Face-down burns omit the card until the war ends. */
+export type StakeCard =
+  | { faceUp: true; card: Card }
+  | { faceUp: false };
+
 export interface GameState {
   yourCard: Card | null;
   opponentCard: Card | null;
@@ -31,6 +36,9 @@ export interface GameState {
   winner: PlayerId | null;
   inWar: boolean;
   warCards: TiedPair[];
+  /** Your cards in this war, in order (ties, burns, deciding flips). */
+  yourStakes: StakeCard[];
+  opponentStakes: StakeCard[];
   lastRound: LastRound | null;
 }
 

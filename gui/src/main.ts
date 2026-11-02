@@ -173,6 +173,19 @@ async function loadGames() {
 
 // ---- Game screen ----
 // Each game draws into its own shadow root, so its styles stay inside it.
+const baseSheet = new CSSStyleSheet();
+baseSheet.replaceSync(baseGameStyles);
+const gameSheets = new Map<string, CSSStyleSheet>();
+function gameSheet(id: string, css: string) {
+  let sheet = gameSheets.get(id);
+  if (!sheet) {
+    sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    gameSheets.set(id, sheet);
+  }
+  return sheet;
+}
+
 function setBackground(background: string | null) {
   document.body.style.background = background ?? "";
 }
@@ -194,9 +207,8 @@ function mountGame() {
   host.className = "game-host";
   host.dataset.game = client.id;
   const root = host.attachShadow({ mode: "open" });
-  const style = document.createElement("style");
-  style.textContent = `${baseGameStyles}\n${client.styles}`;
-  root.append(style);
+  // Adopted stylesheets survive the game replacing root.innerHTML.
+  root.adoptedStyleSheets = [baseSheet, gameSheet(client.id, client.styles)];
   $("game-root").replaceChildren(host);
   guarded(() => {
     screen = client.mount(root, { send: sendGame, setBackground });
@@ -246,6 +258,8 @@ function render() {
   $("room-game").textContent = gameName(roomGameId);
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
+  // Invite URL is only useful while waiting for someone to join.
+  $("invite-link").hidden = opponentHere;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
@@ -257,6 +271,7 @@ function render() {
 
 function resetRoom() {
   unmountGame();
+  $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
   opponentHere = false;
@@ -361,12 +376,22 @@ function selectInviteLink() {
   selection?.addRange(range);
 }
 
-function copyInviteLink(): boolean {
-  selectInviteLink();
+/** Copy without highlighting the on-screen invite URL. */
+function copyInviteLink(text: string): boolean {
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;";
+  document.body.appendChild(field);
+  field.select();
+  field.setSelectionRange(0, text.length);
   try {
     return document.execCommand("copy");
   } catch {
     return false;
+  } finally {
+    field.remove();
+    window.getSelection()?.removeAllRanges();
   }
 }
 
@@ -374,7 +399,7 @@ $("copy-link").addEventListener("click", () => {
   const text = location.href;
   $("invite-link").textContent = text;
   // Copy during the click, before any await, or the browser drops the user gesture.
-  if (copyInviteLink()) {
+  if (copyInviteLink(text)) {
     showToast("Invite link copied");
     return;
   }
