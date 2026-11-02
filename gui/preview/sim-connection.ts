@@ -1,6 +1,6 @@
 // Preview-only stand-in for src/connection.ts: talks to the pretend server in
 // preview/page.html over postMessage instead of a WebSocket.
-import type { ClientMessage, GamePayload, ServerEvent } from "../src/types";
+import type { ClientMessage, GameAction, ServerEvent } from "../src/types";
 
 type Listener = (event: ServerEvent) => void;
 const listeners: Listener[] = [];
@@ -19,13 +19,15 @@ export function connect() {
     const d = e.data;
     if (d?.__sim === "evt") dispatch(d.event);
     // Demo shortcuts from the parent page's buttons.
-    if (d?.__sim === "do" && d.action === "create") createRoom();
+    if (d?.__sim === "do" && d.action === "create") createRoom(d.gameId);
     if (d?.__sim === "do" && d.action === "join") joinRoom(d.code);
   });
   send({ type: "__hello" });
 }
 
-export const createRoom = () => send({ type: "create_room" });
+export function disconnect() {}
+
+export const createRoom = (gameId: string) => send({ type: "create_room", gameId });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
 export const leaveRoom = () => send({ type: "leave_room" });
-export const sendGame = (payload: GamePayload) => send({ type: "game_message", payload });
+export const sendGame = (payload: GameAction) => send({ type: "game_message", payload });

@@ -1,3 +1,5 @@
+import type { GameSummary } from "./types";
+
 export type Me = {
   username: string;
   wins: number;
@@ -51,4 +53,11 @@ export async function register(username: string, password: string): Promise<ApiR
 
 export async function logout(): Promise<void> {
   await api("/api/logout", { method: "POST" });
+}
+
+export async function fetchGames(): Promise<GameSummary[]> {
+  const response = await fetch("/api/games");
+  if (!response.ok) throw new Error(`Could not load games (${response.status})`);
+  const body = (await response.json()) as { games?: GameSummary[] };
+  return body.games ?? [];
 }

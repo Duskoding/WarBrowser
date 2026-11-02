@@ -1,0 +1,58 @@
+/* War: two cards that flip, a pile count and round commentary. */
+body.war { background: var(--felt-war); }
+
+.war-table {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.war-table .player { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.war-table .player h2 { margin: 0; font-size: 1.1rem; }
+
+.war-table .middle { text-align: center; }
+.war-table .pile { min-height: 1.2em; margin: 0.25rem 0 0; opacity: 0.85; }
+
+/* Card flip: .back shows by default, .flipped rotates to .face. */
+.card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+.card .face,
+.card .back {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  backface-visibility: hidden;
+  transition: transform 0.5s;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+.card .back {
+  background: repeating-linear-gradient(45deg, var(--card-back) 0 8px, #2f5299 8px 16px);
+  border: 4px solid #fff;
+}
+.card .face {
+  background: var(--card-bg);
+  color: #111;
+  display: grid;
+  place-items: center;
+  font-size: 2.5rem;
+  transform: rotateY(180deg);
+}
+.card .face.red { color: var(--red); }
+.card.flipped .face { transform: rotateY(0deg); }
+.card.flipped .back { transform: rotateY(-180deg); }
+
+.commentary {
+  max-width: 32rem;
+  min-height: 3em;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.25);
+  font-style: italic;
+  text-align: center;
+}

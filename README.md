@@ -1,6 +1,8 @@
 # WarBrowser
 
-WarBrowser is a live, two-player version of the card game War. Players create an account, join a room through a shared link, and play from separate browsers, with game updates appearing in real time.
+WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
+
+Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
 
 ## How it works
 
@@ -10,6 +12,7 @@ An AI commentator adds a short description after each completed round without bl
 
 ## Features
 
+- A lobby to choose which game to play
 - Username and password accounts (register / log in)
 - Shared game rooms for two logged-in players, joined by room code or invite link
 - Player names on the table and a win–loss record on the lobby
@@ -18,7 +21,7 @@ An AI commentator adds a short description after each completed round without bl
 - Standard War gameplay, including chained wars and the all-in case
 - AI-generated round commentary (optional, needs an Anthropic API key)
 
-## Game rules
+## War rules
 
 - A standard 52-card deck is split 26/26 between two players.
 - Both players flip their top card. The higher card wins both. Aces are high.
@@ -30,11 +33,14 @@ An AI commentator adds a short description after each completed round without bl
 
 | Path | What it is |
 | --- | --- |
-| `src/engine/` | `WarEngine`: the rules and state, with no networking, plus its tests |
+| `src/games/` | One file per game (`war.ts`, `tictactoe.ts`), the shared game interface (`types.ts`) and the list of games (`index.ts`) |
+| `src/engine/` | `WarEngine`: War's rules and state, with no networking, plus its tests |
 | `src/auth.ts` | Users, hashed passwords, sessions, and win/loss counts (SQLite) |
 | `src/commentator.ts` | `ClaudeCommentator`: one-sentence round commentary from the Claude API |
-| `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
+| `server.js` | HTTP + WebSocket server: accounts, rooms and seats; runs whichever game a room was created for |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
+| `gui/src/games/` | One folder per game with that game's screen and styles, plus the list of games (`index.ts`) |
+| `gui/preview/` | `live-war-preview.html`: the site in two side-by-side windows against a pretend server, openable without installing anything |
 | `test/` | Server tests |
 | `SPEC_v2.md` | The current specification, kept in line with the code |
 | `SPEC_v1.md` | The original sprint specification |
@@ -49,7 +55,7 @@ npm run build
 npm start
 ```
 
-Open `http://localhost:3000` in two browser windows. Register (or log in) in each window, create a room in one, then join it from the other with the room code or the invite link.
+Open `http://localhost:3000` in two browser windows (use a private window for the second, so the two accounts don't share a login). Register (or log in) in each window, choose a game in one to create a room, then join it from the other with the room code or the invite link.
 
 Accounts are stored in a local SQLite file at `data/warbrowser.sqlite` (override the path with `DATABASE_PATH`). Passwords are hashed; the database is gitignored.
 
@@ -76,6 +82,21 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 | `npm run dev` | Client dev server with hot reload |
 | `npm run typecheck` | Type-checks the engine and the client |
 | `npm test` | Builds the client, then runs engine and server tests |
+| `npm run build:preview` | Rebuilds `gui/preview/live-war-preview.html` after client or game changes |
+
+## Adding a game
+
+A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
+
+1. **Rules:** create `src/games/<id>.ts` exporting a `GameDefinition` (see `src/games/types.ts`):
+   - `id`, `name`, `description`, `players` (the game starts when the room has this many players).
+   - `create()` returns a session with two functions. `view(seat, players)` returns what the player in that seat may see; it is sent to them after every action, so leave out anything they shouldn't know. `act(seat, payload)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle.
+2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
+3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `ClientGame` (see `gui/src/games/types.ts`): `mount(root, { send })` draws the game into `root` and returns `update(view)` and `destroy()`; `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in a `.css` file next to it and import it.
+4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
+5. **Test:** add rules tests next to the game (like `src/games/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
+
+Win/loss records are shared across all games for now.
 
 ## Protocol
 
@@ -89,10 +110,12 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- **Client → server:** `create_room`, `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload of `{ "kind": "flip" }`.
-- **Server → client:** `room_created`, `room_joined`, `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }`.
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players" }] }`
 
-The state view is specific to each player: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War).
+
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
 
 ## Deploy to Render
 
@@ -117,6 +140,6 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 ## Test with two computers
 
 1. Open the Render URL in a browser on both computers. Do not use `localhost`, since that points to each computer itself.
-2. On the first computer, register or log in, create a room, and copy the displayed six-character room code or the invite link.
+2. On the first computer, register or log in, choose a game to create a room, and copy the displayed six-character room code or the invite link.
 3. On the second computer, register or log in with a different account, then enter the code (or open the link) and join the room.
-4. Both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears.
+4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears. In Tic-Tac-Toe, take turns and confirm each move appears on both screens.

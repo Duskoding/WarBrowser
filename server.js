@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
-import { WarEngine } from "./src/engine/WarEngine.ts";
 import { ClaudeCommentator } from "./src/commentator.ts";
+import { DEFAULT_GAME_ID, findGame, gameSummaries } from "./src/games/index.ts";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
@@ -127,38 +127,13 @@ function userFromRequest(db, request) {
   return { token, user: userFromSession(db, token) };
 }
 
-const suitSymbols = { S: "♠", H: "♥", D: "♦", C: "♣" };
-
-function toViewCard(card) {
-  return card && { rank: card.rank, suit: suitSymbols[card.suit] };
-}
-
-function toView(state, seat, names) {
-  const mine = seat === "A";
-  const winner = state.winner === null ? undefined : state.winner === seat ? "you" : "opponent";
-  const opponentSeat = seat === "A" ? "B" : "A";
-  return {
-    yourCard: toViewCard(state.yourCard),
-    opponentCard: toViewCard(state.opponentCard),
-    pile: state.pile,
-    yourCount: mine ? state.scoreA : state.scoreB,
-    opponentCount: mine ? state.scoreB : state.scoreA,
-    phase: state.phase,
-    winner,
-    yourName: names[seat],
-    opponentName: names[opponentSeat]
-  };
-}
-
+// Each player gets their own view of the game after every change.
 function sendStates(game) {
-  const names = {
-    A: game.players.A.username,
-    B: game.players.B.username
-  };
+  const players = game.players.map((user) => ({ username: user.username }));
   for (const [socket, seat] of game.seats) {
     send(socket, {
       type: "game_message",
-      payload: { kind: "state", view: toView(game.engine.getState(seat), seat, names) }
+      payload: { kind: "state", view: game.session.view(seat, players) }
     });
   }
 }
@@ -176,7 +151,9 @@ export function createWarServer({
   engineOptions = {}
 } = {}) {
   const db = typeof database === "string" ? openDatabase(database) : database;
+  // roomCode -> { game: GameDefinition, sockets: Set<WebSocket> }
   const rooms = new Map();
+  // roomCode -> the game being played once the room is full
   const games = new Map();
 
   async function handleApi(request, response, pathname) {
@@ -228,6 +205,11 @@ export function createWarServer({
       sendJson(response, 200, { ok: true }, {
         "Set-Cookie": cookieHeader("", request, true)
       });
+      return;
+    }
+
+    if (pathname === "/api/games" && request.method === "GET") {
+      sendJson(response, 200, { games: gameSummaries() });
       return;
     }
 
@@ -304,12 +286,12 @@ export function createWarServer({
     socket.roomCode = undefined;
     if (!room) return;
 
-    room.delete(socket);
+    room.sockets.delete(socket);
     games.delete(roomCode);
-    for (const player of room) {
+    for (const player of room.sockets) {
       send(player, { type: "opponent_disconnected" });
     }
-    if (room.size === 0) {
+    if (room.sockets.size === 0) {
       rooms.delete(roomCode);
     }
   }
@@ -354,10 +336,21 @@ export function createWarServer({
           return;
         }
 
+        const definition = findGame(message.gameId ?? DEFAULT_GAME_ID);
+        if (!definition) {
+          send(socket, { type: "error", message: "That game doesn't exist." });
+          return;
+        }
+
         const roomCode = createRoomCode(rooms);
-        rooms.set(roomCode, new Set([socket]));
+        rooms.set(roomCode, { game: definition, sockets: new Set([socket]) });
         socket.roomCode = roomCode;
-        send(socket, { type: "room_created", roomCode, username: socket.user.username });
+        send(socket, {
+          type: "room_created",
+          roomCode,
+          username: socket.user.username,
+          gameId: definition.id
+        });
         return;
       }
 
@@ -378,39 +371,40 @@ export function createWarServer({
           send(socket, { type: "error", message: "Room not found." });
           return;
         }
-        if (room.size >= 2) {
+        if (room.sockets.size >= room.game.players) {
           send(socket, { type: "error", message: "That room is full." });
           return;
         }
-        for (const player of room) {
+        for (const player of room.sockets) {
           if (player.user?.id === socket.user.id) {
             send(socket, { type: "error", message: "You are already in this room." });
             return;
           }
         }
 
-        room.add(socket);
+        room.sockets.add(socket);
         socket.roomCode = roomCode;
-        const [host, guest] = room;
+        const [host] = room.sockets;
         send(socket, {
           type: "room_joined",
           roomCode,
-          username: guest.user.username,
-          opponentUsername: host.user.username
+          username: socket.user.username,
+          opponentUsername: host.user.username,
+          gameId: room.game.id
         });
-        for (const player of room) {
+        for (const player of room.sockets) {
           if (player !== socket) {
             send(player, { type: "opponent_joined", username: socket.user.username });
           }
         }
 
+        if (room.sockets.size < room.game.players) return;
+        // Room is full: seats follow join order (the host is seat 0).
+        const seated = [...room.sockets];
         const game = {
-          engine: new WarEngine(engineOptions),
-          seats: new Map([[host, "A"], [guest, "B"]]),
-          players: {
-            A: host.user,
-            B: guest.user
-          },
+          session: room.game.create({ commentator, options: engineOptions }),
+          seats: new Map(seated.map((player, seat) => [player, seat])),
+          players: seated.map((player) => player.user),
           recorded: false
         };
         games.set(roomCode, game);
@@ -420,7 +414,8 @@ export function createWarServer({
 
       if (message.type === "game_message") {
         const room = rooms.get(socket.roomCode);
-        if (!room || room.size !== 2) {
+        const game = games.get(socket.roomCode);
+        if (!room || !game) {
           send(socket, {
             type: "error",
             message: "Wait for another player to join before playing."
@@ -432,44 +427,48 @@ export function createWarServer({
           return;
         }
 
-        const kind = message.payload?.kind;
-        if (kind === "flip") {
-          const game = games.get(socket.roomCode);
-          const result = game.engine.flip(game.seats.get(socket));
-          if (!result.ok) {
-            send(socket, { type: "error", message: result.error });
-            return;
-          }
-          sendStates(game);
-          if (result.resolved && result.summary.gameOver && !game.recorded) {
-            game.recorded = true;
-            const winnerSeat = result.summary.winner;
-            if (winnerSeat) {
-              const loserSeat = winnerSeat === "A" ? "B" : "A";
-              recordMatch(db, game.players[winnerSeat].id, game.players[loserSeat].id);
-            }
-          }
-          if (result.resolved) {
-            const { summary } = result;
-            const roomCode = socket.roomCode;
-            void commentator.describe(summary).then((text) => {
-              if (!text || games.get(roomCode) !== game) return;
-              for (const player of game.seats.keys()) {
-                send(player, {
-                  type: "game_message",
-                  payload: { kind: "commentary", text, round: summary.round }
-                });
-              }
-            });
-          }
-          return;
-        }
+        const payload = message.payload;
+        const kind = payload?.kind;
         if (kind === "state" || kind === "commentary") {
           send(socket, { type: "error", message: "Only the server can send that." });
           return;
         }
 
-        for (const player of room) {
+        // The game handles its own actions; anything it doesn't recognise
+        // (result null) is relayed to the other players below.
+        const isObject = payload !== null && typeof payload === "object" && !Array.isArray(payload);
+        const result = isObject ? game.session.act(game.seats.get(socket), payload) : null;
+        if (result) {
+          if (!result.ok) {
+            send(socket, { type: "error", message: result.error });
+            return;
+          }
+          sendStates(game);
+          if (result.finished && !game.recorded) {
+            game.recorded = true;
+            const { winner } = result.finished;
+            if (winner !== null) {
+              for (const [seat, user] of game.players.entries()) {
+                if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
+              }
+            }
+          }
+          if (result.commentary) {
+            const { round } = result.commentary;
+            const roomCode = socket.roomCode;
+            void Promise.resolve(result.commentary.text)
+              .catch(() => null)
+              .then((text) => {
+                if (!text || games.get(roomCode) !== game) return;
+                for (const player of game.seats.keys()) {
+                  send(player, { type: "game_message", payload: { kind: "commentary", text, round } });
+                }
+              });
+          }
+          return;
+        }
+
+        for (const player of room.sockets) {
           if (player !== socket) {
             send(player, { type: "game_message", payload: message.payload });
           }

@@ -1,0 +1,23 @@
+/* Tic-Tac-Toe: a 3×3 board of buttons. */
+.ttt { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.ttt-players { margin: 0; opacity: 0.9; text-align: center; }
+
+.ttt-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: min(20rem, 100%);
+}
+.ttt-cell {
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--text);
+  font-size: clamp(2rem, 9vw, 3.5rem);
+  font-weight: 700;
+}
+.ttt-cell:not(:disabled):hover { background: rgb(255 255 255 / 0.22); }
+.ttt-cell:disabled { opacity: 1; cursor: default; }
+.ttt-cell.mine { color: #f5c542; }
+.ttt-cell.winning { background: rgb(245 197 66 / 0.35); }

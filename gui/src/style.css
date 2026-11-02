@@ -20,7 +20,6 @@ body {
   color: var(--text);
   transition: background 0.3s;
 }
-body.war { background: var(--felt-war); }
 
 header { text-align: center; padding: 1rem; }
 header h1 { margin: 0; }
@@ -71,13 +70,45 @@ header h1 { margin: 0; }
 
 .lobby {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  padding: 2rem 1rem;
+  gap: 1.5rem;
+  padding: 1.5rem 1rem 2rem;
 }
-.lobby .or { opacity: 0.7; }
+.lobby h2 { margin: 0; font-size: 1.3rem; }
+.game-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  width: min(44rem, 100%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.game-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  height: 100%;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.22);
+  color: var(--text);
+  text-align: left;
+  font-size: 1rem;
+  border: 2px solid transparent;
+}
+.game-tile:not(:disabled):hover,
+.game-tile:focus-visible { border-color: #f5c542; outline: none; }
+.game-tile strong { font-size: 1.25rem; }
+.game-tile .desc { opacity: 0.9; line-height: 1.4; }
+.game-tile .meta { margin-top: auto; font-size: 0.85rem; opacity: 0.75; }
+.game-tile .go { color: #f5c542; font-weight: 600; font-size: 0.95rem; }
+.lobby-note { margin: 0; opacity: 0.8; text-align: center; }
+.join-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center; }
+.join-row .or { opacity: 0.7; }
 .join { display: flex; gap: 0.5rem; }
 .join input {
   width: 12.5rem;
@@ -90,7 +121,17 @@ header h1 { margin: 0; }
 }
 [hidden] { display: none !important; }
 
+.room-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
 .room { display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; }
+.room .game-name { font-weight: 700; }
+.status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; text-align: center; }
+.game-root { width: 100%; display: flex; justify-content: center; }
 .room strong { letter-spacing: 0.1em; }
 .invite-link {
   margin: 0;
@@ -102,54 +143,6 @@ header h1 { margin: 0; }
   user-select: all;
   cursor: text;
 }
-
-.table {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-}
-
-.player { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-.player h2 { margin: 0; font-size: 1.1rem; }
-
-.middle { text-align: center; }
-.status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; }
-.pile { min-height: 1.2em; margin: 0.25rem 0 0; opacity: 0.85; }
-
-/* Card flip: .back shows by default, .flipped rotates to .face. */
-.card {
-  position: relative;
-  width: var(--card-w);
-  height: var(--card-h);
-  perspective: 600px;
-  transform-style: preserve-3d;
-}
-.card .face,
-.card .back {
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  backface-visibility: hidden;
-  transition: transform 0.5s;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
-}
-.card .back {
-  background: repeating-linear-gradient(45deg, var(--card-back) 0 8px, #2f5299 8px 16px);
-  border: 4px solid #fff;
-}
-.card .face {
-  background: var(--card-bg);
-  color: #111;
-  display: grid;
-  place-items: center;
-  font-size: 2.5rem;
-  transform: rotateY(180deg);
-}
-.card .face.red { color: var(--red); }
-.card.flipped .face { transform: rotateY(0deg); }
-.card.flipped .back { transform: rotateY(-180deg); }
 
 button {
   font-size: 1.2rem;
@@ -175,14 +168,4 @@ button.ghost { background: transparent; color: var(--text); border: 1px solid cu
   background: #222;
   color: #fff;
   overflow-wrap: anywhere;
-}
-
-.commentary {
-  max-width: 32rem;
-  min-height: 3em;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: rgb(0 0 0 / 0.25);
-  font-style: italic;
-  text-align: center;
 }

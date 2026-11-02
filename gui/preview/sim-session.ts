@@ -1,5 +1,7 @@
 // Preview-only stand-in for src/session.ts: no HTTP server, so keep a fake user in memory.
 import type { Me } from "../src/session";
+import type { GameSummary } from "../src/types";
+import { gameSummaries } from "../../src/games/index.ts";
 
 type ApiResult = {
   ok: boolean;
@@ -7,7 +9,9 @@ type ApiResult = {
   body: { error?: string; username?: string; wins?: number; losses?: number; ok?: boolean };
 };
 
-let current: Me | null = { username: "Player", wins: 0, losses: 0 };
+// page.html sets each window's name ("Player 1", "Player 2") before the GUI loads.
+const simName = (window as { __simName?: string }).__simName ?? "Player";
+let current: Me | null = { username: simName, wins: 0, losses: 0 };
 
 function asResult(user: Me): ApiResult {
   return { ok: true, status: 200, body: user };
@@ -35,4 +39,8 @@ export async function register(username: string, password: string): Promise<ApiR
 
 export async function logout(): Promise<void> {
   current = null;
+}
+
+export async function fetchGames(): Promise<GameSummary[]> {
+  return gameSummaries();
 }
