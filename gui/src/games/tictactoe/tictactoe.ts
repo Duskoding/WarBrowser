@@ -1,5 +1,5 @@
-import "./tictactoe.css";
 import type { ClientGame } from "../types";
+import styles from "./tictactoe.css?inline";
 
 type Mark = "X" | "O";
 
@@ -16,6 +16,7 @@ type TicTacToeView = {
 
 export const ticTacToe: ClientGame = {
   id: "tictactoe",
+  styles,
   isFinished: (view) => (view as TicTacToeView).result !== undefined,
   mount(root, { send }) {
     root.innerHTML = `
@@ -55,9 +56,6 @@ export const ticTacToe: ClientGame = {
           cell.classList.toggle("winning", v.line?.includes(i) ?? false);
           cell.disabled = !v.yourTurn || mark !== null;
         });
-      },
-      destroy() {
-        root.innerHTML = "";
       }
     };
   }

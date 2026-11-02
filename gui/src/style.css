@@ -132,6 +132,7 @@ header h1 { margin: 0; }
 .room .game-name { font-weight: 700; }
 .status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; text-align: center; }
 .game-root { width: 100%; display: flex; justify-content: center; }
+.game-host { width: 100%; }
 .room strong { letter-spacing: 0.1em; }
 .invite-link {
   margin: 0;

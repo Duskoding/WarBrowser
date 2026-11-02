@@ -1,5 +1,6 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { clientGames } from "./games";
+import baseGameStyles from "./games/base.css?inline";
 import type { GameScreen } from "./games/types";
 import { fetchGames, fetchMe, login, logout, register, type Me } from "./session";
 import type { GameSummary, ServerPayload } from "./types";
@@ -171,15 +172,43 @@ async function loadGames() {
 }
 
 // ---- Game screen ----
+// Each game draws into its own shadow root, so its styles stay inside it.
+function setBackground(background: string | null) {
+  document.body.style.background = background ?? "";
+}
+
+// A bug in one game's screen shouldn't break the lobby or the room controls.
+function guarded(action: () => void) {
+  try {
+    action();
+  } catch (error) {
+    console.error(`The ${gameName(roomGameId)} screen failed:`, error);
+    showToast(`Something went wrong in ${gameName(roomGameId)}. Leave the room and try again.`);
+  }
+}
+
 function mountGame() {
   const client = roomGameId ? clientGames[roomGameId] : undefined;
   if (!client || screen) return;
-  screen = client.mount($("game-root"), { send: sendGame });
+  const host = document.createElement("div");
+  host.className = "game-host";
+  host.dataset.game = client.id;
+  const root = host.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = `${baseGameStyles}\n${client.styles}`;
+  root.append(style);
+  $("game-root").replaceChildren(host);
+  guarded(() => {
+    screen = client.mount(root, { send: sendGame, setBackground });
+  });
 }
 
 function unmountGame() {
-  screen?.destroy();
+  const current = screen;
   screen = null;
+  if (current?.destroy) guarded(() => current.destroy!());
+  $("game-root").replaceChildren();
+  setBackground(null);
   statsRefreshed = false;
 }
 
@@ -188,14 +217,18 @@ function handleGamePayload(payload: unknown) {
   if (!p || typeof p !== "object") return;
   if (p.kind === "state") {
     mountGame();
-    screen?.update(p.view);
+    guarded(() => screen?.update(p.view));
     const client = roomGameId ? clientGames[roomGameId] : undefined;
-    if (client?.isFinished(p.view) && !statsRefreshed) {
+    let finished = false;
+    guarded(() => {
+      finished = client?.isFinished(p.view) ?? false;
+    });
+    if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void refreshMe();
     }
   } else if (p.kind === "commentary") {
-    screen?.commentary?.(p.text, p.round);
+    guarded(() => screen?.commentary?.(p.text, p.round));
   }
 }
 

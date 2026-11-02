@@ -1,5 +1,5 @@
-import "./war.css";
 import type { ClientGame } from "../types";
+import styles from "./war.css?inline";
 
 type Suit = "♠" | "♥" | "♦" | "♣";
 type Card = { rank: number; suit: Suit }; // rank 2–14 (11 = J, 12 = Q, 13 = K, 14 = A)
@@ -64,8 +64,9 @@ const canFlip = (v: WarView) => v.phase !== "gameOver" && !(v.yourCard !== null 
 
 export const war: ClientGame = {
   id: "war",
+  styles,
   isFinished: (view) => (view as WarView).phase === "gameOver",
-  mount(root, { send }) {
+  mount(root, { send, setBackground }) {
     root.innerHTML = `
       <div class="war-table">
         <section class="player them">
@@ -141,17 +142,13 @@ export const war: ClientGame = {
           })
         );
 
-        document.body.classList.toggle("war", v.inWar);
+        setBackground(v.inWar ? "var(--felt-war)" : null);
         flipBtn.disabled = !canFlip(v);
       },
       commentary(text, round) {
         if (round <= lastCommentaryRound) return; // a slow reply for an older round
         lastCommentaryRound = round;
         $("commentary").textContent = text;
-      },
-      destroy() {
-        document.body.classList.remove("war");
-        root.innerHTML = "";
       }
     };
   }

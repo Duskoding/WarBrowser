@@ -1,5 +1,4 @@
 /* War: two cards that flip, a pile count and round commentary. */
-body.war { background: var(--felt-war); }
 
 .war-table {
   display: flex;
