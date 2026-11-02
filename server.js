@@ -133,10 +133,15 @@ function toViewCard(card) {
   return card && { rank: card.rank, suit: suitSymbols[card.suit] };
 }
 
+function toViewWinner(winner, seat) {
+  return winner === null ? null : winner === seat ? "you" : "opponent";
+}
+
 function toView(state, seat, names) {
   const mine = seat === "A";
   const winner = state.winner === null ? undefined : state.winner === seat ? "you" : "opponent";
   const opponentSeat = seat === "A" ? "B" : "A";
+  const { lastRound } = state;
   return {
     yourCard: toViewCard(state.yourCard),
     opponentCard: toViewCard(state.opponentCard),
@@ -144,6 +149,16 @@ function toView(state, seat, names) {
     yourCount: mine ? state.scoreA : state.scoreB,
     opponentCount: mine ? state.scoreB : state.scoreA,
     phase: state.phase,
+    inWar: state.inWar,
+    warCards: state.warCards.map((pair) => ({
+      yours: toViewCard(pair.yours),
+      opponent: toViewCard(pair.opponent)
+    })),
+    lastRound: lastRound && {
+      wasWar: lastRound.wasWar,
+      winner: toViewWinner(lastRound.winner, seat),
+      cardsWon: lastRound.cardsWon
+    },
     winner,
     yourName: names[seat],
     opponentName: names[opponentSeat]

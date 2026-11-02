@@ -92,7 +92,7 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 - **Client → server:** `create_room`, `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload of `{ "kind": "flip" }`.
 - **Server → client:** `room_created`, `room_joined`, `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }`.
 
-The state view is specific to each player: your card, the opponent's card (hidden until both have flipped), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.
+The state view is specific to each player: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`) and the winner.
 
 ## Deploy to Render
 

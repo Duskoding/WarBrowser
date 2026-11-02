@@ -38,13 +38,16 @@ test('deals 26/26', () => {
   assert.equal(s.phase, 'waiting');
 });
 
-test('opponent card hidden until both flipped', () => {
+test('a flipped card is visible to the opponent immediately', () => {
   const e = rigged([c(5), c(2)], [c(9), c(3)]);
   assert.deepEqual(e.flip('A'), { ok: true, resolved: false });
   assert.equal(e.getState('A').phase, 'flipped');
   assert.deepEqual(e.getState('A').yourCard, c(5));
-  assert.equal(e.getState('B').opponentCard, null);
+  assert.equal(e.getState('A').opponentCard, null);
+  assert.equal(e.getState('B').yourCard, null);
+  assert.deepEqual(e.getState('B').opponentCard, c(5));
   e.flip('B');
+  assert.deepEqual(e.getState('A').opponentCard, c(9));
   assert.deepEqual(e.getState('B').opponentCard, c(5));
 });
 
@@ -87,13 +90,20 @@ test('war: burn 3, flip 4th, winner takes all 10', () => {
   let s = e.getState('A');
   assert.equal(s.phase, 'war');
   assert.equal(s.pile, 8);
-  assert.deepEqual(s.yourCard, c(7));
-  assert.deepEqual(s.opponentCard, c(7, 'H'));
-  assert.deepEqual(e.getState('B').yourCard, c(7, 'H'));
+  assert.equal(s.inWar, true);
+  assert.equal(s.yourCard, null);
+  assert.equal(s.opponentCard, null);
+  assert.deepEqual(s.warCards, [{ yours: c(7), opponent: c(7, 'H') }]);
+  assert.deepEqual(e.getState('B').warCards, [{ yours: c(7, 'H'), opponent: c(7) }]);
   e.flip('A');
   s = e.getState('A');
+  assert.equal(s.phase, 'flipped');
+  assert.equal(s.inWar, true);
+  assert.deepEqual(s.warCards, [{ yours: c(7), opponent: c(7, 'H') }]);
   assert.deepEqual(s.yourCard, c(12));
   assert.equal(s.opponentCard, null);
+  assert.equal(e.getState('B').inWar, true);
+  assert.deepEqual(e.getState('B').opponentCard, c(12));
   const r = e.flip('B');
   assert.ok(r.ok && r.resolved);
   if (r.ok && r.resolved) {
@@ -104,6 +114,19 @@ test('war: burn 3, flip 4th, winner takes all 10', () => {
   assert.equal(s.scoreA, 11);
   assert.equal(s.scoreB, 1);
   assert.equal(s.pile, 0);
+  assert.equal(s.inWar, false);
+  assert.deepEqual(s.warCards, []);
+  assert.deepEqual(s.lastRound, { wasWar: true, winner: 'A', cardsWon: 10 });
+});
+
+test('last round result is reported, then cleared by the next flip', () => {
+  const e = rigged([c(5), c(2)], [c(9), c(3)]);
+  assert.equal(e.getState('A').lastRound, null);
+  play(e);
+  assert.deepEqual(e.getState('A').lastRound, { wasWar: false, winner: 'B', cardsWon: 2 });
+  assert.equal(e.getState('A').inWar, false);
+  e.flip('A');
+  assert.equal(e.getState('A').lastRound, null);
 });
 
 test('chained war', () => {
@@ -112,11 +135,18 @@ test('chained war', () => {
     [c(7, 'H'), c(2, 'H'), c(3, 'H'), c(4, 'H'), c(9, 'H'), c(2, 'H'), c(3, 'H'), c(4, 'H'), c(5)],
   );
   assert.deepEqual(play(e), { ok: true, resolved: false });
+  assert.equal(e.getState('A').warCards.length, 1);
   assert.deepEqual(play(e), { ok: true, resolved: false });
   assert.equal(e.getState('A').pile, 16);
+  assert.equal(e.getState('A').inWar, true);
+  assert.deepEqual(e.getState('A').warCards, [
+    { yours: c(7), opponent: c(7, 'H') },
+    { yours: c(9), opponent: c(9, 'H') },
+  ]);
   const r = play(e);
   assert.ok(r.ok && r.resolved && r.summary.winner === 'A' && r.summary.wasWar);
   assert.equal(e.getState('A').scoreA, 18);
+  assert.deepEqual(e.getState('A').lastRound, { wasWar: true, winner: 'A', cardsWon: 18 });
 });
 
 test('all-in war with short pile', () => {

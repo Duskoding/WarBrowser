@@ -2,6 +2,7 @@ import type {
   Card,
   FlipResult,
   GameState,
+  LastRound,
   Phase,
   PlayerId,
   Rank,
@@ -40,6 +41,8 @@ export class WarEngine {
   private round = 0;
   private winner: PlayerId | null = null;
   private inWar = false;
+  private tied: Array<Record<PlayerId, Card>> = [];
+  private lastRound: LastRound | null = null;
   private readonly shuffle: <T>(items: T[]) => T[];
   private readonly maxRounds: number | undefined;
 
@@ -56,6 +59,7 @@ export class WarEngine {
 
     if (this.phase === 'roundOver') {
       this.flipped = { A: null, B: null };
+      this.lastRound = null;
       this.phase = 'waiting';
     } else if (this.phase === 'war') {
       this.flipped = { A: null, B: null };
@@ -76,16 +80,18 @@ export class WarEngine {
   }
 
   getState(playerId: PlayerId): GameState {
-    const bothFlipped = this.flipped.A !== null && this.flipped.B !== null;
     return {
       yourCard: this.flipped[playerId],
-      opponentCard: bothFlipped ? this.flipped[other(playerId)] : null,
+      opponentCard: this.flipped[other(playerId)],
       pile: this.pot.length,
       scoreA: this.piles.A.length,
       scoreB: this.piles.B.length,
       phase: this.phase,
       round: this.round,
       winner: this.winner,
+      inWar: this.inWar,
+      warCards: this.tied.map((pair) => ({ yours: pair[playerId], opponent: pair[other(playerId)] })),
+      lastRound: this.lastRound,
     };
   }
 
@@ -95,6 +101,7 @@ export class WarEngine {
     this.pot.push(cardA, cardB);
 
     if (cardA.rank === cardB.rank) {
+      this.tied.push({ A: cardA, B: cardB });
       const loser = this.startWar();
       if (loser === undefined) {
         return { ok: true, resolved: false };
@@ -120,6 +127,7 @@ export class WarEngine {
       const burn = Math.min(WAR_BURN, this.piles[p].length - 1);
       this.pot.push(...this.piles[p].splice(0, burn));
     }
+    this.flipped = { A: null, B: null };
     this.phase = 'war';
     return undefined;
   }
@@ -130,9 +138,12 @@ export class WarEngine {
     winner: PlayerId | null,
     wasWar: boolean,
   ): FlipResult {
+    const cardsWon = winner ? this.pot.length : 0;
     if (winner) this.piles[winner].push(...this.shuffle(this.pot));
     this.pot = [];
+    this.tied = [];
     this.inWar = false;
+    this.lastRound = { wasWar, winner, cardsWon };
     this.round++;
     this.flipped = { A: cardA, B: cardB };
 

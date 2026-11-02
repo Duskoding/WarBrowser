@@ -30,14 +30,27 @@ export type Card = {
 
 export type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
 
+// A pair of cards that tied and started (or extended) a war.
+export type TiedPair = { yours: Card; opponent: Card };
+
+// How the last resolved round ended; cleared when the next round starts.
+export type LastRound = {
+  wasWar: boolean;
+  winner: "you" | "opponent" | null; // null = draw
+  cardsWon: number;
+};
+
 // One player's view of the table.
 export type GameView = {
   yourCard: Card | null;
-  opponentCard: Card | null; // null = face-down until both have flipped
+  opponentCard: Card | null; // visible as soon as the opponent flips; null until then
   pile: number; // cards in the middle
   yourCount: number;
   opponentCount: number;
   phase: Phase;
+  inWar: boolean; // true for the whole war, until it resolves
+  warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
+  lastRound: LastRound | null;
   winner?: "you" | "opponent";
   yourName?: string;
   opponentName?: string;
