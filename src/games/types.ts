@@ -1,4 +1,4 @@
-import type { RoundSummary } from '../engine/types.ts';
+import type { RoundSummary } from "../engine/types.ts";
 
 // The contract between the room server (server.js) and a game. Each game is one
 // GameDefinition, listed in src/games/index.ts. The server handles accounts,
@@ -49,4 +49,4 @@ export interface GameDefinition {
 }
 
 // What GET /api/games returns for each game.
-export type GameSummary = Pick<GameDefinition, 'id' | 'name' | 'description' | 'players'>;
+export type GameSummary = Pick<GameDefinition, "id" | "name" | "description" | "players">;
