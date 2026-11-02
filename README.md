@@ -17,7 +17,7 @@ An AI commentator provides short descriptions of completed rounds without interr
 3. Change to the project folder:
 
    ```cmd
-   cd /d C:\Users\efrat\IdeaProjects\WarBrowser
+   cd /d C:\Users\userName\IdeaProjects\WarBrowser
    ```
 
 4. Install the server dependencies:
