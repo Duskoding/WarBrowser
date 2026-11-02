@@ -4,10 +4,10 @@ import type { Me } from "../src/session";
 type ApiResult = {
   ok: boolean;
   status: number;
-  body: { error?: string; username?: string; wins?: number; losses?: number; ok?: boolean };
+  body: { error?: string; username?: string; wins?: number; losses?: number; mustResetPassword?: boolean; ok?: boolean };
 };
 
-let current: Me | null = { username: "Player", wins: 0, losses: 0 };
+let current: Me | null = { username: "Player", wins: 0, losses: 0, mustResetPassword: false };
 
 function asResult(user: Me): ApiResult {
   return { ok: true, status: 200, body: user };
@@ -25,7 +25,12 @@ export async function login(username: string, password: string): Promise<ApiResu
       body: { error: "Enter a username and a password of at least 8 characters." }
     };
   }
-  current = { username: username.trim(), wins: current?.wins ?? 0, losses: current?.losses ?? 0 };
+  current = {
+    username: username.trim(),
+    wins: current?.wins ?? 0,
+    losses: current?.losses ?? 0,
+    mustResetPassword: false
+  };
   return asResult(current);
 }
 
