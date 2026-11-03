@@ -40,6 +40,11 @@ export type LastRound = {
   cardsWon: number;
 };
 
+/** Card in the war lineup; face-down burns omit rank/suit until the war ends. */
+export type StakeCard =
+  | { faceUp: true; card: Card }
+  | { faceUp: false };
+
 // One player's view of the table.
 export type GameView = {
   yourCard: Card | null;
@@ -50,6 +55,8 @@ export type GameView = {
   phase: Phase;
   inWar: boolean; // true for the whole war, until it resolves
   warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
+  yourStakes?: StakeCard[];
+  opponentStakes?: StakeCard[];
   lastRound: LastRound | null;
   winner?: "you" | "opponent";
   yourName?: string;

@@ -25,6 +25,10 @@ export function connect() {
   send({ type: "__hello" });
 }
 
+export function disconnect() {
+  leaveRoom();
+}
+
 export const createRoom = () => send({ type: "create_room" });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
 export const leaveRoom = () => send({ type: "leave_room" });
