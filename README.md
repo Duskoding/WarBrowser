@@ -31,7 +31,9 @@ An AI commentator adds a short description after each completed round without bl
 | Path | What it is |
 | --- | --- |
 | `src/engine/` | `WarEngine`: the rules and state, with no networking, plus its tests |
-| `src/auth.ts` | Users, hashed passwords, sessions, and win/loss counts (SQLite) |
+| `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
+| `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
+| `src/db.ts` | PostgreSQL pool and schema initialization |
 | `src/commentator.ts` | `ClaudeCommentator`: one-sentence round commentary from the Claude API |
 | `server.js` | HTTP + WebSocket server: rooms, seats, and wiring the engine to sockets |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
@@ -51,7 +53,29 @@ npm start
 
 Open `http://localhost:3000` in two browser windows. Register (or log in) in each window, create a room in one, then join it from the other with the room code or the invite link.
 
-Accounts are stored in a local SQLite file at `data/warbrowser.sqlite` (override the path with `DATABASE_PATH`). Passwords are hashed; the database is gitignored.
+With no `DATABASE_URL`, local development and tests use the SQLite file at
+`data/warbrowser.sqlite` (override the path with `DATABASE_PATH`). Render uses
+PostgreSQL when `DATABASE_URL` is set. Passwords are hashed; database files are
+gitignored.
+
+### PostgreSQL deployment and migration
+
+Link a Render PostgreSQL database to the web service so Render provides
+`DATABASE_URL`, and set `NODE_ENV=production`. The server creates its schema on
+startup. To transfer an existing local SQLite database, run:
+
+```powershell
+$env:DATABASE_URL = "your-postgres-url"
+$env:SQLITE_PATH = ".\data\warbrowser.sqlite"
+npm run migrate:users
+```
+
+Do not commit either connection string. Migrated users can log in once with
+their existing password and are then required to choose a new password. Old
+sessions are invalidated. PostgreSQL stores aggregate stats and a durable
+`matches` record for every completed game, including draws. Existing SQLite
+databases contain aggregate totals but no detailed historical match records, so
+those older matches cannot be reconstructed.
 
 ### Commentary (optional)
 

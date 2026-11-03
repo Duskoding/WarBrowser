@@ -2,12 +2,13 @@ export type Me = {
   username: string;
   wins: number;
   losses: number;
+  mustResetPassword: boolean;
 };
 
 type ApiResult = {
   ok: boolean;
   status: number;
-  body: { error?: string; username?: string; wins?: number; losses?: number; ok?: boolean };
+  body: { error?: string; username?: string; wins?: number; losses?: number; mustResetPassword?: boolean; ok?: boolean };
 };
 
 async function api(path: string, init?: RequestInit): Promise<ApiResult> {
@@ -31,7 +32,8 @@ export async function fetchMe(): Promise<Me | null> {
   return {
     username: result.body.username,
     wins: Number(result.body.wins ?? 0),
-    losses: Number(result.body.losses ?? 0)
+    losses: Number(result.body.losses ?? 0),
+    mustResetPassword: Boolean(result.body.mustResetPassword)
   };
 }
 
@@ -51,4 +53,11 @@ export async function register(username: string, password: string): Promise<ApiR
 
 export async function logout(): Promise<void> {
   await api("/api/logout", { method: "POST" });
+}
+
+export async function resetPassword(password: string): Promise<ApiResult> {
+  return api("/api/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ password })
+  });
 }
