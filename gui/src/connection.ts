@@ -52,4 +52,5 @@ function send(msg: ClientMessage) {
 export const createRoom = (gameId: string) => send({ type: "create_room", gameId });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
 export const leaveRoom = () => send({ type: "leave_room" });
+export const startGame = () => send({ type: "start_game" });
 export const sendGame = (payload: GameAction) => send({ type: "game_message", payload });

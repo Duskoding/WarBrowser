@@ -1,6 +1,6 @@
 // Preview-only pretend server: the same room rules as server.js, running the
 // real games from src/games/ inside the preview page instead of on Node.
-import { DEFAULT_GAME_ID, findGame } from "../../src/games/index.ts";
+import { DEFAULT_GAME_ID, findGame, hasFlexibleSeats } from "../../src/games/index.ts";
 import type { GameDefinition, GameSession } from "../../src/games/types.ts";
 import type { RoundSummary } from "../../src/engine/types.ts";
 
@@ -22,7 +22,7 @@ const commentator = {
 
 export function createSimServer(names: string[], sendTo: (player: number, event: Event) => void) {
   const rooms = new Map<string, { game: GameDefinition; players: number[] }>();
-  const games = new Map<string, { session: GameSession; seats: number[] }>();
+  const games = new Map<string, { session: GameSession; seats: number[]; finished: boolean }>();
   const playerRoom: (string | null)[] = names.map(() => null);
 
   function newCode() {
@@ -40,6 +40,25 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
     );
   }
 
+  function sendRoomPlayers(code: string) {
+    const room = rooms.get(code)!;
+    if (!hasFlexibleSeats(room.game)) return;
+    const event = {
+      type: "room_players",
+      players: room.players.map((p) => names[p]),
+      minPlayers: room.game.minPlayers,
+      maxPlayers: room.game.players,
+    };
+    for (const p of room.players) sendTo(p, event);
+  }
+
+  function start(code: string) {
+    const room = rooms.get(code)!;
+    const session = room.game.create({ commentator, options: {} }, room.players.length);
+    games.set(code, { session, seats: [...room.players], finished: false });
+    sendStates(code);
+  }
+
   function leave(player: number) {
     const code = playerRoom[player];
     if (!code) return;
@@ -50,6 +69,7 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
     games.delete(code);
     for (const p of room.players) sendTo(p, { type: "opponent_disconnected" });
     if (room.players.length === 0) rooms.delete(code);
+    else sendRoomPlayers(code);
   }
 
   function handle(player: number, msg: Message) {
@@ -62,7 +82,8 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
         const code = newCode();
         rooms.set(code, { game, players: [player] });
         playerRoom[player] = code;
-        return sendTo(player, { type: "room_created", roomCode: code, username: names[player], gameId: game.id });
+        sendTo(player, { type: "room_created", roomCode: code, username: names[player], gameId: game.id });
+        return sendRoomPlayers(code);
       }
       case "join_room": {
         if (playerRoom[player]) return err("Leave your current room first.");
@@ -71,6 +92,7 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
         const room = rooms.get(code);
         if (!room) return err("Room not found.");
         if (room.players.length >= room.game.players) return err("That room is full.");
+        if (games.has(code) && !games.get(code)!.finished) return err("That game has already started.");
         room.players.push(player);
         playerRoom[player] = code;
         sendTo(player, {
@@ -81,14 +103,25 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
           gameId: room.game.id,
         });
         for (const p of room.players) if (p !== player) sendTo(p, { type: "opponent_joined", username: names[player] });
+        sendRoomPlayers(code);
         if (room.players.length < room.game.players) return;
-        games.set(code, { session: room.game.create({ commentator, options: {} }), seats: [...room.players] });
-        return sendStates(code);
+        return start(code);
+      }
+      case "start_game": {
+        const code = playerRoom[player];
+        const room = code ? rooms.get(code) : undefined;
+        if (!code || !room) return err("Join a room first.");
+        if (room.players[0] !== player) return err("Only the host can start the game.");
+        if (games.has(code) && !games.get(code)!.finished) return err("The game has already started.");
+        const minPlayers = room.game.minPlayers ?? room.game.players;
+        if (room.players.length < minPlayers) return err(`Wait for at least ${minPlayers} players.`);
+        return start(code);
       }
       case "game_message": {
         const code = playerRoom[player];
         const game = code ? games.get(code) : undefined;
         if (!code || !game) return err("Wait for another player to join before playing.");
+        if (!game.seats.includes(player)) return err("Wait for the next game to start.");
         const payload = msg.payload as Record<string, unknown> | null;
         if (payload?.kind === "state" || payload?.kind === "commentary") return err("Only the server can send that.");
         const isObject = payload !== null && typeof payload === "object" && !Array.isArray(payload);
@@ -98,6 +131,7 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
           return;
         }
         if (!result.ok) return err(result.error);
+        if (result.finished) game.finished = true;
         sendStates(code);
         if (result.commentary) {
           const { round } = result.commentary;

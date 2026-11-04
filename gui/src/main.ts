@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GameScreen } from "./games/types";
@@ -57,6 +57,10 @@ app.innerHTML = `
     </div>
     <p class="invite-link" id="invite-link"></p>
     <p class="status" id="room-status"></p>
+    <div class="waiting-room" id="waiting-room" hidden>
+      <ul class="seat-list" id="seat-list"></ul>
+      <button id="start-game" hidden>Start game</button>
+    </div>
     <div class="game-root" id="game-root"></div>
   </main>
   <div class="toast" id="toast" hidden></div>
@@ -80,8 +84,10 @@ let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
 let opponentHere = false;
+// For games with a player range (Uno): who's in the room, host first.
+let roomPlayers: { names: string[]; min: number; max: number } | null = null;
 let screen: GameScreen | null = null;
-let statsRefreshed = false;
+let gameOver = false; // the game on screen has finished (stats refreshed once)
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -137,6 +143,9 @@ async function refreshMe() {
 // ---- Game list ----
 const gameName = (id: string | null) => games.find((g) => g.id === id)?.name ?? "Game";
 
+const playerCount = (game: GameSummary) =>
+  (game.minPlayers ?? game.players) < game.players ? `${game.minPlayers}–${game.players} players` : `${game.players} players`;
+
 function renderGameList() {
   const list = $("game-list");
   list.replaceChildren(
@@ -145,12 +154,12 @@ function renderGameList() {
       const item = document.createElement("li");
       const tile = document.createElement("button");
       tile.type = "button";
-      tile.className = "game-tile";
+      tile.className = game === games[0] ? "game-tile featured" : "game-tile";
       tile.disabled = !connected || !playable;
       tile.innerHTML = `<strong></strong><span class="desc"></span><span class="meta"></span><span class="go"></span>`;
       tile.querySelector("strong")!.textContent = game.name;
       tile.querySelector(".desc")!.textContent = game.description;
-      tile.querySelector(".meta")!.textContent = `${game.players} players`;
+      tile.querySelector(".meta")!.textContent = playerCount(game);
       tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
@@ -224,7 +233,7 @@ function unmountGame() {
   if (current?.destroy) guarded(() => current.destroy!());
   $("game-root").replaceChildren();
   setBackground(null);
-  statsRefreshed = false;
+  gameOver = false;
 }
 
 function handleGamePayload(payload: unknown) {
@@ -238,10 +247,12 @@ function handleGamePayload(payload: unknown) {
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
-    if (finished && !statsRefreshed) {
-      statsRefreshed = true;
+    if (finished && !gameOver) {
+      gameOver = true;
       void refreshMe();
     }
+    // A rematch (Uno's "Play again") reuses the same screen.
+    if (!finished) gameOver = false;
   } else if (p.kind === "commentary") {
     guarded(() => screen?.commentary?.(p.text, p.round));
   }
@@ -262,14 +273,46 @@ function render() {
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
   // Invite URL is only useful while waiting for someone to join.
-  $("invite-link").hidden = opponentHere;
+  const roomFull = roomPlayers ? roomPlayers.names.length >= roomPlayers.max : opponentHere;
+  $("invite-link").hidden = roomFull || screen !== null;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
+  else if (roomPlayers && (!screen || gameOver)) status = waitingRoomStatus(roomPlayers);
   else if (!opponentHere) status = "Waiting for opponent — share the invite link";
   else if (!screen) status = "Starting…";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
+  renderWaitingRoom();
+}
+
+const isHost = () => roomPlayers !== null && roomPlayers.names[0] === me?.username;
+
+function waitingRoomStatus({ names, min, max }: NonNullable<typeof roomPlayers>) {
+  const count = `${names.length} of ${max} players`;
+  if (names.length < min) return `Waiting for players (${count}) — share the invite link`;
+  if (isHost()) return gameOver ? "Play again with the same table?" : `${count} here. Start when everyone's in.`;
+  return `${count} here. Waiting for ${names[0]} to start${gameOver ? " another game" : ""}…`;
+}
+
+// The list of players and the host's Start button, shown before a game and after one ends.
+function renderWaitingRoom() {
+  const show = roomPlayers !== null && (screen === null || gameOver) && roomGameId !== null && roomGameId in clientGames;
+  $("waiting-room").hidden = !show;
+  if (!show || !roomPlayers) return;
+  $("seat-list").replaceChildren(
+    ...roomPlayers.names.map((name, seat) => {
+      const item = document.createElement("li");
+      item.textContent = name;
+      if (seat === 0) item.dataset.host = "";
+      if (name === me?.username) item.classList.add("you");
+      return item;
+    })
+  );
+  const start = $<HTMLButtonElement>("start-game");
+  start.hidden = !isHost();
+  start.disabled = roomPlayers.names.length < roomPlayers.min;
+  start.textContent = gameOver ? "Play again" : "Start game";
 }
 
 function resetRoom() {
@@ -278,6 +321,7 @@ function resetRoom() {
   roomCode = null;
   roomGameId = null;
   opponentHere = false;
+  roomPlayers = null;
   const params = new URLSearchParams(location.search);
   params.delete("room");
   history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
@@ -346,7 +390,11 @@ onEvent((e) => {
     case "opponent_disconnected":
       opponentHere = false;
       unmountGame();
-      showToast("Your opponent disconnected.");
+      showToast(roomPlayers ? "A player left the room." : "Your opponent disconnected.");
+      break;
+    case "room_players":
+      roomPlayers = { names: e.players, min: e.minPlayers, max: e.maxPlayers };
+      opponentHere = e.players.length > 1;
       break;
     case "room_left":
       resetRoom();
@@ -370,6 +418,7 @@ $("join-form").addEventListener("submit", (ev) => {
   if (code) joinRoom(code);
 });
 $("leave-room").addEventListener("click", leaveRoom);
+$("start-game").addEventListener("click", startGame);
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();

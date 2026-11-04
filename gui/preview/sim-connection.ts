@@ -21,6 +21,7 @@ export function connect() {
     // Demo shortcuts from the parent page's buttons.
     if (d?.__sim === "do" && d.action === "create") createRoom(d.gameId);
     if (d?.__sim === "do" && d.action === "join") joinRoom(d.code);
+    if (d?.__sim === "do" && d.action === "start") startGame();
   });
   send({ type: "__hello" });
 }
@@ -30,4 +31,5 @@ export function disconnect() {}
 export const createRoom = (gameId: string) => send({ type: "create_room", gameId });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
 export const leaveRoom = () => send({ type: "leave_room" });
+export const startGame = () => send({ type: "start_game" });
 export const sendGame = (payload: GameAction) => send({ type: "game_message", payload });

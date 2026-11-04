@@ -6,7 +6,7 @@ import { dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { ClaudeCommentator } from "./src/commentator.ts";
-import { DEFAULT_GAME_ID, findGame, gameSummaries } from "./src/games/index.ts";
+import { DEFAULT_GAME_ID, findGame, gameSummaries, hasFlexibleSeats } from "./src/games/index.ts";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
@@ -336,6 +336,54 @@ export function createWarServer({
     }
     if (room.sockets.size === 0) {
       rooms.delete(roomCode);
+      return;
+    }
+    sendRoomPlayers(room);
+  }
+
+  // Rooms that can start before they're full (Uno) also get the player list,
+  // so everyone sees who's in and the host knows when they can start.
+  // Fixed-size games (War, Tic-Tac-Toe) keep the original two-player events only.
+  function sendRoomPlayers(room) {
+    if (!hasFlexibleSeats(room.game)) return;
+    const event = {
+      type: "room_players",
+      players: [...room.sockets].map((player) => player.user.username),
+      minPlayers: room.game.minPlayers,
+      maxPlayers: room.game.players
+    };
+    for (const player of room.sockets) send(player, event);
+  }
+
+  // Seats follow join order (the host is seat 0).
+  function startGame(room, roomCode) {
+    const seated = [...room.sockets];
+    const game = {
+      session: room.game.create({ commentator, options: engineOptions }, seated.length),
+      seats: new Map(seated.map((player, seat) => [player, seat])),
+      players: seated.map((player) => player.user),
+      recorded: false
+    };
+    games.set(roomCode, game);
+    sendStates(game);
+  }
+
+  function recordResult(game, roomCode, winner) {
+    if (postgres) {
+      // A match row holds two players, so a game of three or more is stored
+      // as the winner beating each other player, as SQLite stats do below.
+      const [playerA, playerB] = game.players;
+      const pairs = game.players.length === 2 || winner === null
+        ? [[playerA, playerB]]
+        : game.players.filter((_, seat) => seat !== winner).map((loser) => [game.players[winner], loser]);
+      for (const [a, b] of pairs) {
+        void recordPostgresMatch(db, roomCode, a.id, b.id, winner === null ? null : game.players[winner].id)
+          .catch((error) => console.error("Failed to record match:", error));
+      }
+    } else if (winner !== null) {
+      for (const [seat, user] of game.players.entries()) {
+        if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
+      }
     }
   }
 
@@ -404,6 +452,7 @@ export function createWarServer({
           username: socket.user.username,
           gameId: definition.id
         });
+        sendRoomPlayers(rooms.get(roomCode));
         return;
       }
 
@@ -426,6 +475,10 @@ export function createWarServer({
         }
         if (room.sockets.size >= room.game.players) {
           send(socket, { type: "error", message: "That room is full." });
+          return;
+        }
+        if (games.has(roomCode) && !games.get(roomCode).recorded) {
+          send(socket, { type: "error", message: "That game has already started." });
           return;
         }
         for (const player of room.sockets) {
@@ -451,17 +504,33 @@ export function createWarServer({
           }
         }
 
+        sendRoomPlayers(room);
         if (room.sockets.size < room.game.players) return;
-        // Room is full: seats follow join order (the host is seat 0).
-        const seated = [...room.sockets];
-        const game = {
-          session: room.game.create({ commentator, options: engineOptions }),
-          seats: new Map(seated.map((player, seat) => [player, seat])),
-          players: seated.map((player) => player.user),
-          recorded: false
-        };
-        games.set(roomCode, game);
-        sendStates(game);
+        startGame(room, roomCode);
+        return;
+      }
+
+      if (message.type === "start_game") {
+        const room = rooms.get(socket.roomCode);
+        if (!room) {
+          send(socket, { type: "error", message: "Join a room first." });
+          return;
+        }
+        if ([...room.sockets][0] !== socket) {
+          send(socket, { type: "error", message: "Only the host can start the game." });
+          return;
+        }
+        // A finished game can be replaced by a new one (a rematch).
+        if (games.has(socket.roomCode) && !games.get(socket.roomCode).recorded) {
+          send(socket, { type: "error", message: "The game has already started." });
+          return;
+        }
+        const minPlayers = room.game.minPlayers ?? room.game.players;
+        if (room.sockets.size < minPlayers) {
+          send(socket, { type: "error", message: `Wait for at least ${minPlayers} players.` });
+          return;
+        }
+        startGame(room, socket.roomCode);
         return;
       }
 
@@ -473,6 +542,10 @@ export function createWarServer({
             type: "error",
             message: "Wait for another player to join before playing."
           });
+          return;
+        }
+        if (!game.seats.has(socket)) {
+          send(socket, { type: "error", message: "Wait for the next game to start." });
           return;
         }
         if (!Object.hasOwn(message, "payload")) {
@@ -499,22 +572,7 @@ export function createWarServer({
           sendStates(game);
           if (result.finished && !game.recorded) {
             game.recorded = true;
-            const { winner } = result.finished;
-            if (postgres) {
-              // Match records hold two players; every game is two-player for now.
-              const [playerA, playerB] = game.players;
-              void recordPostgresMatch(
-                db,
-                socket.roomCode,
-                playerA.id,
-                playerB.id,
-                winner === null ? null : game.players[winner].id
-              ).catch((error) => console.error("Failed to record match:", error));
-            } else if (winner !== null) {
-              for (const [seat, user] of game.players.entries()) {
-                if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
-              }
-            }
+            recordResult(game, socket.roomCode, result.finished.winner);
           }
           if (result.commentary) {
             const { round } = result.commentary;

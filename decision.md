@@ -53,3 +53,33 @@
 - **Decision:** When merging PR #26 (PostgreSQL) into the multi-game branch, record matches through `recordPostgresMatch` from the game-agnostic `finished` result, using the room code from the player's socket. This also fixes `main`'s War path, which referenced an undefined `roomCode` and crashed the server process whenever a War game ended with a PostgreSQL database.
 - **Made by:** agent (Claude Code), resolving merge conflicts at the user's request
 - **Reason:** The multi-game server no longer has War-specific code, so PostgreSQL recording has to live in the shared game-over handling to work for every game. Verified against a local PostgreSQL 16 database: War and Tic-Tac-Toe games each recorded one match and the winner's and loser's stats.
+
+## 2026-11-04 — Add Uno as the main game, alongside War
+
+- **Decision:** Add Uno (2–4 players) to the existing site as its main game, first and featured in the lobby, while keeping War, Tic-Tac-Toe and the War commentator as they are. `create_room` without a `gameId` still means War.
+- **Made by:** the user (Uno as the focus, keep the other games and the commentator, 2–4 players, minimal changes to War); implemented by agent (Claude Code)
+- **Reason:** The team wants a more organised Uno version built on the same skeleton, without losing the ability to play War.
+
+## 2026-11-04 — Rooms with a player range, started by the host
+
+- **Decision:** `GameDefinition` gets an optional `minPlayers` and `create()` receives the seated player count. For games where `minPlayers` is below `players`, the server sends `room_players` on every join and leave, and the host (first player in the room) starts the game with `start_game`, or a rematch after a game ends. Fixed-size games keep the original behaviour and messages exactly, so War and Tic-Tac-Toe clients and tests are unchanged. Anyone leaving still ends the current game.
+- **Made by:** agent (Claude Code)
+- **Reason:** Uno needs 2–4 players, so "start when full" no longer works on its own; limiting the new events to such games avoids touching War's protocol.
+
+## 2026-11-04 — Uno house rules
+
+- **Decision:** One hand per game (no points). The starting card is always a number card; Wild Draw Four can always be played, with no challenge; Draw Two/Four don't stack; drawing is one card, which may be played straight away if it matches. Forgetting to call Uno can be caught by any other player (+2 cards) until the next card is played or drawn.
+- **Made by:** agent (Claude Code)
+- **Reason:** These are the common rules with the fewest extra prompts for players; each can be changed in `src/games/uno.ts` without touching the server.
+
+## 2026-11-04 — Record games of three or more as one result per opponent
+
+- **Decision:** When a game with more than two players ends, the winner is recorded as beating each other player: one win and one loss per opponent, in both SQLite stats and PostgreSQL `matches` rows. Two-player games are recorded exactly as before.
+- **Made by:** agent (Claude Code)
+- **Reason:** The existing match table and stats hold a winner and a loser per match; this fits Uno into them without a schema change. A dedicated multi-player match table can replace it later if the team wants placements.
+
+## 2026-11-04 — Uno commentary not added yet
+
+- **Decision:** The AI commentator stays War-only for now; Uno games have no commentary.
+- **Made by:** agent (Claude Code)
+- **Reason:** The commentator's prompt and input are written for War rounds. Adding Uno commentary means a new prompt and summary shape, best done as its own change.

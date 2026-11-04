@@ -44,9 +44,16 @@ export interface GameDefinition {
   id: string; // used in create_room and the client's game registry
   name: string;
   description: string;
-  players: number; // the game starts when this many players are in the room
-  create(context: GameContext): GameSession;
+  // The room's maximum. The game starts automatically when this many players are in.
+  players: number;
+  // Set lower than `players` for a game that can start with fewer: the host
+  // then starts it with start_game once at least this many have joined.
+  minPlayers?: number;
+  // playerCount is how many players were seated (minPlayers..players).
+  create(context: GameContext, playerCount: number): GameSession;
 }
 
 // What GET /api/games returns for each game.
-export type GameSummary = Pick<GameDefinition, "id" | "name" | "description" | "players">;
+export type GameSummary = Pick<GameDefinition, "id" | "name" | "description" | "players"> & {
+  minPlayers: number;
+};

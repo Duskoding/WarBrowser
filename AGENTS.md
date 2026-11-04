@@ -2,10 +2,10 @@
 
 ## Project overview
 
-WarBrowser is a site for live two-player, server-authoritative browser games: War, plus Tic-Tac-Toe as a second, example game. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
+WarBrowser is a site for live multiplayer, server-authoritative browser games: Uno (2–4 players, the main game), War (the original game), and Tic-Tac-Toe as a small example game. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
 
 - `server.js` owns HTTP/WebSocket routing, room membership, and wiring between clients and whichever game a room was created for.
-- `src/games/` contains one `GameDefinition` per game (`war.ts`, `tictactoe.ts`), the shared interface (`types.ts`), and the list of games (`index.ts`).
+- `src/games/` contains one `GameDefinition` per game (`uno.ts`, `war.ts`, `tictactoe.ts`), the shared interface (`types.ts`), and the list of games (`index.ts`).
 - `src/engine/` contains the concrete `WarEngine` rules and its unit tests.
 - `src/auth.ts` contains SQLite-backed users, sessions, and match records.
 - `src/commentator.ts` integrates optional AI round commentary.

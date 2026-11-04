@@ -42,7 +42,7 @@ test("a full board with no line is a draw", () => {
 });
 
 test("the session reports views per seat and the finished result", () => {
-  const session = ticTacToe.create(silent);
+  const session = ticTacToe.create(silent, 2);
   assert.equal(session.act(0, { kind: "chat" }), null);
   assert.deepEqual(session.act(1, { kind: "move", cell: 0 }), { ok: false, error: "It's not your turn." });
   let result;

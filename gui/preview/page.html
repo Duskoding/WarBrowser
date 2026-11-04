@@ -112,7 +112,7 @@ code { font: 0.88em var(--font-mono); }
   <div class="steps">
     <ol>
       <li>Click a game in Player 1's window to create a room.</li>
-      <li>Type the room code into Player 2's window and click <b>Join</b>.</li>
+      <li>Type the room code into Player 2's window and click <b>Join</b>. (Uno takes 2–4 players, so Player 1 then clicks <b>Start game</b>.)</li>
       <li>Play in both windows.</li>
     </ol>
     <div class="quick" id="quick"></div>
@@ -200,6 +200,10 @@ function short(m) {
       if ("yourCard" in v) {
         return `state (receiver's view): their card ${card(v.yourCard)}, ${v.yourCount} left · opponent ${card(v.opponentCard)}, ${v.opponentCount} left · ${v.phase}`;
       }
+      if ("hand" in v) {
+        const top = v.top.color ? `${v.top.color} ${v.top.value}` : v.top.value;
+        return `state (receiver's view): ${v.hand.length} cards in hand · top ${top} · colour ${v.color} · ${v.winner !== null ? "winner: " + v.winnerName : v.yourTurn ? "to move" : "waiting"}`;
+      }
       if ("board" in v) {
         const board = v.board.map((m) => m ?? "·").join("").replace(/(...)(?=.)/g, "$1/");
         return `state (receiver's view): board ${board} · plays ${v.yourMark}${v.yourTurn ? " · to move" : ""}${v.result ? " · result: " + v.result : ""}`;
@@ -239,6 +243,10 @@ for (const game of GAMES) {
       const code = server.roomOf(0);
       if (code) frames[1].contentWindow.postMessage({ __sim: "do", action: "join", code }, "*");
       else if (n > 0) setTimeout(() => tryJoin(n - 1), 100);
+      // Games with a player range wait for the host to start them.
+      if (code && game.minPlayers < game.players) {
+        setTimeout(() => frames[0].contentWindow.postMessage({ __sim: "do", action: "start" }, "*"), 150);
+      }
     };
     tryJoin(20);
   });

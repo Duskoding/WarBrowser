@@ -1,8 +1,8 @@
 # WarBrowser
 
-WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
+WarBrowser is a site for live multiplayer browser games. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now: **Uno** (2–4 players, the main game), **War** (the original game) and **Tic-Tac-Toe** (a small game that also serves as an example of how to add one).
 
 ## How it works
 
@@ -14,12 +14,20 @@ An AI commentator adds a short description after each completed round without bl
 
 - A lobby to choose which game to play
 - Username and password accounts (register / log in)
-- Shared game rooms for two logged-in players, joined by room code or invite link
+- Shared game rooms for logged-in players, joined by room code or invite link: two players for War and Tic-Tac-Toe, 2–4 for Uno (the host starts the game)
 - Player names on the table and a win–loss record on the lobby
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
 - AI-generated round commentary (optional, needs an Anthropic API key)
+
+## Uno rules
+
+- A standard 108-card deck: in each of red, yellow, green and blue one 0, two each of 1–9, two Skip, two Reverse and two Draw Two; plus four Wild and four Wild Draw Four. Everyone is dealt 7 cards and the host goes first.
+- On your turn, play a card that matches the top card's colour or value, or any wild card (and choose the next colour). If you can't or don't want to, draw one card; if it can be played you may play it straight away or keep it and pass.
+- Skip skips the next player. Reverse changes direction (with two players it works like Skip). Draw Two and Wild Draw Four make the next player draw 2 or 4 cards and lose their turn.
+- When you're down to your last card, call **UNO!** (on your turn with two cards, or right after playing down to one). If you don't, any other player can **catch** you before the next card is played or drawn, and you draw two.
+- The first player to empty their hand wins. Simplifications: the starting card is always a number card, Wild Draw Four can always be played (no challenge), and Draw Two / Draw Four don't stack.
 
 ## War rules
 
@@ -33,7 +41,7 @@ An AI commentator adds a short description after each completed round without bl
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One file per game (`war.ts`, `tictactoe.ts`), the shared game interface (`types.ts`) and the list of games (`index.ts`) |
+| `src/games/` | One file per game (`uno.ts`, `war.ts`, `tictactoe.ts`), the shared game interface (`types.ts`) and the list of games (`index.ts`) |
 | `src/engine/` | `WarEngine`: War's rules and state, with no networking, plus its tests |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
@@ -113,8 +121,9 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
 1. **Rules:** create `src/games/<id>.ts` exporting a `GameDefinition` (see `src/games/types.ts`):
-   - `id`, `name`, `description`, `players` (the game starts when the room has this many players).
-   - `create()` returns a session with two functions. `view(seat, players)` returns what the player in that seat may see; it is sent to them after every action, so leave out anything they shouldn't know. `act(seat, payload)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle.
+   - `id`, `name`, `description`, `players` (the game starts automatically when the room has this many players).
+   - Optional `minPlayers`, lower than `players`, for a game that can start with fewer (Uno: 2 of 4). The room then shows who's in, and the host starts the game with `start_game`, or starts a new one after a game ends.
+   - `create(context, playerCount)` returns a session with two functions. `view(seat, players)` returns what the player in that seat may see; it is sent to them after every action, so leave out anything they shouldn't know. `act(seat, payload)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
 3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `ClientGame` (see `gui/src/games/types.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `update(view)` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
 
@@ -122,7 +131,7 @@ A game is two pieces with the same id: the rules on the server and the screen in
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
 5. **Test:** add rules tests next to the game (like `src/games/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
 
-Win/loss records are shared across all games for now.
+Win/loss records are shared across all games for now. In a game of three or more, the winner gets a win against each other player and each of them gets one loss.
 
 ## Protocol
 
@@ -136,12 +145,12 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players" }] }`
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players", "minPlayers" }] }` (`players` is the most a room holds)
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
-- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War).
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, for games with `minPlayers` below `players`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe, and in Uno `{ "kind": "play", "cardId", "color"? }` (`color` is `red`/`yellow`/`green`/`blue`, needed for wild cards), `{ "kind": "draw" }`, `{ "kind": "pass" }` (after drawing a playable card), `{ "kind": "uno" }` and `{ "kind": "catch" }`.
+- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War). Rooms for games with a player range (Uno) also get `room_players` (`players`: usernames with the host first, `minPlayers`, `maxPlayers`) whenever someone joins or leaves; War and Tic-Tac-Toe rooms never get it. Anyone leaving ends the current game for the room.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your seat and hand, which of your cards you can play, the top card and colour to match, direction, draw pile size, whose turn it is, a card you just drew, whether you can call Uno or catch someone, every player's name and card count (never their cards), the last thing that happened, and the winner.
 
 ## Deploy to Render
 

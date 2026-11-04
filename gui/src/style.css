@@ -106,6 +106,13 @@ header h1 { margin: 0; }
 .game-tile .desc { opacity: 0.9; line-height: 1.4; }
 .game-tile .meta { margin-top: auto; font-size: 0.85rem; opacity: 0.75; }
 .game-tile .go { color: #f5c542; font-weight: 600; font-size: 0.95rem; }
+/* The first game in the list (Uno) is the main one: a wide tile on top. */
+.game-list li:has(.featured) { grid-column: 1 / -1; }
+.game-tile.featured {
+  background: linear-gradient(135deg, rgb(214 40 40 / 0.55), rgb(0 0 0 / 0.25) 70%);
+  border-color: rgb(245 197 66 / 0.5);
+}
+.game-tile.featured strong { font-size: 1.6rem; }
 .lobby-note { margin: 0; opacity: 0.8; text-align: center; }
 .join-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center; }
 .join-row .or { opacity: 0.7; }
@@ -132,6 +139,11 @@ header h1 { margin: 0; }
 .room .game-name { font-weight: 700; }
 .status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; text-align: center; }
 .game-root { width: 100%; display: flex; justify-content: center; }
+.waiting-room { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.seat-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.seat-list li { padding: 0.35rem 0.9rem; border-radius: 999px; background: rgb(0 0 0 / 0.25); }
+.seat-list li.you { outline: 2px solid #f5c542; }
+.seat-list li[data-host]::after { content: " · host"; opacity: 0.7; font-size: 0.85em; }
 .game-host { width: 100%; }
 .room strong { letter-spacing: 0.1em; }
 .invite-link {
