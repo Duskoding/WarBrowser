@@ -1,8 +1,9 @@
 import type { RoundSummary } from "../engine/types.ts";
 
-// The contract between the room server (server.js) and a game. Each game is one
-// GameDefinition, listed in src/games/index.ts. The server handles accounts,
+// The live contract between the room server (server.js) and a game. Each game is
+// one GameDefinition, listed in src/games/index.ts. The server handles accounts,
 // rooms, seats and sockets; the game only handles its own rules and views.
+// Target plugin shape (specify-only, #46): ./GameModule.ts.
 
 export interface PlayerInfo {
   username: string;
