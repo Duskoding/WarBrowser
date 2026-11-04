@@ -150,7 +150,7 @@ function sendStates(game) {
   for (const [socket, seat] of game.seats) {
     send(socket, {
       type: "game_message",
-      payload: { kind: "state", view: game.session.view(seat, players) }
+      payload: { kind: "state", view: game.module.toView(game.engine, seat, players) }
     });
   }
 }
@@ -169,9 +169,9 @@ export function createWarServer({
 } = {}) {
   const postgres = database === "postgres" || database === process.env.DATABASE_URL;
   const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
-  // roomCode -> { game: GameDefinition, sockets: Set<WebSocket> }
+  // roomCode -> { game: GameModule, sockets: Set<WebSocket> }
   const rooms = new Map();
-  // roomCode -> the game being played once the room is full
+  // roomCode -> the running match once the room is full
   const games = new Map();
 
   async function handleApi(request, response, pathname) {
@@ -454,8 +454,11 @@ export function createWarServer({
         if (room.sockets.size < room.game.players) return;
         // Room is full: seats follow join order (the host is seat 0).
         const seated = [...room.sockets];
+        const context = { commentator, options: engineOptions };
         const game = {
-          session: room.game.create({ commentator, options: engineOptions }),
+          module: room.game,
+          engine: room.game.createEngine(context),
+          context,
           seats: new Map(seated.map((player, seat) => [player, seat])),
           players: seated.map((player) => player.user),
           recorded: false
@@ -487,10 +490,12 @@ export function createWarServer({
           return;
         }
 
-        // The game handles its own actions; anything it doesn't recognise
+        // The game module handles its own actions; anything it doesn't recognise
         // (result null) is relayed to the other players below.
         const isObject = payload !== null && typeof payload === "object" && !Array.isArray(payload);
-        const result = isObject ? game.session.act(game.seats.get(socket), payload) : null;
+        const result = isObject
+          ? game.module.handleAction(game.engine, game.seats.get(socket), payload, game.context)
+          : null;
         if (result) {
           if (!result.ok) {
             send(socket, { type: "error", message: result.error });

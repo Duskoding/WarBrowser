@@ -1,7 +1,7 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
-import type { GameScreen } from "./games/types";
+import type { GuiModuleScreen } from "./games/GuiModule";
 import { fetchGames, fetchMe, login, logout, register, resetPassword, type Me } from "./session";
 import type { GameSummary, ServerPayload } from "./types";
 
@@ -80,7 +80,7 @@ let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
 let opponentHere = false;
-let screen: GameScreen | null = null;
+let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
 
 // ---- Toast ----
@@ -232,7 +232,10 @@ function handleGamePayload(payload: unknown) {
   if (!p || typeof p !== "object") return;
   if (p.kind === "state") {
     mountGame();
-    guarded(() => screen?.update(p.view));
+    guarded(() => {
+      screen?.applyState(p.view);
+      screen?.render();
+    });
     const client = roomGameId ? clientGames[roomGameId] : undefined;
     let finished = false;
     guarded(() => {

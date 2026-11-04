@@ -5,11 +5,11 @@
 WarBrowser is a site for live two-player, server-authoritative browser games: War, plus Tic-Tac-Toe as a second, example game. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
 
 - `server.js` owns HTTP/WebSocket routing, room membership, and wiring between clients and whichever game a room was created for.
-- `src/games/` contains one `GameDefinition` per game (`war.ts`, `tictactoe.ts`), the shared interface (`types.ts`), and the list of games (`index.ts`).
-- `src/engine/` contains the concrete `WarEngine` rules and its unit tests.
+- `src/games/` contains one `GameModule` per game (`war/`, `tictactoe/`), the shared contract (`GameModule.ts`), and the list of games (`index.ts`).
+- `src/engine/GameEngine.ts` is the shared pure-engine interface; each game's engine lives inside its game module.
 - `src/auth.ts` contains SQLite-backed users, sessions, and match records.
-- `src/commentator.ts` integrates optional AI round commentary.
-- `gui/` contains the Vite + TypeScript client. `gui/src/main.ts` and `gui/src/style.css` are the shell (accounts, lobby, rooms); each game's screen is in `gui/src/games/<id>/`.
+- `src/commentator.ts` is shared optional AI commentary (games supply prompt strings).
+- `gui/` contains the Vite + TypeScript client. `gui/src/main.ts` and `gui/src/style.css` are the shell (accounts, lobby, rooms); each game's `GuiModule` screen is in `gui/src/games/<id>/`.
 - `gui/preview/` builds `live-war-preview.html`, a no-install two-window preview that runs the real games from `src/games/`.
 - `test/` contains server-level tests.
 - `SPEC_v2.md` is the current implementation specification; `SPEC_v1.md` is historical context.
@@ -30,9 +30,9 @@ Do not commit generated output, local databases, environment files, or credentia
 ## Code and architecture conventions
 
 - Preserve strict TypeScript settings and existing ESM/NodeNext module conventions. Use explicit types and `.ts` import extensions where the surrounding code does.
-- Keep each game's rules in its own module (`WarEngine` for War, `src/games/<id>.ts` for others), independent from networking and browser concerns. Prefer extending the engine and its tests rather than duplicating rules in `server.js` or the GUI. `server.js` must stay game-agnostic.
+- Keep each game's rules in its own module under `src/games/<id>/`, implementing `GameEngine`, independent from networking and browser concerns. Prefer extending the engine and its tests rather than duplicating rules in `server.js` or the GUI. `server.js` must stay game-agnostic.
 - Treat the server as authoritative: validate WebSocket messages and state transitions on the server, and send clients only the protocol shapes documented in `README.md` and `SPEC_v2.md`.
-- Reuse existing helpers and data shapes before introducing new abstractions. Add new games through the `GameDefinition` and `ClientGame` interfaces ("Adding a game" in `README.md`), and keep the current room protocol unless a requirement explicitly changes it.
+- Reuse existing helpers and data shapes before introducing new abstractions. Add new games through the `GameModule` and `GuiModule` interfaces ("Adding a game" in `README.md`), and keep the current room protocol unless a requirement explicitly changes it.
 - Keep each game's screen inside its shadow root: style it through its own `.css` file passed as `styles`, change the page background only with `setBackground`, and don't edit `gui/src/main.ts` or `gui/src/style.css` for game-specific changes.
 - Follow the existing formatting style: double-quoted JavaScript/TypeScript strings, semicolons, and small focused functions. Add comments only for non-obvious behavior.
 - Update directly related documentation and tests when behavior or protocol changes.
