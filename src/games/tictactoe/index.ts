@@ -8,6 +8,11 @@ export const ticTacToe: GameModule<TicTacToeState, TicTacToeAction, TicTacToeRes
   name: "Tic-Tac-Toe",
   description: "Take turns placing X and O. Three in a row wins.",
   players: 2,
+  rules: [
+    "The room's host plays X and goes first.",
+    "Players take turns placing their mark in an empty square.",
+    "Three in a row (across, down or diagonally) wins. A full board with no line is a draw.",
+  ],
 
   createEngine() {
     return new TicTacToeEngine();

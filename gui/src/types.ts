@@ -23,6 +23,7 @@ export type GameSummary = {
   name: string;
   description: string;
   players: number;
+  rules?: string[]; // "How to play" lines
 };
 
 // A player's action inside game_message, e.g. { kind: "flip" } in War.
