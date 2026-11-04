@@ -19,7 +19,8 @@ An AI commentator adds a short description after each completed round without bl
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated round commentary (optional, needs an Anthropic API key)
+- A play-by-play line after every round in War and every move in Uno, built in
+- AI-generated War round commentary (optional, needs an Anthropic API key), which replaces War's built-in line for that round
 
 ## Uno rules
 
@@ -150,7 +151,7 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 - **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, for games with `minPlayers` below `players`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe, and in Uno `{ "kind": "play", "cardId", "color"? }` (`color` is `red`/`yellow`/`green`/`blue`, needed for wild cards), `{ "kind": "draw" }`, `{ "kind": "pass" }` (after drawing a playable card), `{ "kind": "uno" }` and `{ "kind": "catch" }`.
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War). Rooms for games with a player range (Uno) also get `room_players` (`players`: usernames with the host first, `minPlayers`, `maxPlayers`) whenever someone joins or leaves; War and Tic-Tac-Toe rooms never get it. Anyone leaving ends the current game for the room.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your seat and hand, which of your cards you can play, the top card and colour to match, direction, draw pile size, whose turn it is, a card you just drew, whether you can call Uno or catch someone, every player's name and card count (never their cards), the last thing that happened, and the winner.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, `round` (rounds resolved so far, the same number as in commentary), the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your seat and hand, which of your cards you can play, the top card and colour to match, direction, draw pile size, whose turn it is, a card you just drew, whether you can call Uno or catch someone, every player's name and card count (never their cards), the last thing that happened, and the winner.
 
 ## Deploy to Render
 

@@ -31,6 +31,7 @@ function toView(state: GameState, seat: PlayerId, players: PlayerInfo[]) {
     yourCount: mine ? state.scoreA : state.scoreB,
     opponentCount: mine ? state.scoreB : state.scoreA,
     phase: state.phase,
+    round: state.round, // rounds resolved so far; matches the commentary's round
     inWar: state.inWar,
     warCards: state.warCards.map((pair) => ({
       yours: toViewCard(pair.yours),

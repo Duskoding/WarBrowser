@@ -30,6 +30,7 @@ type WarView = {
   yourCount: number;
   opponentCount: number;
   phase: Phase;
+  round: number; // rounds resolved so far
   inWar: boolean; // true for the whole war, until it resolves
   warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
   yourStakes?: StakeCard[];
@@ -76,6 +77,20 @@ function roundTakeResult(v: WarView): string {
   if (round.winner === "you") return "You take the cards!";
   if (round.winner === "opponent") return "Opponent takes the cards.";
   return "Draw — cards go back.";
+}
+
+// A built-in line about the round that just resolved, like Uno's play-by-play.
+// Shown in the commentary box until (and unless) the AI commentary arrives.
+function playByPlay(v: WarView): string | null {
+  const round = v.lastRound;
+  if (!round || !v.yourCard || !v.opponentCard) return null;
+  const them = v.opponentName || "Your opponent";
+  const cards = `${cardLabel(v.yourCard)} vs ${cardLabel(v.opponentCard)}`;
+  const prefix = `Round ${v.round}: ${round.wasWar ? "WAR! " : ""}`;
+  if (round.winner === null) return `${prefix}${cards}, and nobody takes the cards.`;
+  const who = round.winner === "you" ? "You take" : `${them} takes`;
+  const end = v.phase === "gameOver" ? ` That's the game!` : "";
+  return `${prefix}${cards}. ${who} ${round.cardsWon} cards${round.wasWar ? " after the war" : ""}.${end}`;
 }
 
 export const war: ClientGame = {
@@ -151,7 +166,17 @@ export const war: ClientGame = {
     let cardsTucked = false;
     let revealKey = "";
     let tuckTimer: number | undefined;
-    let lastCommentaryRound = 0;
+    let lastCommentaryRound = 0; // round of the line in the commentary box
+
+    // The built-in line goes in first; AI commentary for the same round replaces it.
+    function showPlayByPlay(v: WarView) {
+      if (v.phase !== "roundOver" && v.phase !== "gameOver") return;
+      if (v.round <= lastCommentaryRound) return;
+      const text = playByPlay(v);
+      if (!text) return;
+      lastCommentaryRound = v.round;
+      $("commentary").textContent = text;
+    }
 
     function syncReveal(v: WarView) {
       const resolved = v.phase === "roundOver" || v.phase === "gameOver";
@@ -226,6 +251,7 @@ export const war: ClientGame = {
       $("status").textContent = status;
 
       setBackground(v.inWar || (!!v.lastRound?.wasWar && !tuck) ? FELT_WAR : FELT);
+      showPlayByPlay(v);
       flipBtn.disabled = !canFlip(v) || (v.phase === "roundOver" && !tuck);
     }
 
@@ -235,7 +261,7 @@ export const war: ClientGame = {
         render();
       },
       commentary(text, round) {
-        if (round <= lastCommentaryRound) return; // a slow reply for an older round
+        if (round < lastCommentaryRound) return; // a slow reply for an older round
         lastCommentaryRound = round;
         $("commentary").textContent = text;
       },

@@ -50,7 +50,7 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
 | `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when the room is full, and the game is discarded when anyone leaves |
 | `room_players` | `{ players, minPlayers, maxPlayers }` | Uno rooms only: who is in the room (host first), sent whenever someone joins or leaves |
-| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
+| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, round, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |
 

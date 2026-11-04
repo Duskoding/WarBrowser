@@ -192,6 +192,7 @@ test("deals a fresh game to both players when the second one joins", async () =>
       yourCount: 26,
       opponentCount: 26,
       phase: "waiting",
+      round: 0,
       inWar: false,
       warCards: [],
       yourStakes: [],
@@ -258,7 +259,9 @@ test("sends commentary to both players after a round resolves, not before", asyn
   assert.equal(summaries.length, 0);
 
   post(guest, { type: "game_message", payload: { kind: "flip" } });
-  assert.equal((await host.next()).payload.kind, "state");
+  const resolved = (await host.next()).payload;
+  assert.equal(resolved.kind, "state");
+  assert.equal(resolved.view.round, 1, "the view's round matches the commentary's");
   assert.equal((await guest.next()).payload.kind, "state");
 
   const expected = {

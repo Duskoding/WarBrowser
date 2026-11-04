@@ -83,3 +83,9 @@
 - **Decision:** The AI commentator stays War-only for now; Uno games have no commentary.
 - **Made by:** agent (Claude Code)
 - **Reason:** The commentator's prompt and input are written for War rounds. Adding Uno commentary means a new prompt and summary shape, best done as its own change.
+
+## 2026-11-04 — Built-in play-by-play for War
+
+- **Decision:** After each War round, the commentary box shows a built-in line (for example "Round 12: K♠ vs 7♥. You take 2 cards."), like Uno's play-by-play. When AI commentary arrives for that round it replaces the line. War's view gains a `round` field (rounds resolved so far, taken from the engine) so the client never lets an older line overwrite a newer one; War's rules are unchanged.
+- **Made by:** the user (asked for Uno-style commentary in War); implemented by agent (Claude Code)
+- **Reason:** Without an `ANTHROPIC_API_KEY` the commentary box never changed from its placeholder text. The built-in line works with no key and costs nothing.
