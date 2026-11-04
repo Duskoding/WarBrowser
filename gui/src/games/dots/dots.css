@@ -1,0 +1,27 @@
+/* Dots and Boxes: narrow tracks for dots and lines, wide tracks for boxes. */
+.dots { --you: #f5c542; --opponent: #7cc6ff; }
+.you-score strong { color: var(--you); }
+.them-score strong { color: var(--opponent); }
+.dots-board {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 4), 14px minmax(0, 1fr)) 14px;
+  grid-template-rows: repeat(var(--n, 4), 14px minmax(0, 1fr)) 14px;
+  width: min(24rem, 100%);
+  aspect-ratio: 1;
+}
+.dot { width: 14px; height: 14px; border-radius: 50%; background: #f4f4f4; }
+.box { margin: 3px; border-radius: 4px; }
+.box.you { background: rgb(245 197 66 / 0.55); }
+.box.opponent { background: rgb(124 198 255 / 0.55); }
+.line {
+  padding: 0;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.08);
+}
+.line.h { margin: 3px 2px; }
+.line.v { margin: 2px 3px; }
+.line:not(:disabled):hover { background: rgb(255 255 255 / 0.45); }
+.line:disabled { opacity: 1; cursor: default; }
+.line.drawn.you { background: var(--you); }
+.line.drawn.opponent { background: var(--opponent); }
+.line.last { box-shadow: 0 0 0 2px #fff; }

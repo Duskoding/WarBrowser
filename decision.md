@@ -77,3 +77,59 @@
 - **Decision:** Full cutover from `GameDefinition`/`ClientGame` to `GameEngine` + `GameModule` + `GuiModule` for War and Tic-Tac-Toe. Move War engine/types/tests into `src/games/war/` and TTT into `src/games/tictactoe/`. Keep the lobby shell (`gui/src/main.ts`, etc.) shared. Promote commentary to shared: `Commentator.describe(prompt: string)`; each game builds its own prompt. `handleAction` takes `GameModuleContext` so modules can request commentary.
 - **Made by:** agent
 - **Reason:** Issues #29/#48–#51 (plus TTT) require adopting the #45–#47 contracts uniformly so both games and the server/GUI use one plugin shape before Uno and further shared-core work.
+
+## 2026-11-04 — Add seven two-player games built from War and Tic-Tac-Toe logic (#59)
+
+- **Decision:** Add Rock-Paper-Scissors (#60), Goofspiel (#61), Connect Four (#62), Dots and Boxes (#63), Battleship (#64), Crazy Eights (#65) and Go Fish (#66), each as a `GameEngine` + `GameModule` in `src/games/<id>/` and a `GuiModule` in `gui/src/games/<id>/`, listed in both registries. They are built on the `refactorWarAndTTT` branch and delivered as a draft pull request.
+- **Made by:** user (Yosef Skolnick asked for every game that could be built with the current work, on the refactor branch, as a draft PR); choice of games by agent (Claude)
+- **Reason:** Each game reuses something the site already has: War's both-players-act-then-reveal, Tic-Tac-Toe's turns and move checks, War's deck and shuffle, and per-seat views. Left out on purpose: Uno (#30 already belongs to the team), poker (on `claude/poker-game-requirements-j5u75v`, needs porting to the plugin contract), games for three or more players (match recording assumes two) and real-time games (the server has no clock).
+
+## 2026-11-04 — Share the deck helpers instead of importing them from War (#69)
+
+- **Decision:** Move `Suit`, `Rank`, `Card`, `createDeck()` and `fisherYates()` to `src/games/shared/cards.ts`, along with card parsing, sorting and naming helpers. War's `types.ts` and `WarEngine.ts` re-export them, so existing imports keep working. Add `src/games/shared/view.ts` for helpers every two-player view uses (result and actor relative to the viewer, player names, the commentary prompt opening).
+- **Made by:** agent (Claude)
+- **Reason:** Three of the new games use a standard deck, and Uno (#33/#34) will need the same draw/discard handling. Card games shouldn't depend on War's module to get a deck.
+
+## 2026-11-04 — Add "How to play" rules to every game (#67)
+
+- **Decision:** Add an optional `rules: string[]` to `GameModule`, return it from `GET /api/games` (as `[]` when a game has none), and show it on each lobby tile as a **How to play** link that opens the rules in place (`<details>`). Rules are written for all nine games. This is the only change to the lobby shell (`gui/src/main.ts`, `gui/src/style.css`).
+- **Made by:** user (asked for a link in the UI); approach by agent (Claude)
+- **Reason:** With nine games, players need to learn a game before starting a room. Keeping the rules in each `GameModule` means a new game brings its own rules and the lobby needs no game-specific code.
+
+## 2026-11-04 — Commentary only for public, notable moments in the new games
+
+- **Decision:** The new games ask for commentary only when something notable and public happens: each resolved round in Rock-Paper-Scissors and Goofspiel; the final move in Connect Four; a closed box in Dots and Boxes; a sunk ship in Battleship; a wild 8 or the winning card in Crazy Eights; a completed book in Go Fish. Prompts only use what both players can already see, and say "Player 1"/"Player 2" rather than usernames.
+- **Made by:** agent (Claude)
+- **Reason:** Commentary is sent to both players, so a prompt that mentioned a hand, a bid or a ship position would leak it. Commenting on every move would also multiply API calls (an earlier review flagged commentary cost).
+
+## 2026-11-04 — Rule choices for the new games
+
+- **Decision:**
+  - Rock-Paper-Scissors: first to 3 round wins; a tied round counts for no one.
+  - Goofspiel: Ace = 1 … King = 13; a tied bid carries the prize to the next round's winner; prizes still carried after round 13 go to no one.
+  - Connect Four: 7 × 6 board.
+  - Dots and Boxes: 4 × 4 boxes; 8–8 is a draw.
+  - Battleship: 10 × 10 with fleet 5, 4, 3, 3, 2. Fleets are placed at random and re-shuffled until the player presses Ready (no drag-and-drop placement). Turns alternate after every shot, hit or miss.
+  - Crazy Eights: 7 cards each; draw one card per turn, then play or pass; the discard pile is reshuffled into the draw pile when it runs out; if nobody can play or draw, two passes in a row end the game and fewer cards wins.
+  - Go Fish: 7 cards each; drawing the rank you asked for lets you go again; an empty hand draws a card at the start of its turn.
+  - In every new game the room's host (seat 0) moves first.
+- **Made by:** agent (Claude)
+- **Reason:** These are common, simple versions of each game. Random placement in Battleship keeps setup to two buttons and leaves no way to send an invalid fleet. The Crazy Eights stalemate rule stops a game that could otherwise never end.
+
+## 2026-11-04 — Views say "you" and "opponent", not seat numbers
+
+- **Decision:** Every new game's `toView` describes owners, results and last actions relative to the viewer (`"you"`, `"opponent"`, `"draw"`), as War and Tic-Tac-Toe already do for results.
+- **Made by:** agent (Claude)
+- **Reason:** Each screen then draws "your" pieces the same way in either seat, and the views never need to explain which seat number the viewer has.
+
+## 2026-11-04 — Keep a work log in LOG.md (#68)
+
+- **Decision:** Add `LOG.md` with one entry per work session (date, who, issues, what changed, how it was checked, what's left), newest first, and require it in `AGENTS.md` next to the `decision.md` rule. Also add an `AGENTS.md` rule that hidden information stays out of other seats' views and commentary prompts, with a test.
+- **Made by:** user (asked for logs alongside the decision structure); format by agent (Claude)
+- **Reason:** `decision.md` records why choices were made but not what each session did or left unfinished. With several people and agents working at once, the next one needs to see both.
+
+## 2026-11-04 — Fix a flaky War commentary test
+
+- **Decision:** Give the server test "sends commentary to both players after a round resolves, not before" a fixed deal (3♠ vs 2♦) through `engineOptions.shuffle`.
+- **Made by:** agent (Claude)
+- **Reason:** With a random deck, about 1 run in 17 started with a tie. The round then went to war instead of resolving, no commentary was sent, and the test waited forever. 25 runs in a row pass with the fixed deal.

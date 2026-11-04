@@ -2,13 +2,27 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now:
+
+| Game | Built from | Hidden information |
+| --- | --- | --- |
+| **War** | the original game | face-down war cards |
+| **Tic-Tac-Toe** | the smallest example of how to add a game | none |
+| **Rock-Paper-Scissors** | War's both-players-act-then-reveal | your pick, until both have picked |
+| **Goofspiel** | War's deck, reveal and tie pot | your bid, until both have bid |
+| **Connect Four** | Tic-Tac-Toe's turns and line checks | none |
+| **Dots and Boxes** | Tic-Tac-Toe's turns, plus "close a box, go again" | none |
+| **Battleship** | Tic-Tac-Toe's grid turns plus War's per-player view | your fleet |
+| **Crazy Eights** | War's deck with Tic-Tac-Toe's turns | your hand and the draw pile |
+| **Go Fish** | War's deck with Tic-Tac-Toe's turns | your hand and the pond |
+
+Each game has a **How to play** link on its lobby tile.
 
 ## How it works
 
 The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and the big moments in the other games: a ship sunk, a box closed, a wild 8) without blocking gameplay. Prompts only describe what both players can already see. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -19,7 +33,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
+- Nine games, each with How to play rules in the lobby
+- AI-generated commentary (optional, needs an Anthropic API key)
 
 ## War rules
 
@@ -33,7 +48,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `crazy8/`, `gofish/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/shared/` | Helpers the games share: the 52-card deck and shuffle (`cards.ts`), and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
@@ -113,7 +129,7 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
 1. **Rules:** create `src/games/<id>/` with an engine that implements `GameEngine` (`src/engine/GameEngine.ts`) and a `GameModule` export (see `src/games/GameModule.ts`):
-   - `id`, `name`, `description`, `players` (the game starts when the room has this many players).
+   - `id`, `name`, `description`, `players` (the game starts when the room has this many players), and `rules`: the lines shown under **How to play** in the lobby.
    - `createEngine(context)` builds the pure rules engine. `handleAction(engine, seat, payload, context)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle. `toView(engine, seat, players)` returns what that seat may see. For commentary, build a prompt string and call `context.commentator.describe(prompt)`.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
 3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `GuiModule` (see `gui/src/games/GuiModule.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `applyState(view)` + `render()` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
@@ -121,6 +137,8 @@ A game is two pieces with the same id: the rules on the server and the screen in
    Each game is drawn inside its own shadow root, so its HTML ids and CSS (even broad rules like `button { … }`) only apply inside that game, and the lobby's CSS doesn't change it. Shared defaults come from `gui/src/games/base.css`. To change the page background, call `setBackground(...)`; the lobby resets it when the game closes. Don't style `body` or other elements outside `root`.
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
 5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
+
+Card games can use the deck, shuffle and card helpers in `src/games/shared/cards.ts`, and screens can use `gui/src/games/shared/` for drawing cards and common layout. Connect Four and Go Fish are good examples of a turn-based game and a hidden-hand card game.
 
 Win/loss records are shared across all games for now.
 
@@ -138,7 +156,14 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 
 - `GET /api/games` → `{ "games": [{ "id", "name", "description", "players" }] }`
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe. The other games' actions:
+  - Rock-Paper-Scissors: `{ "kind": "pick", "choice": "rock" | "paper" | "scissors" }`
+  - Goofspiel: `{ "kind": "bid", "value": 1–13 }`
+  - Connect Four: `{ "kind": "drop", "column": 0–6 }`
+  - Dots and Boxes: `{ "kind": "line", "dir": "h" | "v", "row", "col" }`
+  - Battleship: `{ "kind": "shuffle" }` and `{ "kind": "ready" }` during setup, then `{ "kind": "fire", "cell": 0–99 }`
+  - Crazy Eights: `{ "kind": "play", "card": { "rank", "suit" }, "suit"? }` (`suit` names the new suit for an 8), `{ "kind": "draw" }`, `{ "kind": "pass" }`
+  - Go Fish: `{ "kind": "ask", "rank": 2–14 }`
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary).
 
 The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.

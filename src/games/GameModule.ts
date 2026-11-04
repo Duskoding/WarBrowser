@@ -39,6 +39,8 @@ export interface GameModule<
   name: string;
   description: string;
   players: number;
+  // Optional "How to play" lines, shown from the lobby (#67).
+  rules?: string[];
 
   createEngine(context: GameModuleContext): GameEngine<TState, TAction, TResult>;
 
@@ -58,4 +60,4 @@ export interface GameModule<
 }
 
 // What GET /api/games returns for each game.
-export type GameSummary = Pick<GameModule, "id" | "name" | "description" | "players">;
+export type GameSummary = Pick<GameModule, "id" | "name" | "description" | "players" | "rules">;
