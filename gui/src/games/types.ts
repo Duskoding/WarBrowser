@@ -1,8 +1,9 @@
 import type { GameAction } from "../types";
 
-// The contract between the shell (main.ts: accounts, game choice, rooms) and one
-// game's screen. Each game lives in games/<id>/ and is listed in games/index.ts
-// under the same id the server uses in src/games/.
+// The live contract between the shell (main.ts: accounts, game choice, rooms) and
+// one game's screen. Each game lives in games/<id>/ and is listed in
+// games/index.ts under the same id the server uses in src/games/.
+// Target plugin shape (specify-only, #47): ./GuiModule.ts.
 //
 // Each game draws into its own shadow root, so its CSS can't change the lobby or
 // other games, and the shell's CSS can't change the game. Inherited values (text
