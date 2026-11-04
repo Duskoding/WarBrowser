@@ -8,7 +8,7 @@ Games available now: **War** and **Tic-Tac-Toe** (a small second game that also 
 
 The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator adds a short description after each completed round without blocking gameplay.
+An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -19,7 +19,7 @@ An AI commentator adds a short description after each completed round without bl
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated round commentary (optional, needs an Anthropic API key)
+- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
 
 ## War rules
 
@@ -33,12 +33,12 @@ An AI commentator adds a short description after each completed round without bl
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One file per game (`war.ts`, `tictactoe.ts`), the shared game interface (`types.ts`) and the list of games (`index.ts`) |
-| `src/engine/` | `WarEngine`: War's rules and state, with no networking, plus its tests |
+| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
 | `src/db.ts` | PostgreSQL pool and schema initialization |
-| `src/commentator.ts` | `ClaudeCommentator`: one-sentence round commentary from the Claude API |
+| `src/commentator.ts` | Shared `ClaudeCommentator`: sends each game's prompt string to the Claude API |
 | `server.js` | HTTP + WebSocket server: accounts, rooms and seats; runs whichever game a room was created for |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `gui/src/games/` | One folder per game with that game's screen and styles, plus the list of games (`index.ts`) |
@@ -139,7 +139,7 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 - `GET /api/games` → `{ "games": [{ "id", "name", "description", "players" }] }`
 
 - **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
-- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` in War).
+- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary).
 
 The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
 
@@ -168,4 +168,4 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 1. Open the Render URL in a browser on both computers. Do not use `localhost`, since that points to each computer itself.
 2. On the first computer, register or log in, choose a game to create a room, and copy the displayed six-character room code or the invite link.
 3. On the second computer, register or log in with a different account, then enter the code (or open the link) and join the room.
-4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears. In Tic-Tac-Toe, take turns and confirm each move appears on both screens.
+4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears after a resolved round. In Tic-Tac-Toe, take turns and confirm each move appears on both screens, and, if a key is set, commentary appears after moves.
