@@ -2,10 +2,11 @@
 
 ## Project overview
 
-WarBrowser is a site for live two-player, server-authoritative browser games: War, plus Tic-Tac-Toe as a second, example game. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
+WarBrowser is a site for live two-player, server-authoritative browser games: War, Tic-Tac-Toe (the smallest example to copy), Rock-Paper-Scissors, Goofspiel, Connect Four, Dots and Boxes, Battleship, Crazy Eights and Go Fish. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
 
 - `server.js` owns HTTP/WebSocket routing, room membership, and wiring between clients and whichever game a room was created for.
-- `src/games/` contains one `GameModule` per game (`war/`, `tictactoe/`), the shared contract (`GameModule.ts`), and the list of games (`index.ts`).
+- `src/games/` contains one `GameModule` per game (`war/`, `tictactoe/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `crazy8/`, `gofish/`), the shared contract (`GameModule.ts`), and the list of games (`index.ts`).
+- `src/games/shared/` holds helpers shared by games: the deck and shuffle (`cards.ts`) and view/commentary helpers (`view.ts`). `gui/src/games/shared/` does the same for screens.
 - `src/engine/GameEngine.ts` is the shared pure-engine interface; each game's engine lives inside its game module.
 - `src/auth.ts` contains SQLite-backed users, sessions, and match records.
 - `src/commentator.ts` is shared optional AI commentary (games supply prompt strings).
@@ -46,3 +47,11 @@ Never commit secrets or weaken authentication, input-size limits, server-side va
 ## Decision log requirement
 
 Whenever a person or agent makes a project decision, record it in `decision.md`. Each entry must include the decision, the date, and who made it; identify the maker as `agent` when the decision is made by an agent. This applies to implementation, architecture, testing, documentation, and operational decisions.
+
+## Work log requirement
+
+At the end of each work session, add an entry to the top of `LOG.md`: the date, who worked (a person, or `agent`), the issues worked on, what changed, how it was checked, and what's left. `decision.md` says *why* a choice was made; `LOG.md` says *what happened*, so the next person or agent can pick up where the last one stopped.
+
+## Hidden information
+
+Games with hidden information (hands, bids, a fleet) must keep it out of `toView` for the other seat and out of commentary prompts, which are sent to both players. Add a test that checks the other seat's view does not contain it.
