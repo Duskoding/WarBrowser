@@ -1,4 +1,4 @@
-export type Suit = 'S' | 'H' | 'D' | 'C';
+export type Suit = "S" | "H" | "D" | "C";
 export type Rank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 
 export interface Card {
@@ -6,8 +6,7 @@ export interface Card {
   suit: Suit;
 }
 
-export type PlayerId = 'A' | 'B';
-export type Phase = 'waiting' | 'flipped' | 'war' | 'roundOver' | 'gameOver';
+export type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
 
 export interface TiedPair {
   yours: Card;
@@ -16,7 +15,8 @@ export interface TiedPair {
 
 export interface LastRound {
   wasWar: boolean;
-  winner: PlayerId | null;
+  /** Seat index of the round winner, or null for a draw. */
+  winner: number | null;
   cardsWon: number;
 }
 
@@ -25,18 +25,19 @@ export type StakeCard =
   | { faceUp: true; card: Card }
   | { faceUp: false };
 
-export interface GameState {
+/** Per-seat engine state from getState(seat). */
+export interface WarState {
   yourCard: Card | null;
   opponentCard: Card | null;
   pile: number;
-  scoreA: number;
-  scoreB: number;
+  yourCount: number;
+  opponentCount: number;
   phase: Phase;
   round: number;
-  winner: PlayerId | null;
+  /** Seat index of the match winner, or null if draw / not over. */
+  winner: number | null;
   inWar: boolean;
   warCards: TiedPair[];
-  /** Your cards in this war, in order (ties, burns, deciding flips). */
   yourStakes: StakeCard[];
   opponentStakes: StakeCard[];
   lastRound: LastRound | null;
@@ -44,19 +45,21 @@ export interface GameState {
 
 export interface RoundSummary {
   round: number;
-  cardA: Card;
-  cardB: Card;
-  winner: PlayerId | null;
+  card0: Card;
+  card1: Card;
+  winner: number | null;
   wasWar: boolean;
-  scoreA: number;
-  scoreB: number;
+  score0: number;
+  score1: number;
   gameOver: boolean;
 }
 
-export type FlipResult =
+export type WarAction = { kind: "flip" };
+
+export type WarResult =
+  | { ok: false; error: string }
   | { ok: true; resolved: false }
-  | { ok: true; resolved: true; summary: RoundSummary }
-  | { ok: false; error: string };
+  | { ok: true; resolved: true; summary: RoundSummary; finished?: { winner: number | null } };
 
 export interface WarEngineOptions {
   shuffle?: <T>(items: T[]) => T[];

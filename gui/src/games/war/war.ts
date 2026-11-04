@@ -1,37 +1,33 @@
-import type { ClientGame } from "../types";
+import type { GuiModule } from "../GuiModule";
 import styles from "./war.css?inline";
 
 // The War table: felt, flipping cards, the war lineup and round commentary.
-// Drawn inside its own shadow root (see ../types.ts), so ids and CSS here
+// Drawn inside its own shadow root (see ../GuiModule.ts), so ids and CSS here
 // can't clash with the lobby or other games.
 
 type Suit = "♠" | "♥" | "♦" | "♣";
 type Card = { rank: number; suit: Suit }; // rank 2–14 (11 = J, 12 = Q, 13 = K, 14 = A)
 type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
 
-// A pair of cards that tied and started (or extended) a war.
 type TiedPair = { yours: Card; opponent: Card };
 
-// How the last resolved round ended; cleared when the next round starts.
 type LastRound = {
   wasWar: boolean;
-  winner: "you" | "opponent" | null; // null = draw
+  winner: "you" | "opponent" | null;
   cardsWon: number;
 };
 
-/** Card in the war lineup; face-down burns omit rank/suit until the war ends. */
 type StakeCard = { faceUp: true; card: Card } | { faceUp: false };
 
-// One player's view of the table, from src/games/war.ts on the server.
 type WarView = {
   yourCard: Card | null;
-  opponentCard: Card | null; // visible as soon as the opponent flips; null until then
-  pile: number; // cards in the middle
+  opponentCard: Card | null;
+  pile: number;
   yourCount: number;
   opponentCount: number;
   phase: Phase;
-  inWar: boolean; // true for the whole war, until it resolves
-  warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
+  inWar: boolean;
+  warCards: TiedPair[];
   yourStakes?: StakeCard[];
   opponentStakes?: StakeCard[];
   lastRound: LastRound | null;
@@ -53,7 +49,6 @@ const STATUS: Record<Phase, string> = {
 /** After a round resolves, show faces briefly then tuck to backs. */
 const REVEAL_MS = 1500;
 
-// Page backgrounds behind the table (set through the shell's setBackground).
 const FELT = "radial-gradient(ellipse 90% 70% at 50% 35%, #165a32 0%, #0e3d22 100%)";
 const FELT_WAR = "radial-gradient(ellipse 90% 70% at 50% 35%, #6b1a1a 0%, #3d0e0e 100%)";
 
@@ -78,7 +73,7 @@ function roundTakeResult(v: WarView): string {
   return "Draw — cards go back.";
 }
 
-export const war: ClientGame = {
+export const war: GuiModule = {
   id: "war",
   styles,
   isFinished: (view) => (view as WarView).phase === "gameOver",
@@ -108,14 +103,14 @@ export const war: ClientGame = {
     const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.getElementById(id) as T;
     const flipBtn = $<HTMLButtonElement>("flip");
     flipBtn.addEventListener("click", () => {
-      flipBtn.disabled = true; // re-enabled by the next state
+      flipBtn.disabled = true;
       send({ kind: "flip" });
     });
 
     const shown = new WeakMap<HTMLElement, string>();
     function renderCard(el: HTMLElement, card: Card | null) {
       const key = card ? `${card.rank}${card.suit}` : "";
-      if (shown.get(el) === key) return; // don't replay the flip on unchanged cards
+      if (shown.get(el) === key) return;
       shown.set(el, key);
       if (!card) {
         el.classList.remove("flipped");
@@ -125,7 +120,7 @@ export const war: ClientGame = {
       face.textContent = cardLabel(card);
       face.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
       el.classList.remove("flipped");
-      void el.offsetWidth; // restart the animation
+      void el.offsetWidth;
       el.classList.add("flipped");
     }
 
@@ -201,7 +196,6 @@ export const war: ClientGame = {
       $("them-name").textContent = v.opponentName || "Opponent";
       $("you-count").textContent = `(${v.yourCount})`;
       $("them-count").textContent = `(${v.opponentCount})`;
-      // During war the lineup carries the story — hide empty main backs so the table stays short.
       $("you-card").hidden = warLayout && !yourCard;
       $("them-card").hidden = warLayout && !themCard;
       renderCard($("you-card"), yourCard);
@@ -230,12 +224,12 @@ export const war: ClientGame = {
     }
 
     return {
-      update(next) {
+      applyState(next) {
         view = next as WarView;
-        render();
       },
+      render,
       commentary(text, round) {
-        if (round <= lastCommentaryRound) return; // a slow reply for an older round
+        if (round <= lastCommentaryRound) return;
         lastCommentaryRound = round;
         $("commentary").textContent = text;
       },

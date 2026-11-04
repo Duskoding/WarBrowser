@@ -112,15 +112,15 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
-1. **Rules:** create `src/games/<id>.ts` exporting a `GameDefinition` (see `src/games/types.ts`):
+1. **Rules:** create `src/games/<id>/` with an engine that implements `GameEngine` (`src/engine/GameEngine.ts`) and a `GameModule` export (see `src/games/GameModule.ts`):
    - `id`, `name`, `description`, `players` (the game starts when the room has this many players).
-   - `create()` returns a session with two functions. `view(seat, players)` returns what the player in that seat may see; it is sent to them after every action, so leave out anything they shouldn't know. `act(seat, payload)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle.
+   - `createEngine(context)` builds the pure rules engine. `handleAction(engine, seat, payload, context)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle. `toView(engine, seat, players)` returns what that seat may see. For commentary, build a prompt string and call `context.commentator.describe(prompt)`.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
-3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `ClientGame` (see `gui/src/games/types.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `update(view)` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
+3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `GuiModule` (see `gui/src/games/GuiModule.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `applyState(view)` + `render()` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
 
    Each game is drawn inside its own shadow root, so its HTML ids and CSS (even broad rules like `button { … }`) only apply inside that game, and the lobby's CSS doesn't change it. Shared defaults come from `gui/src/games/base.css`. To change the page background, call `setBackground(...)`; the lobby resets it when the game closes. Don't style `body` or other elements outside `root`.
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
-5. **Test:** add rules tests next to the game (like `src/games/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
+5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
 
 Win/loss records are shared across all games for now.
 
