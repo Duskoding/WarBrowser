@@ -1,0 +1,35 @@
+/* Connect Four: each column is one button, so a click anywhere in it drops a disc. */
+.c4 { --you: #f5c542; --opponent: #e2543e; color: #f2f6fb; }
+.c4-board {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr));
+  gap: 4px;
+  width: min(30rem, 100%);
+  padding: 8px;
+  border-radius: 14px;
+  background: #1d5fd0;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+.c4-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: transparent;
+}
+.c4-col:not(:disabled):hover { background: rgb(255 255 255 / 0.15); }
+.c4-col:disabled { opacity: 1; cursor: default; }
+.c4-cell {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #0f2e66;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.4);
+}
+.c4-cell.you { background: var(--you); }
+.c4-cell.opponent { background: var(--opponent); }
+.c4-cell.last { box-shadow: 0 0 0 3px rgb(255 255 255 / 0.7); }
+.c4-cell.winning { box-shadow: 0 0 0 4px #fff, 0 0 12px #fff; }
+.disc { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%; vertical-align: -0.1em; }
+.disc.you { background: var(--you); }
+.disc.opponent { background: var(--opponent); }
