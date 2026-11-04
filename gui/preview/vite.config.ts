@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
-// Builds the real GUI with src/connection.ts swapped for sim-connection.ts.
+// Builds the real GUI with src/connection.ts and src/session.ts swapped for
+// preview stand-ins (no WebSocket or HTTP server needed).
 export default defineConfig({
   root: fileURLToPath(new URL("..", import.meta.url)),
   logLevel: "warn",

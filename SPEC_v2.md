@@ -27,7 +27,9 @@ Browser A ──ws──┐                  ┌── ws── Browser B
 
 Server holds all state in memory, keyed by room code. No database for this sprint.
 
-`WarEngine`: holds the deck, both players' piles, and round state; exposes `flip(playerId)` and `getState(playerId)`. No interface/abstraction layer — just the one concrete class, since there's only one game.
+`WarEngine`: holds the deck, both players' piles, and round state; exposes `flip(playerId)` and `getState(playerId)`.
+
+**Multiple games:** each game is a `GameDefinition` in `src/games/` (`id`, `name`, `description`, `players`, and `create()` returning a session with `view(seat, players)` and `act(seat, payload)`), listed in `src/games/index.ts`. `src/games/war.ts` wraps `WarEngine`; `src/games/tictactoe.ts` is a second, small game. A room is created for one game and the server runs that game's session once the room is full. In the browser, each game has a screen in `gui/src/games/<id>/` listed in `gui/src/games/index.ts`, and the lobby lists the games from `GET /api/games`.
 
 ## WebSocket protocol
 
@@ -35,16 +37,16 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 
 | type | payload | meaning |
 | --- | --- | --- |
-| `create_room` | `{}` | player creates a room and receives a 6-character room code |
+| `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
 | `join_room` | `{ roomCode }` | player joins an existing room (max 2 players; the invite link `?room=CODE` joins automatically) |
 | `leave_room` | `{}` | player leaves their room |
-| `game_message` | `{ payload }` | carries a game action; the only action is `{ kind: "flip" }` — player flips their top card |
+| `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 
 ### Server → Client
 
 | type | payload | meaning |
 | --- | --- | --- |
-| `room_created` / `room_joined` | `{ roomCode }` | confirms the player is in a room |
+| `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
 | `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when a second player joins, and the game is discarded when one leaves |
 | `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
@@ -97,3 +99,4 @@ What changed from the original spec, and why:
 - **Game end:** a draw (both players out of cards) is possible and has no winner.
 - **Team:** the game engine was built by one person, so the two engine roles became one and the build order refers to 5 roles.
 - **Repo:** the client and server share one root `package.json` (one install, one build), and `render.yaml` defines the Render service.
+- **Multiple games:** v1 deliberately built only War, with no abstraction for future games. The site now hosts several games: a lobby to choose one, a `GameDefinition` interface on the server and a `ClientGame` interface in the browser, with War moved onto them unchanged and Tic-Tac-Toe added as a second game. `create_room` takes a `gameId`, room messages report it, and `GET /api/games` lists the games. Win/loss records are shared across games.

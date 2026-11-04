@@ -1,4 +1,4 @@
-<title>Live War Preview</title>
+<title>WarBrowser Preview</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -46,6 +46,7 @@ h1 { font: 800 clamp(1.7rem, 4vw, 2.4rem)/1.1 var(--font-display); margin: 0; te
 .lede { margin: 0; color: var(--muted); max-width: 65ch; }
 .steps { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .steps ol { margin: 0; padding-left: 1.2em; color: var(--muted); flex: 1 1 320px; min-width: 0; }
+.quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn {
   font: 600 0.95rem var(--font-body);
   border: 1px solid var(--accent);
@@ -104,17 +105,17 @@ code { font: 0.88em var(--font-mono); }
 
 <div class="wrap">
   <header>
-    <h1>Live War preview</h1>
-    <p class="lede">Your GUI from <code>gui/</code>, running twice as if on two computers. The pretend server in the middle follows the same rules as your teammate's <code>server.js</code>: it makes rooms and passes messages between the players.</p>
+    <h1>WarBrowser preview</h1>
+    <p class="lede">The site from <code>gui/</code>, running twice as if on two computers. The pretend server in the middle follows the same room rules as <code>server.js</code> and runs the real games from <code>src/games/</code>.</p>
   </header>
 
   <div class="steps">
     <ol>
-      <li>Click <b>Create room</b> in Player 1's window.</li>
+      <li>Click a game in Player 1's window to create a room.</li>
       <li>Type the room code into Player 2's window and click <b>Join</b>.</li>
-      <li>Click <b>Flip</b> in both windows.</li>
+      <li>Play in both windows.</li>
     </ol>
-    <button class="btn" id="quick" type="button">Set up a game for me</button>
+    <div class="quick" id="quick"></div>
   </div>
 
   <div class="windows">
@@ -141,99 +142,52 @@ code { font: 0.88em var(--font-mono); }
     <ol id="log"><li class="empty">Nothing yet. Create a room to start.</li></ol>
   </section>
 
-  <p class="note">The game rules here are the placeholder in <code>gui/src/game.ts</code>, running in Player 1's window because the server has no rules yet. Reloading a window disconnects that player, the same as closing a tab.</p>
+  <p class="note">Accounts are skipped: each window is already signed in. Commentary is sample text, not the Claude API. Reloading a window disconnects that player, the same as closing a tab.</p>
 </div>
 
+<script>/*SIM_SERVER*/</script>
 <script>
 const GUI_HTML = /*GUI_HTML*/null;
+const GAMES = /*GAMES*/[];
 const frames = [0, 1].map((i) => document.getElementById("frame-" + i));
-const NAMES = ["P1", "P2"];
+const NAMES = ["Player 1", "Player 2"];
+const LOG_NAMES = ["P1", "P2"];
 
-// ---- Pretend server: same behavior as server.js on s8119-internet-multiplayer ----
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const rooms = new Map();        // code -> Set of player indexes
-const playerRoom = [null, null]; // player index -> code
-
-function newCode() {
-  let c;
-  do { c = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join(""); }
-  while (rooms.has(c));
-  return c;
-}
-
-function sendTo(i, event) {
-  log("srv", `server → ${NAMES[i]}  ${short(event)}`);
+// ---- Pretend server (gui/preview/sim-server.ts) ----
+const server = SimServer.createSimServer(NAMES, (i, event) => {
+  log("srv", `server → ${LOG_NAMES[i]}  ${short(event)}`);
+  if (event.type === "room_created" || event.type === "room_joined") setUrl(i, event.roomCode);
+  if (event.type === "room_left") setUrl(i, null);
   frames[i].contentWindow?.postMessage({ __sim: "evt", event }, "*");
-}
-
-function leave(i) {
-  const code = playerRoom[i];
-  if (!code) return;
-  playerRoom[i] = null;
-  const room = rooms.get(code);
-  if (!room) return;
-  room.delete(i);
-  for (const p of room) sendTo(p, { type: "opponent_disconnected" });
-  if (room.size === 0) rooms.delete(code);
-}
-
-function handle(i, msg) {
-  if (msg.type === "__hello") { sendTo(i, { type: "connected" }); return; }
-  log("p" + (i + 1), `${NAMES[i]} → server  ${short(msg)}`);
-  const err = (message) => sendTo(i, { type: "error", message });
-  switch (msg.type) {
-    case "create_room": {
-      if (playerRoom[i]) return err("Leave your current room first.");
-      const code = newCode();
-      rooms.set(code, new Set([i]));
-      playerRoom[i] = code;
-      setUrl(i, code);
-      return sendTo(i, { type: "room_created", roomCode: code });
-    }
-    case "join_room": {
-      if (playerRoom[i]) return err("Leave your current room first.");
-      if (typeof msg.roomCode !== "string") return err("Enter a valid room code.");
-      const code = msg.roomCode.trim().toUpperCase();
-      const room = rooms.get(code);
-      if (!room) return err("Room not found.");
-      if (room.size >= 2) return err("That room is full.");
-      room.add(i);
-      playerRoom[i] = code;
-      setUrl(i, code);
-      sendTo(i, { type: "room_joined", roomCode: code });
-      for (const p of room) if (p !== i) sendTo(p, { type: "opponent_joined" });
-      return;
-    }
-    case "game_message": {
-      const room = rooms.get(playerRoom[i]);
-      if (!room || room.size !== 2) return err("Wait for another player to join before playing.");
-      for (const p of room) if (p !== i) sendTo(p, { type: "game_message", payload: msg.payload });
-      return;
-    }
-    case "leave_room":
-      leave(i);
-      setUrl(i, null);
-      return sendTo(i, { type: "room_left" });
-    default:
-      return err("Unknown message type.");
-  }
-}
+});
 
 window.addEventListener("message", (e) => {
   const i = frames.findIndex((f) => f.contentWindow === e.source);
   if (i === -1 || e.data?.__sim !== "msg") return;
-  handle(i, e.data.msg);
+  const msg = e.data.msg;
+  if (msg.type === "__hello") {
+    frames[i].contentWindow?.postMessage({ __sim: "evt", event: { type: "connected" } }, "*");
+    readyResolve[i]();
+    return;
+  }
+  log("p" + (i + 1), `${LOG_NAMES[i]} → server  ${short(msg)}`);
+  server.handle(i, msg);
 });
 
 // ---- Page chrome ----
 function setUrl(i, code) {
-  document.getElementById("url-" + i).textContent = "localhost:5173/" + (code ? "?room=" + code : "");
+  document.getElementById("url-" + i).textContent = "localhost:3000/" + (code ? "?room=" + code : "");
 }
 
+// Resolves once a window's GUI has loaded and connected to the pretend server.
+const ready = [];
+const readyResolve = [];
+
 function load(i) {
-  leave(i);
+  ready[i] = new Promise((resolve) => (readyResolve[i] = resolve));
+  server.leave(i);
   setUrl(i, null);
-  frames[i].srcdoc = GUI_HTML;
+  frames[i].srcdoc = GUI_HTML.replace("<head>", `<head><script>window.__simName=${JSON.stringify(NAMES[i])}<\/script>`);
 }
 
 function card(c) { return c ? ({ 11: "J", 12: "Q", 13: "K", 14: "A" }[c.rank] ?? c.rank) + c.suit : "–"; }
@@ -243,9 +197,16 @@ function short(m) {
     const p = rest.payload;
     if (p.kind === "state") {
       const v = p.view;
-      return `game_message state (receiver's view): their card ${card(v.yourCard)}, ${v.yourCount} left · opponent ${card(v.opponentCard)}, ${v.opponentCount} left · ${v.phase}`;
+      if ("yourCard" in v) {
+        return `state (receiver's view): their card ${card(v.yourCard)}, ${v.yourCount} left · opponent ${card(v.opponentCard)}, ${v.opponentCount} left · ${v.phase}`;
+      }
+      if ("board" in v) {
+        const board = v.board.map((m) => m ?? "·").join("").replace(/(...)(?=.)/g, "$1/");
+        return `state (receiver's view): board ${board} · plays ${v.yourMark}${v.yourTurn ? " · to move" : ""}${v.result ? " · result: " + v.result : ""}`;
+      }
+      return "state " + JSON.stringify(v);
     }
-    if (p.kind === "commentary") return `game_message commentary: "${p.text}"`;
+    if (p.kind === "commentary") return `commentary: "${p.text}"`;
     return "game_message " + JSON.stringify(p);
   }
   return Object.keys(rest).length ? `${type} ${JSON.stringify(rest)}` : type;
@@ -263,15 +224,26 @@ function log(kind, text) {
 
 [0, 1].forEach((i) => document.getElementById("reload-" + i).addEventListener("click", () => load(i)));
 
-document.getElementById("quick").addEventListener("click", () => {
-  if (!playerRoom[0]) frames[0].contentWindow.postMessage({ __sim: "do", action: "create" }, "*");
-  const tryJoin = (n) => {
-    const code = playerRoom[0];
-    if (code && !playerRoom[1]) frames[1].contentWindow.postMessage({ __sim: "do", action: "join", code }, "*");
-    else if (!code && n > 0) setTimeout(() => tryJoin(n - 1), 100);
-  };
-  tryJoin(20);
-});
+// Quick start: Player 1 creates a room for the chosen game and Player 2 joins it.
+const quick = document.getElementById("quick");
+for (const game of GAMES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn";
+  button.textContent = `Quick start: ${game.name}`;
+  button.addEventListener("click", async () => {
+    for (const i of [0, 1]) if (server.roomOf(i)) load(i);
+    await Promise.all(ready);
+    frames[0].contentWindow.postMessage({ __sim: "do", action: "create", gameId: game.id }, "*");
+    const tryJoin = (n) => {
+      const code = server.roomOf(0);
+      if (code) frames[1].contentWindow.postMessage({ __sim: "do", action: "join", code }, "*");
+      else if (n > 0) setTimeout(() => tryJoin(n - 1), 100);
+    };
+    tryJoin(20);
+  });
+  quick.append(button);
+}
 
 load(0);
 load(1);

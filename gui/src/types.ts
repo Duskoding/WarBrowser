@@ -1,73 +1,34 @@
-// ---- Server protocol (matches server.js on s8119-internet-multiplayer) ----
+// ---- Server protocol (matches server.js) ----
 
 export type ClientMessage =
-  | { type: "create_room" }
+  | { type: "create_room"; gameId: string }
   | { type: "join_room"; roomCode: string }
-  | { type: "game_message"; payload: GamePayload }
+  | { type: "game_message"; payload: GameAction }
   | { type: "leave_room" };
 
 export type ServerEvent =
   | { type: "connected" } // local: socket opened
   | { type: "disconnected" } // local: socket closed
-  | { type: "room_created"; roomCode: string; username?: string }
-  | { type: "room_joined"; roomCode: string; username?: string; opponentUsername?: string }
+  | { type: "room_created"; roomCode: string; username?: string; gameId: string }
+  | { type: "room_joined"; roomCode: string; username?: string; opponentUsername?: string; gameId: string }
   | { type: "opponent_joined"; username?: string }
   | { type: "opponent_disconnected" }
   | { type: "room_left" }
-  | { type: "game_message"; payload: unknown } // relayed from the opponent, unchecked
+  | { type: "game_message"; payload: unknown } // from the server (or relayed from the opponent), unchecked
   | { type: "error"; message: string };
 
-// ---- Game messages sent inside game_message ----
-// The server runs WarEngine: players send { kind: "flip" }, and the server
-// sends each player their own { kind: "state" } view (and later commentary).
-
-export type Suit = "♠" | "♥" | "♦" | "♣";
-
-export type Card = {
-  rank: number; // 2–14 (11 = J, 12 = Q, 13 = K, 14 = A)
-  suit: Suit;
+// A game listed by GET /api/games.
+export type GameSummary = {
+  id: string;
+  name: string;
+  description: string;
+  players: number;
 };
 
-export type Phase = "waiting" | "flipped" | "war" | "roundOver" | "gameOver";
+// A player's action inside game_message, e.g. { kind: "flip" } in War.
+export type GameAction = { kind: string } & Record<string, unknown>;
 
-// A pair of cards that tied and started (or extended) a war.
-export type TiedPair = { yours: Card; opponent: Card };
-
-// How the last resolved round ended; cleared when the next round starts.
-export type LastRound = {
-  wasWar: boolean;
-  winner: "you" | "opponent" | null; // null = draw
-  cardsWon: number;
-};
-
-/** Card in the war lineup; face-down burns omit rank/suit until the war ends. */
-export type StakeCard =
-  | { faceUp: true; card: Card }
-  | { faceUp: false };
-
-// One player's view of the table.
-export type GameView = {
-  yourCard: Card | null;
-  opponentCard: Card | null; // visible as soon as the opponent flips; null until then
-  pile: number; // cards in the middle
-  yourCount: number;
-  opponentCount: number;
-  phase: Phase;
-  inWar: boolean; // true for the whole war, until it resolves
-  warCards: TiedPair[]; // the tied cards so far (more than one when wars chain)
-  yourStakes?: StakeCard[];
-  opponentStakes?: StakeCard[];
-  lastRound: LastRound | null;
-  winner?: "you" | "opponent";
-  yourName?: string;
-  opponentName?: string;
-};
-
-export type GamePayload =
-  | { kind: "flip" } // player → server
-  | { kind: "state"; view: GameView } // server → player
-  | { kind: "commentary"; text: string; round: number }; // server → player
-
-// Same rule for the Flip button and the fake opponent.
-export const canFlip = (v: GameView) =>
-  v.phase !== "gameOver" && !(v.yourCard !== null && v.opponentCard === null);
+// What the server sends inside game_message.
+export type ServerPayload =
+  | { kind: "state"; view: unknown } // this player's view; its shape belongs to the game
+  | { kind: "commentary"; text: string; round: number };

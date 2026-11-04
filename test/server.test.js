@@ -84,13 +84,13 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator, engineOptions = {}) {
+async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId) {
   const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
   const guest = await connect(wsUrl, guestAuth.cookie);
-  post(host, { type: "create_room" });
+  post(host, gameId ? { type: "create_room", gameId } : { type: "create_room" });
   const { roomCode } = await host.next();
   post(guest, { type: "join_room", roomCode });
   assert.equal((await guest.next()).type, "room_joined");
@@ -169,7 +169,8 @@ test("creates a room and joins a second player", async () => {
     type: "room_joined",
     roomCode: created.roomCode,
     username: "guest",
-    opponentUsername: "host"
+    opponentUsername: "host",
+    gameId: "war"
   });
   assert.deepEqual(await host.next(), { type: "opponent_joined", username: "guest" });
 
@@ -486,6 +487,73 @@ test("records a win and a loss when a short game ends", async () => {
     assert.equal(losses, 0);
   }
 
+  host.close();
+  guest.close();
+});
+
+test("lists the available games", async () => {
+  const { httpUrl } = await startServer();
+  const response = await fetch(`${httpUrl}/api/games`);
+  assert.equal(response.status, 200);
+  const { games } = await response.json();
+  assert.deepEqual(
+    games.map((game) => game.id),
+    ["war", "tictactoe"]
+  );
+  for (const game of games) {
+    assert.equal(typeof game.name, "string");
+    assert.equal(typeof game.description, "string");
+    assert.equal(game.players, 2);
+  }
+});
+
+test("rejects a room for a game that doesn't exist", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  post(host, { type: "create_room", gameId: "chess" });
+  assert.deepEqual(await host.next(), { type: "error", message: "That game doesn't exist." });
+  host.close();
+});
+
+test("plays a chosen game: Tic-Tac-Toe to a win, recorded on both accounts", async () => {
+  const { httpUrl, host, guest, hostState, guestState, hostAuth, guestAuth } = await startRoom(
+    silentCommentator,
+    {},
+    "tictactoe"
+  );
+  assert.equal(hostState.view.yourMark, "X");
+  assert.equal(hostState.view.yourTurn, true);
+  assert.equal(guestState.view.yourMark, "O");
+  assert.equal(guestState.view.yourTurn, false);
+
+  post(guest, { type: "game_message", payload: { kind: "move", cell: 0 } });
+  assert.deepEqual(await guest.next(), { type: "error", message: "It's not your turn." });
+
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  let last;
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    last = [(await host.next()).payload.view, (await guest.next()).payload.view];
+  }
+  assert.equal(last[0].result, "you");
+  assert.equal(last[1].result, "opponent");
+  assert.deepEqual(last[0].line, [0, 1, 2]);
+
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0 });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1 });
+  host.close();
+  guest.close();
+});
+
+test("tells the guest which game the room is for", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+  post(host, { type: "create_room", gameId: "tictactoe" });
+  const created = await host.next();
+  assert.equal(created.gameId, "tictactoe");
+  post(guest, { type: "join_room", roomCode: created.roomCode });
+  assert.equal((await guest.next()).gameId, "tictactoe");
   host.close();
   guest.close();
 });

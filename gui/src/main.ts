@@ -1,20 +1,17 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
-import { fetchMe, login, logout, register, resetPassword, type Me } from "./session";
-import {
-  canFlip,
-  type Card,
-  type GamePayload,
-  type GameView,
-  type Phase,
-  type StakeCard
-} from "./types";
+import { clientGames } from "./games";
+import baseGameStyles from "./games/base.css?inline";
+import type { GameScreen } from "./games/types";
+import { fetchGames, fetchMe, login, logout, register, resetPassword, type Me } from "./session";
+import type { GameSummary, ServerPayload } from "./types";
 
-const RANK_LABELS: Record<number, string> = { 11: "J", 12: "Q", 13: "K", 14: "A" };
+// The shell: accounts, choosing a game, and rooms. Everything about a specific
+// game is in games/<id>/.
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <header>
-    <h1>Live War</h1>
+    <h1>WarBrowser</h1>
     <p class="conn" id="conn">Checking whether you are signed in…</p>
     <p class="user-bar" id="user-bar" hidden>
       <span id="user-stats"></span>
@@ -39,43 +36,33 @@ app.innerHTML = `
   </section>
 
   <section class="lobby" id="lobby" hidden>
-    <button id="create-room" disabled>Create room</button>
-    <span class="or">or</span>
-    <form class="join" id="join-form">
-      <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" />
-      <button type="submit" id="join-room" disabled>Join</button>
-    </form>
+    <h2>Choose a game</h2>
+    <ul class="game-list" id="game-list"></ul>
+    <p class="lobby-note" id="games-note" hidden></p>
+    <div class="join-row">
+      <span class="or">Have a room code?</span>
+      <form class="join" id="join-form">
+        <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" />
+        <button type="submit" id="join-room" disabled>Join</button>
+      </form>
+    </div>
   </section>
 
-  <main class="table" id="table" hidden>
+  <main class="room-screen" id="room-screen" hidden>
     <div class="room">
-      Room <strong id="room-id"></strong>
+      <span class="game-name" id="room-game"></span>
+      · Room <strong id="room-id"></strong>
       <button id="copy-link" class="small">Copy invite link</button>
       <button id="leave-room" class="small ghost">Leave</button>
     </div>
     <p class="invite-link" id="invite-link"></p>
-    <section class="player them">
-      <h2><span id="them-name">Opponent</span> <span class="count" id="them-count"></span></h2>
-      <div class="card" id="them-card"><div class="face"></div><div class="back"></div></div>
-      <div class="stakes" id="them-stakes" hidden aria-label="Opponent war cards"></div>
-    </section>
-    <div class="middle">
-      <p class="status" id="status"></p>
-      <p class="pile" id="pile"></p>
-    </div>
-    <section class="player you">
-      <div class="stakes" id="you-stakes" hidden aria-label="Your war cards"></div>
-      <div class="card" id="you-card"><div class="face"></div><div class="back"></div></div>
-      <h2><span id="you-name">You</span> <span class="count" id="you-count"></span></h2>
-    </section>
-    <button id="flip" disabled>Flip</button>
-    <aside class="commentary" id="commentary">Commentary will appear here.</aside>
+    <p class="status" id="room-status"></p>
+    <div class="game-root" id="game-root"></div>
   </main>
   <div class="toast" id="toast" hidden></div>
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const flipBtn = $<HTMLButtonElement>("flip");
 const codeInput = $<HTMLInputElement>("room-code");
 const usernameInput = $<HTMLInputElement>("username");
 const passwordInput = $<HTMLInputElement>("password");
@@ -87,17 +74,14 @@ const authError = $("auth-error");
 let me: Me | null = null;
 let sessionReady = false;
 let registering = false;
+let connected = false;
+let games: GameSummary[] = [];
 let resetting = false;
 let roomCode: string | null = null;
+let roomGameId: string | null = null;
 let opponentHere = false;
-let opponentName = "";
-let view: GameView | null = null;
+let screen: GameScreen | null = null;
 let statsRefreshed = false;
-/** After a round resolves, show faces briefly then tuck to backs. */
-const REVEAL_MS = 1500;
-let cardsTucked = false;
-let revealKey = "";
-let tuckTimer: number | undefined;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -128,7 +112,7 @@ function showAuth() {
   sessionReady = true;
   $("auth").hidden = false;
   $("lobby").hidden = true;
-  $("table").hidden = true;
+  $("room-screen").hidden = true;
   $("conn").hidden = false;
   $("conn").textContent = "Log in to play.";
   renderUserBar();
@@ -150,226 +134,170 @@ async function refreshMe() {
   return me;
 }
 
-// ---- Rendering ----
-const shown = new WeakMap<HTMLElement, string>();
-function renderCard(el: HTMLElement, card: Card | null) {
-  const key = card ? `${card.rank}${card.suit}` : "";
-  if (shown.get(el) === key) return; // don't replay the flip on unchanged cards
-  shown.set(el, key);
-  if (!card) {
-    el.classList.remove("flipped");
-    return;
-  }
-  const face = el.querySelector<HTMLDivElement>(".face")!;
-  face.textContent = `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
-  face.classList.toggle("red", card.suit === "♥" || card.suit === "♦");
-  el.classList.remove("flipped");
-  void el.offsetWidth; // restart the animation
-  el.classList.add("flipped");
-}
+// ---- Game list ----
+const gameName = (id: string | null) => games.find((g) => g.id === id)?.name ?? "Game";
 
-const STATUS: Record<Phase, string> = {
-  waiting: "Flip when ready",
-  flipped: "Opponent flipped — your turn!",
-  war: "WAR! Flip again",
-  roundOver: "Flip for the next round",
-  gameOver: ""
-};
-
-const cardLabel = (card: Card) => `${RANK_LABELS[card.rank] ?? card.rank}${card.suit}`;
-
-function renderStakes(el: HTMLElement, stakes: StakeCard[]) {
-  el.hidden = stakes.length === 0;
-  el.replaceChildren(
-    ...stakes.map((stake) => {
-      const chip = document.createElement("div");
-      if (!stake.faceUp) {
-        chip.className = "stake-card back";
-        chip.title = "Face-down";
-        return chip;
-      }
-      chip.className = "stake-card face";
-      chip.textContent = cardLabel(stake.card);
-      if (stake.card.suit === "♥" || stake.card.suit === "♦") chip.classList.add("red");
-      return chip;
+function renderGameList() {
+  const list = $("game-list");
+  list.replaceChildren(
+    ...games.map((game) => {
+      const playable = game.id in clientGames;
+      const item = document.createElement("li");
+      const tile = document.createElement("button");
+      tile.type = "button";
+      tile.className = "game-tile";
+      tile.disabled = !connected || !playable;
+      tile.innerHTML = `<strong></strong><span class="desc"></span><span class="meta"></span><span class="go"></span>`;
+      tile.querySelector("strong")!.textContent = game.name;
+      tile.querySelector(".desc")!.textContent = game.description;
+      tile.querySelector(".meta")!.textContent = `${game.players} players`;
+      tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
+      tile.addEventListener("click", () => createRoom(game.id));
+      item.append(tile);
+      return item;
     })
   );
 }
 
-function warResult(v: GameView, opponent: string): string {
-  const round = v.lastRound;
-  if (!round || round.winner === null) return "The war ended in a draw.";
-  const cards = `${round.cardsWon} cards`;
-  return round.winner === "you"
-    ? `You won the war and took ${cards}!`
-    : `${opponent} won the war and took ${cards}.`;
-}
-
-function roundTakeResult(v: GameView): string {
-  const round = v.lastRound;
-  if (!round) return STATUS.roundOver;
-  if (round.winner === "you") return "You take the cards!";
-  if (round.winner === "opponent") return "Opponent takes the cards.";
-  return "Draw — cards go back.";
-}
-
-function syncReveal(v: GameView) {
-  const resolved = v.phase === "roundOver" || v.phase === "gameOver";
-  const hasFaces =
-    !!v.yourCard ||
-    !!v.opponentCard ||
-    (v.yourStakes?.length ?? 0) > 0 ||
-    (v.opponentStakes?.length ?? 0) > 0;
-  if (!resolved || !hasFaces) {
-    cardsTucked = false;
-    revealKey = "";
-    clearTimeout(tuckTimer);
-    return;
+async function loadGames() {
+  const note = $("games-note");
+  try {
+    games = await fetchGames();
+    note.hidden = games.length > 0;
+    note.textContent = "No games are installed on this server.";
+  } catch {
+    games = [];
+    note.hidden = false;
+    note.textContent = "Could not load the list of games. Refresh to try again.";
   }
-  const key = [
-    v.phase,
-    v.yourCount,
-    v.opponentCount,
-    v.lastRound?.winner ?? "",
-    v.lastRound?.cardsWon ?? 0,
-    v.yourCard ? cardLabel(v.yourCard) : "",
-    v.opponentCard ? cardLabel(v.opponentCard) : "",
-    v.yourStakes?.length ?? 0,
-    v.opponentStakes?.length ?? 0
-  ].join(":");
-  if (key === revealKey) return;
-  revealKey = key;
-  cardsTucked = false;
-  clearTimeout(tuckTimer);
-  tuckTimer = window.setTimeout(() => {
-    cardsTucked = true;
-    render();
-  }, REVEAL_MS);
+  renderGameList();
+  render();
 }
 
+// ---- Game screen ----
+// Each game draws into its own shadow root, so its styles stay inside it.
+const baseSheet = new CSSStyleSheet();
+baseSheet.replaceSync(baseGameStyles);
+const gameSheets = new Map<string, CSSStyleSheet>();
+function gameSheet(id: string, css: string) {
+  let sheet = gameSheets.get(id);
+  if (!sheet) {
+    sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    gameSheets.set(id, sheet);
+  }
+  return sheet;
+}
+
+function setBackground(background: string | null) {
+  document.body.style.background = background ?? "";
+}
+
+// A bug in one game's screen shouldn't break the lobby or the room controls.
+function guarded(action: () => void) {
+  try {
+    action();
+  } catch (error) {
+    console.error(`The ${gameName(roomGameId)} screen failed:`, error);
+    showToast(`Something went wrong in ${gameName(roomGameId)}. Leave the room and try again.`);
+  }
+}
+
+function mountGame() {
+  const client = roomGameId ? clientGames[roomGameId] : undefined;
+  if (!client || screen) return;
+  const host = document.createElement("div");
+  host.className = "game-host";
+  host.dataset.game = client.id;
+  const root = host.attachShadow({ mode: "open" });
+  // Adopted stylesheets survive the game replacing root.innerHTML.
+  root.adoptedStyleSheets = [baseSheet, gameSheet(client.id, client.styles)];
+  $("game-root").replaceChildren(host);
+  guarded(() => {
+    screen = client.mount(root, { send: sendGame, setBackground });
+  });
+}
+
+function unmountGame() {
+  const current = screen;
+  screen = null;
+  if (current?.destroy) guarded(() => current.destroy!());
+  $("game-root").replaceChildren();
+  setBackground(null);
+  statsRefreshed = false;
+}
+
+function handleGamePayload(payload: unknown) {
+  const p = payload as ServerPayload | null;
+  if (!p || typeof p !== "object") return;
+  if (p.kind === "state") {
+    mountGame();
+    guarded(() => screen?.update(p.view));
+    const client = roomGameId ? clientGames[roomGameId] : undefined;
+    let finished = false;
+    guarded(() => {
+      finished = client?.isFinished(p.view) ?? false;
+    });
+    if (finished && !statsRefreshed) {
+      statsRefreshed = true;
+      void refreshMe();
+    }
+  } else if (p.kind === "commentary") {
+    guarded(() => screen?.commentary?.(p.text, p.round));
+  }
+}
+
+// ---- Rendering ----
 function render() {
   const loggedIn = me !== null;
   const inRoom = roomCode !== null;
   $("auth").hidden = !sessionReady || loggedIn;
   $("lobby").hidden = !loggedIn || inRoom;
   $("conn").hidden = inRoom;
-  $("table").hidden = !inRoom;
+  $("room-screen").hidden = !inRoom;
   renderUserBar();
   if (!me || !inRoom) return;
 
+  $("room-game").textContent = gameName(roomGameId);
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
   // Invite URL is only useful while waiting for someone to join.
   $("invite-link").hidden = opponentHere;
-  const v = view;
-  if (v) syncReveal(v);
-  const tuck =
-    cardsTucked && v && (v.phase === "roundOver" || v.phase === "gameOver");
-  const yourCard = tuck ? null : (v?.yourCard ?? null);
-  const themCard = tuck ? null : (v?.opponentCard ?? null);
-  const yourStakes = tuck ? [] : (v?.yourStakes ?? []);
-  const themStakes = tuck ? [] : (v?.opponentStakes ?? []);
-  const warLayout = yourStakes.length > 0 || themStakes.length > 0;
-  $("you-name").textContent = v?.yourName || me.username;
-  $("them-name").textContent = opponentHere ? v?.opponentName || opponentName || "Opponent" : "Opponent";
-  $("you-count").textContent = v ? `(${v.yourCount})` : "";
-  $("them-count").textContent = v ? `(${v.opponentCount})` : "";
-  // During war the lineup carries the story — hide empty main backs so the table stays short.
-  $("you-card").hidden = warLayout && !yourCard;
-  $("them-card").hidden = warLayout && !themCard;
-  renderCard($("you-card"), yourCard);
-  renderCard($("them-card"), themCard);
-  renderStakes($("you-stakes"), yourStakes);
-  renderStakes($("them-stakes"), themStakes);
-  document.body.classList.toggle("war-layout", warLayout);
-  $("pile").textContent = v && v.pile > 0 ? `${v.pile} card${v.pile === 1 ? "" : "s"} in the middle` : "";
 
   let status = "";
-  if (!opponentHere) status = "Waiting for opponent — share the invite link";
-  else if (!v) status = "Dealing…";
-  else if (v.phase === "gameOver" && tuck) status = v.winner === "you" ? "You win!" : "You lose.";
-  else if (v.phase === "gameOver" && !tuck) status = roundTakeResult(v);
-  else if (v.yourCard && !v.opponentCard) {
-    status = `${v.inWar ? "WAR! " : ""}Waiting for opponent to flip…`;
-  } else if (v.inWar) {
-    status = v.phase === "flipped" ? "WAR! Opponent flipped — your turn!" : "WAR! Flip again";
-  } else if (v.phase === "roundOver" && !tuck && v.lastRound?.wasWar) {
-    status = warResult(v, v.opponentName || opponentName || "Your opponent");
-  } else if (v.phase === "roundOver" && !tuck) {
-    status = roundTakeResult(v);
-  } else status = STATUS[v.phase];
-  $("status").textContent = status;
-
-  document.body.classList.toggle("war", v?.inWar === true || (!!v?.lastRound?.wasWar && !tuck));
-  flipBtn.disabled =
-    !opponentHere || !v || !canFlip(v) || (v.phase === "roundOver" && !tuck);
-
-  if (v?.phase === "gameOver" && !statsRefreshed) {
-    statsRefreshed = true;
-    void refreshMe();
-  }
-}
-
-const COMMENTARY_PLACEHOLDER = "Commentary will appear here.";
-let lastCommentaryRound = 0;
-
-function setCommentary(text: string, round: number) {
-  if (round <= lastCommentaryRound) return; // a slow reply for an older round
-  lastCommentaryRound = round;
-  $("commentary").textContent = text;
-}
-
-function clearCommentary() {
-  lastCommentaryRound = 0;
-  $("commentary").textContent = COMMENTARY_PLACEHOLDER;
-}
-
-// ---- Game wiring ----
-function handleGamePayload(payload: unknown) {
-  const p = payload as GamePayload | null;
-  if (!p || typeof p !== "object") return;
-  if (p.kind === "state") {
-    view = p.view;
-    render();
-  } else if (p.kind === "commentary") setCommentary(p.text, p.round);
+  if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
+  else if (!opponentHere) status = "Waiting for opponent — share the invite link";
+  else if (!screen) status = "Starting…";
+  $("room-status").textContent = status;
+  $("room-status").hidden = !status;
 }
 
 function resetRoom() {
-  roomCode = null;
-  opponentHere = false;
-  opponentName = "";
-  view = null;
-  statsRefreshed = false;
-  cardsTucked = false;
-  revealKey = "";
-  clearTimeout(tuckTimer);
-  document.body.classList.remove("war-layout");
-  $("you-card").hidden = false;
-  $("them-card").hidden = false;
+  unmountGame();
   $("invite-link").hidden = false;
-  clearCommentary();
+  roomCode = null;
+  roomGameId = null;
+  opponentHere = false;
   const params = new URLSearchParams(location.search);
   params.delete("room");
   history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
 }
 
-function enterRoom(code: string) {
+function enterRoom(code: string, gameId: string) {
   roomCode = code;
+  roomGameId = gameId;
   const params = new URLSearchParams(location.search);
   params.set("room", code);
   history.replaceState(null, "", `${location.pathname}?${params}`);
 }
 
-function setLobbyConnected() {
-  $("conn").textContent = "Connected. Create a room or join one.";
-  $<HTMLButtonElement>("create-room").disabled = false;
-  $<HTMLButtonElement>("join-room").disabled = false;
-}
-
-function setLobbyDisconnected() {
-  $("conn").textContent = "Disconnected from the server. Refresh to reconnect.";
-  $<HTMLButtonElement>("create-room").disabled = true;
-  $<HTMLButtonElement>("join-room").disabled = true;
+function setConnected(value: boolean) {
+  connected = value;
+  $("conn").textContent = value
+    ? "Connected. Choose a game or join a room."
+    : "Disconnected from the server. Refresh to reconnect.";
+  $<HTMLButtonElement>("join-room").disabled = !value;
+  renderGameList();
 }
 
 function afterLogin() {
@@ -378,6 +306,7 @@ function afterLogin() {
   $("lobby").hidden = false;
   $("conn").textContent = "Connecting to the game server…";
   renderUserBar();
+  void loadGames();
   connect();
 }
 
@@ -386,6 +315,7 @@ async function signOut() {
   me = null;
   resetRoom();
   disconnect();
+  connected = false;
   showAuth();
 }
 
@@ -393,7 +323,7 @@ async function signOut() {
 onEvent((e) => {
   switch (e.type) {
     case "connected": {
-      setLobbyConnected();
+      setConnected(true);
       // Opened from an invite link → join straight away.
       const linked = new URLSearchParams(location.search).get("room");
       if (linked) joinRoom(linked);
@@ -401,26 +331,21 @@ onEvent((e) => {
     }
     case "disconnected":
       resetRoom();
-      if (me) setLobbyDisconnected();
+      if (me) setConnected(false);
       break;
     case "room_created":
-      enterRoom(e.roomCode);
+      enterRoom(e.roomCode, e.gameId);
       break;
     case "room_joined":
-      enterRoom(e.roomCode);
+      enterRoom(e.roomCode, e.gameId);
       opponentHere = true;
-      opponentName = e.opponentUsername ?? "";
       break;
     case "opponent_joined":
       opponentHere = true;
-      opponentName = e.username ?? opponentName;
-      clearCommentary();
       break;
     case "opponent_disconnected":
       opponentHere = false;
-      opponentName = "";
-      view = null;
-      clearCommentary();
+      unmountGame();
       showToast("Your opponent disconnected.");
       break;
     case "room_left":
@@ -439,7 +364,6 @@ onEvent((e) => {
 });
 
 // ---- Controls ----
-$("create-room").addEventListener("click", createRoom);
 $("join-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const code = codeInput.value.trim().toUpperCase();
@@ -494,10 +418,6 @@ $("copy-link").addEventListener("click", () => {
       showToast("Press Ctrl+C to copy");
     }
   );
-});
-flipBtn.addEventListener("click", () => {
-  flipBtn.disabled = true; // re-enabled by the next state
-  sendGame({ kind: "flip" });
 });
 authToggle.addEventListener("click", () => {
   registering = !registering;

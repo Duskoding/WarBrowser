@@ -1,0 +1,249 @@
+/* War table (from the fixUi redesign). This file is only
+   applied inside the War screen's shadow root, so nothing here reaches the
+   lobby or other games. The page background is set in war.ts. */
+:host {
+  --felt: #165a32;
+  --felt-deep: #0e3d22;
+  --felt-war: #6b1a1a;
+  --felt-war-deep: #3d0e0e;
+  --panel: rgb(8 22 14 / 0.55);
+  --panel-border: rgb(255 255 255 / 0.12);
+  --card-bg: #faf8f5;
+  --card-back: #1a3360;
+  --card-back-alt: #244a7a;
+  --text: #f2f6f3;
+  --muted: rgb(242 246 243 / 0.72);
+  --red: #b71c1c;
+  --accent: #e8b84a;
+  --accent-text: #1a1408;
+  --danger: #ffd54f;
+  --shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+  --radius: 10px;
+  --radius-sm: 8px;
+  --card-w: 128px;
+  --card-h: 180px;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+:host {
+  font: 400 16px/1.5 var(--font-body);
+  color: var(--text);
+}
+
+/* ---- Shared controls ---- */
+button {
+  font: 600 1rem var(--font-body);
+  padding: 0.55rem 1.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.18);
+  transition: filter 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+
+button:hover:not(:disabled) { filter: brightness(1.06); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+button:focus-visible { outline: 3px solid #8fb3f0; outline-offset: 2px; }
+
+button.small {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.85rem;
+  box-shadow: none;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--panel-border);
+  box-shadow: none;
+}
+
+button.ghost:hover:not(:disabled) {
+  filter: none;
+  background: rgb(255 255 255 / 0.08);
+}
+
+/* ---- Table ---- */
+.table {
+  width: min(40rem, 100%);
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1;
+}
+
+.player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.player h2 {
+  margin: 0;
+  font: 600 0.95rem var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.player .count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.middle {
+  text-align: center;
+  min-height: 2.4rem;
+}
+
+.status {
+  min-height: 1.35em;
+  margin: 0;
+  font: 800 1.35rem/1.15 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.pile {
+  min-height: 1.1em;
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+#flip {
+  font-size: 1.15rem;
+  padding: 0.7rem 2.75rem;
+  margin-top: 0.15rem;
+}
+
+/* War: keep the whole table on one screen. */
+.table.war-layout { gap: 0.55rem; margin-top: 0.35rem; }
+.table.war-layout .player { gap: 0.25rem; }
+.table.war-layout .status { font-size: 1.2rem; }
+.table.war-layout .commentary {
+  min-height: 0;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.9rem;
+}
+.table.war-layout .card {
+  --card-w: 88px;
+  --card-h: 124px;
+}
+.table.war-layout .card .face { font-size: 1.7rem; }
+
+/* Card flip: .back shows by default, .flipped rotates to .face. */
+.card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+.card .face,
+.card .back {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  backface-visibility: hidden;
+  transition: transform 0.55s cubic-bezier(0.22, 0.8, 0.28, 1);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.4);
+}
+
+.card .back {
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.12), transparent 45%),
+    repeating-linear-gradient(
+      45deg,
+      var(--card-back) 0 7px,
+      var(--card-back-alt) 7px 14px
+    );
+  border: 3px solid #f2f6f3;
+}
+
+.card .face {
+  background: var(--card-bg);
+  color: #1a1a1a;
+  display: grid;
+  place-items: center;
+  font: 700 2.55rem/1 var(--font-display);
+  transform: rotateY(180deg);
+  border: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.card .face.red { color: var(--red); }
+
+.card.flipped .face { transform: rotateY(0deg); }
+.card.flipped .back { transform: rotateY(-180deg); }
+
+/* War lineup: tied card, face-down burns, then the deciding flip. */
+.stakes {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  justify-content: center;
+  max-width: min(36rem, 100%);
+  padding: 0.1rem 0;
+}
+
+.stake-card {
+  width: 40px;
+  height: 56px;
+  margin-left: -10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+  border: 2px solid #f2f6f3;
+  flex: 0 0 auto;
+}
+
+.stake-card:first-child { margin-left: 0; }
+
+.stake-card.back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--card-back) 0 4px,
+      var(--card-back-alt) 4px 8px
+    );
+}
+
+.stake-card.face {
+  background: var(--card-bg);
+  color: #1a1a1a;
+  display: grid;
+  place-items: center;
+  font: 700 0.78rem/1 var(--font-display);
+}
+
+.stake-card.face.red { color: var(--red); }
+
+.commentary {
+  width: min(32rem, 100%);
+  min-height: 3.2em;
+  margin-top: 0.25rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  font-style: italic;
+  text-align: center;
+  color: var(--muted);
+  box-shadow: var(--shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
