@@ -1,0 +1,17 @@
+/* Rock-Paper-Scissors: three big pick buttons. */
+.rps-picks { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+.rps-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 6.5rem;
+  padding: 0.8rem 0.5rem;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--text, #f4f4f4);
+  font-size: 1rem;
+}
+.rps-pick .icon { font-size: 2.6rem; line-height: 1.1; }
+.rps-pick:not(:disabled):hover { background: rgb(255 255 255 / 0.22); }
+.rps-pick.chosen { background: rgb(245 197 66 / 0.4); opacity: 1; }
