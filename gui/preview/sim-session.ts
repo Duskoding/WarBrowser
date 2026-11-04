@@ -49,3 +49,11 @@ export async function logout(): Promise<void> {
 export async function fetchGames(): Promise<GameSummary[]> {
   return gameSummaries();
 }
+
+export async function resetPassword(password: string): Promise<ApiResult> {
+  if (password.length < 8) {
+    return { ok: false, status: 400, body: { error: "Use a password of at least 8 characters." } };
+  }
+  if (current) current = { ...current, mustResetPassword: false };
+  return { ok: true, status: 200, body: { ok: true } };
+}
