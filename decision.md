@@ -47,3 +47,9 @@
 - **Decision:** Update `AGENTS.md`: describe the multi-game layout, replace "keep the single-game scope" with adding games through the game interfaces, and add the rule to keep game screens inside their shadow roots.
 - **Made by:** agent (Claude Code), following the user's request for multiple games
 - **Reason:** The single-game rule no longer matches the project, and leaving it would steer future agents against the current design.
+
+## 2026-11-04 — Keep PostgreSQL storage in the multi-game server
+
+- **Decision:** When merging PR #26 (PostgreSQL) into the multi-game branch, record matches through `recordPostgresMatch` from the game-agnostic `finished` result, using the room code from the player's socket. This also fixes `main`'s War path, which referenced an undefined `roomCode` and crashed the server process whenever a War game ended with a PostgreSQL database.
+- **Made by:** agent (Claude Code), resolving merge conflicts at the user's request
+- **Reason:** The multi-game server no longer has War-specific code, so PostgreSQL recording has to live in the shared game-over handling to work for every game. Verified against a local PostgreSQL 16 database: War and Tic-Tac-Toe games each recorded one match and the winner's and loser's stats.

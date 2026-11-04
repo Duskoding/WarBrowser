@@ -2,7 +2,7 @@ import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GameScreen } from "./games/types";
-import { fetchGames, fetchMe, login, logout, register, type Me } from "./session";
+import { fetchGames, fetchMe, login, logout, register, resetPassword, type Me } from "./session";
 import type { GameSummary, ServerPayload } from "./types";
 
 // The shell: accounts, choosing a game, and rooms. Everything about a specific
@@ -76,6 +76,7 @@ let sessionReady = false;
 let registering = false;
 let connected = false;
 let games: GameSummary[] = [];
+let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
 let opponentHere = false;
@@ -120,9 +121,11 @@ function showAuth() {
 }
 
 function updateAuthMode() {
-  authSubmit.textContent = registering ? "Register" : "Log in";
+  authSubmit.textContent = resetting ? "Set new password" : registering ? "Register" : "Log in";
+  authToggle.hidden = resetting;
   authToggle.textContent = registering ? "Have an account? Log in" : "Need an account? Register";
-  passwordInput.autocomplete = registering ? "new-password" : "current-password";
+  passwordInput.autocomplete = registering || resetting ? "new-password" : "current-password";
+  usernameInput.hidden = resetting;
 }
 
 async function refreshMe() {
@@ -426,18 +429,35 @@ $("auth-form").addEventListener("submit", async (ev) => {
   setAuthError("");
   authSubmit.disabled = true;
   try {
-    const result = registering
-      ? await register(usernameInput.value, passwordInput.value)
-      : await login(usernameInput.value, passwordInput.value);
+    const result = resetting
+      ? await resetPassword(passwordInput.value)
+      : registering
+        ? await register(usernameInput.value, passwordInput.value)
+        : await login(usernameInput.value, passwordInput.value);
     if (!result.ok) {
       setAuthError(result.body.error ?? "Could not sign in.");
+      return;
+    }
+    if (resetting) {
+      me = { ...me!, mustResetPassword: false };
+      resetting = false;
+      passwordInput.value = "";
+      updateAuthMode();
+      afterLogin();
       return;
     }
     me = {
       username: String(result.body.username ?? usernameInput.value.trim()),
       wins: Number(result.body.wins ?? 0),
-      losses: Number(result.body.losses ?? 0)
+      losses: Number(result.body.losses ?? 0),
+      mustResetPassword: Boolean(result.body.mustResetPassword)
     };
+    if (me.mustResetPassword) {
+      resetting = true;
+      setAuthError("You must set a new password before playing.");
+      updateAuthMode();
+      return;
+    }
     afterLogin();
   } catch {
     setAuthError("Could not reach the server.");

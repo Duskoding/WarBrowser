@@ -19,6 +19,17 @@ import {
   registerUser,
   userFromSession
 } from "./src/auth.ts";
+import { pool, initializePostgres } from "./src/db.ts";
+import {
+  createPostgresSession,
+  deletePostgresSession,
+  findPostgresUser,
+  loginPostgres,
+  recordPostgresMatch,
+  registerPostgres,
+  resetPostgresPassword,
+  userFromPostgresSession
+} from "./src/postgres-auth.ts";
 
 const guiDirectory = new URL("./gui/dist/", import.meta.url);
 const publicDirectory = new URL("./public/", import.meta.url);
@@ -101,8 +112,14 @@ function cookieHeader(token, request, clear = false) {
   return parts.join("; ");
 }
 
-function publicFields(user) {
-  return { username: user.username, wins: user.wins, losses: user.losses };
+function publicFields(user, includeReset = false) {
+  const fields = {
+    username: user.username,
+    wins: user.wins,
+    losses: user.losses
+  };
+  if (includeReset) fields.mustResetPassword = Boolean(user.mustResetPassword);
+  return fields;
 }
 
 async function readJson(request) {
@@ -122,9 +139,9 @@ async function readJson(request) {
   return JSON.parse(raw);
 }
 
-function userFromRequest(db, request) {
+async function userFromRequest(db, request, postgres = false) {
   const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
-  return { token, user: userFromSession(db, token) };
+  return { token, user: postgres ? await userFromPostgresSession(db, token) : userFromSession(db, token) };
 }
 
 // Each player gets their own view of the game after every change.
@@ -150,7 +167,8 @@ export function createWarServer({
   database = ":memory:",
   engineOptions = {}
 } = {}) {
-  const db = typeof database === "string" ? openDatabase(database) : database;
+  const postgres = database === "postgres" || database === process.env.DATABASE_URL;
+  const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
   // roomCode -> { game: GameDefinition, sockets: Set<WebSocket> }
   const rooms = new Map();
   // roomCode -> the game being played once the room is full
@@ -166,13 +184,15 @@ export function createWarServer({
         sendJson(response, status, { error: "Send JSON with a username and password." });
         return;
       }
-      const created = await registerUser(db, body.username, body.password);
+      const created = postgres
+        ? await registerPostgres(db, body.username, body.password)
+        : await registerUser(db, body.username, body.password);
       if ("error" in created) {
         sendJson(response, created.status, { error: created.error });
         return;
       }
-      const token = createSession(db, created.id);
-      sendJson(response, 201, publicFields(created), {
+      const token = postgres ? await createPostgresSession(db, created.id) : createSession(db, created.id);
+      sendJson(response, 201, publicFields(created, postgres), {
         "Set-Cookie": cookieHeader(token, request)
       });
       return;
@@ -187,21 +207,23 @@ export function createWarServer({
         sendJson(response, status, { error: "Send JSON with a username and password." });
         return;
       }
-      const user = await authenticateUser(db, body.username, body.password);
+      const user = postgres
+        ? await loginPostgres(db, body.username, body.password)
+        : await authenticateUser(db, body.username, body.password);
       if ("error" in user) {
         sendJson(response, user.status, { error: user.error });
         return;
       }
-      const token = createSession(db, user.id);
-      sendJson(response, 200, publicFields(user), {
+      const token = postgres ? await createPostgresSession(db, user.id) : createSession(db, user.id);
+      sendJson(response, 200, publicFields(user, postgres), {
         "Set-Cookie": cookieHeader(token, request)
       });
       return;
     }
 
     if (pathname === "/api/logout" && request.method === "POST") {
-      const { token } = userFromRequest(db, request);
-      deleteSession(db, token);
+      const { token } = await userFromRequest(db, request, postgres);
+      if (postgres) await deletePostgresSession(db, token); else deleteSession(db, token);
       sendJson(response, 200, { ok: true }, {
         "Set-Cookie": cookieHeader("", request, true)
       });
@@ -214,13 +236,34 @@ export function createWarServer({
     }
 
     if (pathname === "/api/me" && request.method === "GET") {
-      const { user } = userFromRequest(db, request);
+      const { user } = await userFromRequest(db, request, postgres);
       if (!user) {
         sendJson(response, 401, { error: "Log in first." });
         return;
       }
-      const fresh = findUserById(db, user.id) ?? user;
-      sendJson(response, 200, publicFields(fresh));
+      const fresh = postgres ? await findPostgresUser(db, user.id) : findUserById(db, user.id) ?? user;
+      sendJson(response, 200, publicFields(fresh, postgres));
+      return;
+    }
+
+    if (pathname === "/api/reset-password" && request.method === "POST") {
+      const { user } = await userFromRequest(db, request, postgres);
+      if (!user) {
+        sendJson(response, 401, { error: "Log in first." });
+        return;
+      }
+      let body;
+      try { body = await readJson(request); } catch {
+        sendJson(response, 400, { error: "Send JSON with a new password." });
+        return;
+      }
+      if (!postgres) {
+        sendJson(response, 501, { error: "Password reset is available after PostgreSQL migration." });
+        return;
+      }
+      const failure = await resetPostgresPassword(db, user.id, body.password);
+      if (failure) { sendJson(response, failure.status, { error: failure.error }); return; }
+      sendJson(response, 200, { ok: true });
       return;
     }
 
@@ -302,6 +345,14 @@ export function createWarServer({
     return false;
   }
 
+  function requireCurrentPassword(socket) {
+    if (requireUser(socket) && !socket.user.mustResetPassword) return true;
+    if (socket.user?.mustResetPassword) {
+      send(socket, { type: "error", message: "Reset your password before playing." });
+    }
+    return false;
+  }
+
   httpServer.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url, "http://localhost").pathname;
     if (pathname !== "/ws") {
@@ -309,8 +360,10 @@ export function createWarServer({
       return;
     }
     websocketServer.handleUpgrade(request, socket, head, (websocket) => {
-      websocket.user = userFromRequest(db, request).user;
-      websocketServer.emit("connection", websocket, request);
+      userFromRequest(db, request, postgres).then(({ user }) => {
+        websocket.user = user;
+        websocketServer.emit("connection", websocket, request);
+      }).catch(() => websocket.destroy());
     });
   });
 
@@ -330,7 +383,7 @@ export function createWarServer({
       }
 
       if (message.type === "create_room") {
-        if (!requireUser(socket)) return;
+        if (!requireCurrentPassword(socket)) return;
         if (socket.roomCode) {
           send(socket, { type: "error", message: "Leave your current room first." });
           return;
@@ -355,7 +408,7 @@ export function createWarServer({
       }
 
       if (message.type === "join_room") {
-        if (!requireUser(socket)) return;
+        if (!requireCurrentPassword(socket)) return;
         if (socket.roomCode) {
           send(socket, { type: "error", message: "Leave your current room first." });
           return;
@@ -447,7 +500,17 @@ export function createWarServer({
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
-            if (winner !== null) {
+            if (postgres) {
+              // Match records hold two players; every game is two-player for now.
+              const [playerA, playerB] = game.players;
+              void recordPostgresMatch(
+                db,
+                socket.roomCode,
+                playerA.id,
+                playerB.id,
+                winner === null ? null : game.players[winner].id
+              ).catch((error) => console.error("Failed to record match:", error));
+            } else if (winner !== null) {
               for (const [seat, user] of game.players.entries()) {
                 if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
               }
@@ -490,7 +553,7 @@ export function createWarServer({
 
   httpServer.on("close", () => {
     try {
-      db.close();
+      if (postgres) void db.end(); else db.close();
     } catch {
       // Already closed by tests that shut the process down quickly.
     }
@@ -500,7 +563,8 @@ export function createWarServer({
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const database = process.env.DATABASE_PATH ?? defaultDatabasePath;
+  const database = process.env.DATABASE_URL ? "postgres" : process.env.DATABASE_PATH ?? defaultDatabasePath;
+  if (database === "postgres") await initializePostgres(pool);
   const { httpServer } = createWarServer({ database });
   const port = Number(process.env.PORT ?? 3000);
   httpServer.listen(port, "0.0.0.0", () => {
