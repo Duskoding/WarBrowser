@@ -112,7 +112,7 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
           return err(`This game needs at least ${room.game.players.min} players.`);
         }
         room.started = true;
-        const context = { commentator, options: {} };
+        const context = { commentator, options: {}, players: room.players.length };
         games.set(code, {
           module: room.game,
           engine: room.game.createEngine(context),

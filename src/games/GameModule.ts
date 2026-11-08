@@ -18,6 +18,9 @@ export interface GameCommentator {
 export interface GameModuleContext {
   options: Record<string, unknown>;
   commentator: GameCommentator;
+  // The actual seated player count for this room's match, within the
+  // module's players.min/max range. Fixed-player-count games can ignore it.
+  players: number;
 }
 
 export type GameModuleActionResult =

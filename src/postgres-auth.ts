@@ -151,4 +151,25 @@ export async function recordPostgresMatch(
   }
 }
 
+// For a match with more than two players: the `matches` table only has room
+// for two player columns, so there's no per-match audit row here (see #71 for
+// the schema change that would add one); this still updates every player's
+// wins/losses correctly.
+export async function recordPostgresWins(db: Db, winnerId: string, loserIds: string[]): Promise<void> {
+  const client: PoolClient = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE users SET wins = wins + 1 WHERE id = $1", [winnerId]);
+    for (const loserId of loserIds) {
+      await client.query("UPDATE users SET losses = losses + 1 WHERE id = $1", [loserId]);
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export const POSTGRES_SESSION_MAX_AGE_SECONDS = Math.floor(sessionTtlMs / 1000);

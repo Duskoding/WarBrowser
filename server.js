@@ -15,7 +15,7 @@ import {
   deleteSession,
   findUserById,
   openAuthDatabase,
-  recordMatch,
+  recordWins,
   registerUser,
   userFromSession
 } from "./src/auth.ts";
@@ -26,6 +26,7 @@ import {
   findPostgresUser,
   loginPostgres,
   recordPostgresMatch,
+  recordPostgresWins,
   registerPostgres,
   resetPostgresPassword,
   userFromPostgresSession
@@ -491,7 +492,7 @@ export function createWarServer({
         room.started = true;
         // Room is starting: seats follow join order (the host is seat 0).
         const seated = [...room.sockets];
-        const context = { commentator, options: engineOptions };
+        const context = { commentator, options: engineOptions, players: seated.length };
         const game = {
           module: room.game,
           engine: room.game.createEngine(context),
@@ -542,8 +543,7 @@ export function createWarServer({
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
-            if (postgres) {
-              // Match records hold two players; every game is two-player for now.
+            if (postgres && game.players.length === 2) {
               const [playerA, playerB] = game.players;
               void recordPostgresMatch(
                 db,
@@ -552,10 +552,22 @@ export function createWarServer({
                 playerB.id,
                 winner === null ? null : game.players[winner].id
               ).catch((error) => console.error("Failed to record match:", error));
-            } else if (winner !== null) {
-              for (const [seat, user] of game.players.entries()) {
-                if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
+            } else if (postgres) {
+              if (winner !== null) {
+                const winnerId = game.players[winner].id;
+                const loserIds = game.players
+                  .filter((_, seat) => seat !== winner)
+                  .map((player) => player.id);
+                void recordPostgresWins(db, winnerId, loserIds).catch((error) =>
+                  console.error("Failed to record match:", error)
+                );
               }
+            } else if (winner !== null) {
+              const winnerId = game.players[winner].id;
+              const loserIds = game.players
+                .filter((_, seat) => seat !== winner)
+                .map((player) => player.id);
+              recordWins(db, winnerId, loserIds);
             }
           }
           if (result.commentary) {
