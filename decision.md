@@ -84,3 +84,15 @@
 - **Made by:** user (requested the range and host-triggered start) and agent (Claude Code), implementation
 - **Reason:** Issue #33 (Uno's state/types) needs 2–8 players, which a fixed `players: number` and an auto-start-at-N room model can't express. A host-triggered start (rather than auto-starting at `min` or waiting for `max`) lets a room wait for more players without forcing every seat to fill first. This is a prerequisite for #33 but is a shared-contract change, so War and Tic-Tac-Toe adopt the same shape rather than special-casing Uno.
 - **Known gap carried forward:** Postgres match recording (`recordPostgresMatch`) still hardcodes exactly two players (see #71); it is unaffected by this change and remains a blocker for recording results in any Uno match with more than two players.
+
+## 2026-11-08 — Design Uno's state/types (#33)
+
+- **Decision:** Add `src/games/uno/types.ts`: `Card` (`color: Color | null`, `rank`), `UnoState` (per-seat `hand`, every seat's `handCounts`, `discardTop` plus a separate `activeColor` for after a wild, `direction`, `currentSeat`/`yourTurn`, pile counts, `round`/`winner`/`over`), `UnoAction` (`play` with optional `chosenColor`, or `draw`), and a `UnoResult` shaped like Tic-Tac-Toe's (Uno resolves each action immediately; it has no War-style multi-player-wait state). Assumed four house-rule simplifications, documented in the file: no stacking Draw Two/Four, draw-one-and-pass (a drawn card is never auto-played), no enforced "Uno" call penalty, no Wild Draw Four challenge, and a player may draw even when holding a legal play.
+- **Made by:** user (confirmed scope: 2+ players, deferred remaining rule calls to the agent) and agent (Claude Code), implementation
+- **Reason:** #34 (`UnoEngine`) and #36 (Uno's GUI) both need these shapes agreed first; the house-rule assumptions are called out explicitly so they're easy to revisit rather than silently baked into the engine.
+
+## 2026-11-08 — Implement UnoEngine (#34)
+
+- **Decision:** Add `src/games/uno/UnoEngine.ts` implementing `GameEngine<UnoState, UnoAction, UnoResult>`, plus `UnoEngine.test.ts`. Constructor takes `(players: number, options?: UnoEngineOptions)` rather than hiding player count inside options, since `GameModule.createEngine(context)` doesn't yet pass a player count — wiring that through `GameModuleContext` is left to #35. 108-card deck built directly in this file (not the shared `src/games/shared/cards.ts` from draft PR #70, which isn't merged). The opening discard is redrawn until it isn't a wild. Turn advance is direction-aware (`seatAfter`/`advanceTurn`); Reverse explicitly special-cases exactly 2 players to act as Skip (mathematically a plain direction flip is a no-op with 2 seats, so the official "Reverse = Skip" rule has to be coded directly, not derived). Draw Two/Wild Draw Four draw into the seat after the current one, then skip that seat.
+- **Made by:** agent (Claude Code)
+- **Reason:** #34 needs the pure rules layer before #35 (server plugin) and #36 (GUI) can be built against it. Deferring the shared cards module avoids depending on unmerged work (see #33's note on PR #70/#69).

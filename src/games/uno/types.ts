@@ -47,3 +47,5 @@ export interface UnoEngineOptions {
 //   nothing enforces calling it out.
 // - No challenge on Wild Draw Four: it may be played whenever a wild could be,
 //   with no check for whether the player held a matching-color card instead.
+// - A player may draw on their turn even when they hold a legal play; nothing
+//   forces playing a card just because one is available (official Uno does).
