@@ -38,7 +38,9 @@ export interface GameModule<
   id: string;
   name: string;
   description: string;
-  players: number;
+  // Room needs at least `min` players before the host can start it, and
+  // stops accepting joiners at `max`.
+  players: { min: number; max: number };
 
   createEngine(context: GameModuleContext): GameEngine<TState, TAction, TResult>;
 

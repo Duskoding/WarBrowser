@@ -331,8 +331,10 @@ export function createWarServer({
 
     room.sockets.delete(socket);
     games.delete(roomCode);
+    room.started = false;
+    const username = socket.user?.username;
     for (const player of room.sockets) {
-      send(player, { type: "opponent_disconnected" });
+      if (username) send(player, { type: "player_left", username });
     }
     if (room.sockets.size === 0) {
       rooms.delete(roomCode);
@@ -396,13 +398,16 @@ export function createWarServer({
         }
 
         const roomCode = createRoomCode(rooms);
-        rooms.set(roomCode, { game: definition, sockets: new Set([socket]) });
+        rooms.set(roomCode, { game: definition, sockets: new Set([socket]), started: false });
         socket.roomCode = roomCode;
         send(socket, {
           type: "room_created",
           roomCode,
-          username: socket.user.username,
-          gameId: definition.id
+          gameId: definition.id,
+          host: socket.user.username,
+          players: [socket.user.username],
+          min: definition.players.min,
+          max: definition.players.max
         });
         return;
       }
@@ -424,8 +429,12 @@ export function createWarServer({
           send(socket, { type: "error", message: "Room not found." });
           return;
         }
-        if (room.sockets.size >= room.game.players) {
+        if (room.sockets.size >= room.game.players.max) {
           send(socket, { type: "error", message: "That room is full." });
+          return;
+        }
+        if (room.started) {
+          send(socket, { type: "error", message: "That game has already started." });
           return;
         }
         for (const player of room.sockets) {
@@ -438,21 +447,49 @@ export function createWarServer({
         room.sockets.add(socket);
         socket.roomCode = roomCode;
         const [host] = room.sockets;
+        const players = [...room.sockets].map((player) => player.user.username);
         send(socket, {
           type: "room_joined",
           roomCode,
-          username: socket.user.username,
-          opponentUsername: host.user.username,
-          gameId: room.game.id
+          gameId: room.game.id,
+          host: host.user.username,
+          players,
+          min: room.game.players.min,
+          max: room.game.players.max
         });
         for (const player of room.sockets) {
           if (player !== socket) {
-            send(player, { type: "opponent_joined", username: socket.user.username });
+            send(player, { type: "players_update", players });
           }
         }
+        return;
+      }
 
-        if (room.sockets.size < room.game.players) return;
-        // Room is full: seats follow join order (the host is seat 0).
+      if (message.type === "start_game") {
+        const room = rooms.get(socket.roomCode);
+        if (!room) {
+          send(socket, { type: "error", message: "Join a room first." });
+          return;
+        }
+        const [host] = room.sockets;
+        if (host !== socket) {
+          send(socket, { type: "error", message: "Only the host can start the game." });
+          return;
+        }
+        if (room.started) {
+          send(socket, { type: "error", message: "That game has already started." });
+          return;
+        }
+        if (room.sockets.size < room.game.players.min) {
+          send(socket, {
+            type: "error",
+            message: `This game needs at least ${room.game.players.min} players.`
+          });
+          return;
+        }
+
+        room.started = true;
+        // Room is starting: seats follow join order (the host is seat 0).
         const seated = [...room.sockets];
         const context = { commentator, options: engineOptions };
         const game = {
@@ -463,7 +500,7 @@ export function createWarServer({
           players: seated.map((player) => player.user),
           recorded: false
         };
-        games.set(roomCode, game);
+        games.set(socket.roomCode, game);
         sendStates(game);
         return;
       }
