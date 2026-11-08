@@ -24,7 +24,7 @@ type RunningGame = {
 };
 
 export function createSimServer(names: string[], sendTo: (player: number, event: Event) => void) {
-  const rooms = new Map<string, { game: GameModule; players: number[] }>();
+  const rooms = new Map<string, { game: GameModule; players: number[]; started: boolean }>();
   const games = new Map<string, RunningGame>();
   const playerRoom: (string | null)[] = names.map(() => null);
 
@@ -54,7 +54,8 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
     if (!room) return;
     room.players = room.players.filter((p) => p !== player);
     games.delete(code);
-    for (const p of room.players) sendTo(p, { type: "opponent_disconnected" });
+    room.started = false;
+    for (const p of room.players) sendTo(p, { type: "player_left", username: names[player] });
     if (room.players.length === 0) rooms.delete(code);
   }
 
@@ -66,9 +67,17 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
         const game = findGame(msg.gameId ?? DEFAULT_GAME_ID);
         if (!game) return err("That game doesn't exist.");
         const code = newCode();
-        rooms.set(code, { game, players: [player] });
+        rooms.set(code, { game, players: [player], started: false });
         playerRoom[player] = code;
-        return sendTo(player, { type: "room_created", roomCode: code, username: names[player], gameId: game.id });
+        return sendTo(player, {
+          type: "room_created",
+          roomCode: code,
+          gameId: game.id,
+          host: names[player],
+          players: [names[player]],
+          min: game.players.min,
+          max: game.players.max,
+        });
       }
       case "join_room": {
         if (playerRoom[player]) return err("Leave your current room first.");
@@ -76,19 +85,34 @@ export function createSimServer(names: string[], sendTo: (player: number, event:
         const code = msg.roomCode.trim().toUpperCase();
         const room = rooms.get(code);
         if (!room) return err("Room not found.");
-        if (room.players.length >= room.game.players) return err("That room is full.");
+        if (room.players.length >= room.game.players.max) return err("That room is full.");
+        if (room.started) return err("That game has already started.");
         room.players.push(player);
         playerRoom[player] = code;
+        const rosterNames = room.players.map((p) => names[p]);
         sendTo(player, {
           type: "room_joined",
           roomCode: code,
-          username: names[player],
-          opponentUsername: names[room.players[0]],
           gameId: room.game.id,
+          host: rosterNames[0],
+          players: rosterNames,
+          min: room.game.players.min,
+          max: room.game.players.max,
         });
-        for (const p of room.players) if (p !== player) sendTo(p, { type: "opponent_joined", username: names[player] });
-        if (room.players.length < room.game.players) return;
-        const context = { commentator, options: {} };
+        for (const p of room.players) if (p !== player) sendTo(p, { type: "players_update", players: rosterNames });
+        return;
+      }
+      case "start_game": {
+        const code = playerRoom[player];
+        const room = code ? rooms.get(code) : undefined;
+        if (!code || !room) return err("Join a room first.");
+        if (room.players[0] !== player) return err("Only the host can start the game.");
+        if (room.started) return err("That game has already started.");
+        if (room.players.length < room.game.players.min) {
+          return err(`This game needs at least ${room.game.players.min} players.`);
+        }
+        room.started = true;
+        const context = { commentator, options: {}, players: room.players.length };
         games.set(code, {
           module: room.game,
           engine: room.game.createEngine(context),

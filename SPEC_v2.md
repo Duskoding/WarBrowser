@@ -38,7 +38,8 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | type | payload | meaning |
 | --- | --- | --- |
 | `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
-| `join_room` | `{ roomCode }` | player joins an existing room (max 2 players; the invite link `?room=CODE` joins automatically) |
+| `join_room` | `{ roomCode }` | player joins an existing room, up to the game's `max` player count (the invite link `?room=CODE` joins automatically) |
+| `start_game` | `{}` | host-only; starts the room's game once at least `min` players have joined |
 | `leave_room` | `{}` | player leaves their room |
 | `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 
@@ -46,8 +47,9 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 
 | type | payload | meaning |
 | --- | --- | --- |
-| `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
-| `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when a second player joins, and the game is discarded when one leaves |
+| `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | confirms the player is in a room, which game it is for, the current roster (join order), and who the host is |
+| `players_update` | `{ players }` | roster changed while waiting for the host to start |
+| `player_left` / `room_left` | `{ username }` / `{}` | a player disconnected or left; any running game is discarded, and the room stays open for a replacement to join |
 | `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |

@@ -7,7 +7,7 @@ export const ticTacToe: GameModule<TicTacToeState, TicTacToeAction, TicTacToeRes
   id: "tictactoe",
   name: "Tic-Tac-Toe",
   description: "Take turns placing X and O. Three in a row wins.",
-  players: 2,
+  players: { min: 2, max: 2 },
 
   createEngine() {
     return new TicTacToeEngine();

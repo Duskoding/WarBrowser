@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { TicTacToeEngine, ticTacToe } from "./index.ts";
 import { findGame, gameSummaries, games } from "../index.ts";
 
-const silent = { commentator: { describe: async () => null }, options: {} };
+const silent = { commentator: { describe: async () => null }, options: {}, players: 2 };
 const players = [{ username: "x" }, { username: "o" }];
 
 test("X moves first and players alternate", () => {
