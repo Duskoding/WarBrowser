@@ -15,7 +15,7 @@ An optional AI commentator can add short descriptions after notable game events 
 - A lobby to choose which game to play
 - Username and password accounts (register / log in)
 - Shared game rooms for logged-in players (how many depends on the game), joined by room code or invite link; the host starts the game once enough players are in
-- Player names on the table and a win–loss record on the lobby
+- Player names on the table, an overall win–loss record by your username, and a separate record on each lobby game tile
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
@@ -123,7 +123,7 @@ A game is two pieces with the same id: the rules on the server and the screen in
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
 5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`) and run `npm test`.
 
-Win/loss records are shared across all games for now.
+The lobby refreshes both the overall record and each game's record when a match ends. Games with no recorded wins or losses show `0–0`.
 
 ## Protocol
 
@@ -133,7 +133,7 @@ HTTP JSON endpoints (cookie session after register/login):
 
 - `POST /api/register` and `POST /api/login` with `{ "username", "password" }`
 - `POST /api/logout`
-- `GET /api/me` → `{ "username", "wins", "losses" }`
+- `GET /api/me` returns `username`, overall `wins` and `losses`, and `games`, a map of game IDs to their `wins` and `losses`.
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 

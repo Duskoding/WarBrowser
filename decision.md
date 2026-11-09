@@ -269,3 +269,9 @@
 - **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
 - **Made by:** agent
 - **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
+## 2026-11-09 — Complete the lobby game records (#73)
+
+- **Decision:** Use the redesigned lobby's record display on every game tile, including 0 wins and 0 losses for an unplayed game. Refresh tiles with the overall record after a match, and save the result before sending the final view that triggers the refresh.
+- **Made by:** agent (Codex)
+- **Reason:** Players can see a record for every game, and the refresh reads the saved result even if PostgreSQL is still processing the match.

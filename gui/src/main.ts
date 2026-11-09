@@ -210,8 +210,12 @@ function updateAuthMode() {
 }
 
 async function refreshMe() {
-  me = await fetchMe();
+  const username = me?.username;
+  const fresh = await fetchMe();
+  if (!fresh || fresh.username !== username || me?.username !== username) return null;
+  me = fresh;
   renderUserBar();
+  renderGameList();
   return me;
 }
 
@@ -245,9 +249,7 @@ function renderGameList() {
         )
       );
       const record = me?.games[game.id];
-      if (record && record.wins + record.losses > 0) {
-        meta.append(text("span", `${record.wins}W ${record.losses}L`, "rec"));
-      }
+      meta.append(recordEl(record?.wins ?? 0, record?.losses ?? 0));
       const top = document.createElement("span");
       top.className = "tile-top";
       top.append(icon);
@@ -373,7 +375,7 @@ function handleGamePayload(payload: unknown) {
     if (!finished) statsRefreshed = false;
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
-      void celebrate();
+      void celebrate().catch((error) => console.error("Could not refresh player records:", error));
     }
   } else if (p.kind === "commentary") {
     guarded(() => screen?.commentary?.(p.text, p.round));
@@ -398,7 +400,6 @@ async function celebrate() {
     shake();
   }
   renderUserBar();
-  renderGameList();
 }
 
 function showSplash(outcome: "win" | "lose", gameId: string | null) {

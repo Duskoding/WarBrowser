@@ -112,4 +112,15 @@ npm run build
 npm start
 ```
 
+- **Stack:** the server entry point is plain JavaScript rather than TypeScript, importing the TypeScript engine directly. Node 24 runs `.ts` natively, so the server needs no build step; the trade-off is that Node 24 or later is required.
+- **Protocol:** `join { roomId }` and top-level `flip` / `state` / `commentary` became `create_room` / `join_room` / `leave_room` plus a `game_message` envelope. The room server and client were built first as a generic two-player relay, and the engine was integrated behind it instead of rewriting both.
+- **Rooms:** a server-generated 6-character code (with a shareable `?room=CODE` link) replaced a caller-chosen `roomId`, so players can't collide on a name.
+- **State:** each player gets a view relative to themselves (`yourCount` / `opponentCount`) instead of `scoreA` / `scoreB`; the engine's own `getState(playerId)` still returns `scoreA` / `scoreB` plus `round` and `winner`, and the server converts it.
+- **Card visibility:** v1 kept the opponent's card face-down until both players had flipped. v2 shows each flipped card to the opponent immediately, because War has no private cards and players expect to see each other's flips as they happen.
+- **Commentary:** carries the round number, so the client can ignore a slow reply for an older round.
+- **War:** the burn is automatic and each player sends one flip after it; the tied cards, a war flag and the result of the last round are part of the state view, so the UI shows the whole war instead of only the moment of the tie; the winner's collected cards are shuffled before they go to the bottom of their pile, which prevents endless identical cycles.
+- **Game end:** a draw (both players out of cards) is possible and has no winner.
+- **Team:** the game engine was built by one person, so the two engine roles became one and the build order refers to 5 roles.
+- **Repo:** the client and server share one root `package.json` (one install, one build), and `render.yaml` defines the Render service.
+- **Multiple games:** v1 deliberately built only War, with no abstraction for future games. The site now hosts several games: a lobby to choose one, a `GameDefinition` interface on the server and a `ClientGame` interface in the browser, with War moved onto them unchanged and Tic-Tac-Toe added as a second game. `create_room` takes a `gameId`, room messages report it, and `GET /api/games` lists the games. The lobby shows overall wins and losses by the username and per-game totals on each tile. Both refresh when a match ends.
 Use two browser windows with separate accounts to create and join a room. `npm run typecheck` checks the TypeScript contracts, and `npm test` builds the client before running the engine and server tests.
