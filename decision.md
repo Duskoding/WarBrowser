@@ -1,5 +1,17 @@
 # Decision log
 
+## 2026-11-09 — Count a finished game before Play again (#75)
+
+- **Decision:** Write the match record before sending the finished state. The room bar reloads wins and losses when that state arrives, and keeps those totals on screen when a new game starts in the same room. Each later game refreshes the totals again when it finishes.
+- **Made by:** agent, requested by Shulamit
+- **Reason:** The first game's result has to be visible even when the same players stay and play again, rather than waiting until they leave the room.
+
+## 2026-11-09 — Play again in the same room (#75)
+
+- **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
+- **Made by:** agent, with seats and the opponent notice chosen by Shulamit
+- **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
 - **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.

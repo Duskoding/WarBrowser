@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, rematch, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -53,6 +53,7 @@ app.innerHTML = `
       <span class="game-name" id="room-game"></span>
       · Room <strong id="room-id"></strong>
       <button id="copy-link" class="small">Copy invite link</button>
+      <button id="play-again" class="small" hidden>Play again</button>
       <button id="leave-room" class="small ghost">Leave</button>
     </div>
     <p class="invite-link" id="invite-link"></p>
@@ -87,6 +88,9 @@ let roomMin = 0;
 let roomMax = 0;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
+let gameFinished = false;
+let rematchSent = false;
+let opponentWantsRematch = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -233,6 +237,9 @@ function unmountGame() {
   $("game-root").replaceChildren();
   setBackground(null);
   statsRefreshed = false;
+  gameFinished = false;
+  rematchSent = false;
+  opponentWantsRematch = false;
 }
 
 function handleGamePayload(payload: unknown) {
@@ -249,6 +256,13 @@ function handleGamePayload(payload: unknown) {
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
+    gameFinished = finished;
+    if (!finished) {
+      rematchSent = false;
+      opponentWantsRematch = false;
+      // The next game gets its own refresh. Totals already on screen stay there.
+      statsRefreshed = false;
+    }
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void refreshMe();
@@ -280,12 +294,15 @@ function render() {
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
+  $<HTMLButtonElement>("play-again").hidden = !gameFinished || rematchSent;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
   else if (!screen && roomPlayers.length < roomMin) status = "Waiting for players — share the invite link";
   else if (!screen && !isHost) status = "Waiting for the host to start the game";
   else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
+  else if (rematchSent) status = "Waiting for your opponent…";
+  else if (opponentWantsRematch) status = "Your opponent wants to play again.";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
 }
@@ -379,6 +396,9 @@ onEvent((e) => {
       unmountGame();
       showToast(`${e.username} left the room.`);
       break;
+    case "rematch_requested":
+      opponentWantsRematch = true;
+      break;
     case "room_left":
       resetRoom();
       break;
@@ -402,6 +422,11 @@ $("join-form").addEventListener("submit", (ev) => {
 });
 $("leave-room").addEventListener("click", leaveRoom);
 $("start-game").addEventListener("click", startGame);
+$("play-again").addEventListener("click", () => {
+  rematch();
+  rematchSent = true;
+  render();
+});
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();

@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Play again in the same room
+
+- **Who:** agent
+- **Issues:** #75
+- **Changed:** `rematch` / `rematch_requested` in `server.js`, the room-bar Play again button, the README protocol, and server tests for a fresh Tic-Tac-Toe board plus a second recorded game. A finished game is recorded before its final state is sent, and those totals stay on screen when the next game starts. Decisions are in `decision.md`.
+- **Remaining:** none
+
 ## 2026-11-09 — Add session log
 
 - **Who:** agent (GitHub Copilot)
