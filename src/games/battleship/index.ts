@@ -4,10 +4,12 @@ import {
   BattleshipEngine,
   FLEET,
   SIZE,
+  fleetPlacementError,
   type BattleshipAction,
   type BattleshipOptions,
   type BattleshipResult,
   type BattleshipState,
+  type Ship,
 } from "./BattleshipEngine.ts";
 
 export function buildBattleshipPrompt(seat: number, ship: string, won: boolean): string {
@@ -31,6 +33,10 @@ export const battleship: GameModule<BattleshipState, BattleshipAction, Battleshi
     let action: BattleshipAction;
     if (payload.kind === "shuffle" || payload.kind === "ready") {
       action = { kind: payload.kind };
+    } else if (payload.kind === "place") {
+      const ships = readFleet(payload.ships);
+      if (typeof ships === "string") return { ok: false, error: ships };
+      action = { kind: "place", ships };
     } else if (payload.kind === "fire") {
       if (!Number.isInteger(payload.cell)) return { ok: false, error: "Pick a square." };
       action = { kind: "fire", cell: payload.cell as number };
@@ -71,5 +77,19 @@ export const battleship: GameModule<BattleshipState, BattleshipAction, Battleshi
   },
 };
 
-export { BattleshipEngine, randomFleet } from "./BattleshipEngine.ts";
+function readFleet(value: unknown): Ship[] | string {
+  if (!Array.isArray(value)) return "Place every ship.";
+  const ships: Ship[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return "Place every ship.";
+    const { name, cells } = item as { name?: unknown; cells?: unknown };
+    if (typeof name !== "string" || !Array.isArray(cells) || !cells.every((cell) => Number.isInteger(cell))) {
+      return "Place every ship.";
+    }
+    ships.push({ name, cells: cells as number[] });
+  }
+  return fleetPlacementError(ships) ?? ships;
+}
+
+export { BattleshipEngine, fleetPlacementError, randomFleet } from "./BattleshipEngine.ts";
 export type { BattleshipState, BattleshipAction, BattleshipResult };

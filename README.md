@@ -2,7 +2,7 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, and **Battleship**.
+Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, and **Nim**.
 
 ## How it works
 
@@ -33,7 +33,7 @@ An AI commentator can add a short description after game events (War rounds and 
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
 | `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
