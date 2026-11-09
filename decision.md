@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Add a work session log
+
+- **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `decision.md` explains why project choices were made, but it does not capture the practical state of each session. A separate concise log preserves handoff context without mixing transient progress with durable design decisions.
+
 ## 2026-11-02 — Add agent guidance documentation
 
 - **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and require all person- or agent-made project decisions to be recorded in this file.
