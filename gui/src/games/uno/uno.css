@@ -1,0 +1,176 @@
+/* The Uno table. Everything here stays inside the game's shadow root. */
+:host {
+  --uno-red: #d72631;
+  --uno-yellow: #f2c418;
+  --uno-green: #2a9d4b;
+  --uno-blue: #1f6fd1;
+  --uno-card-w: 4.6rem;
+  --uno-card-h: 6.8rem;
+}
+
+.uno {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  width: min(60rem, 100%);
+  margin: 0 auto;
+}
+
+/* ---- Other players ---- */
+.opponents { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.opponent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 8.5rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.07);
+  border: 2px solid transparent;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.opponent.turn { border-color: #f5c542; transform: translateY(-2px); }
+.opponent.winner { border-color: var(--uno-green); }
+.opponent.last-card .count { color: #ffb4b4; font-weight: 700; }
+.opponent .backs { display: flex; height: 1.9rem; }
+.mini-back {
+  width: 1.3rem;
+  height: 1.9rem;
+  margin-left: -0.55rem;
+  border-radius: 4px;
+  border: 1.5px solid #fff;
+  background: linear-gradient(135deg, #222 0 40%, var(--uno-red) 40% 60%, #222 60%);
+}
+.mini-back:first-child { margin-left: 0; }
+.opponent .count { font-size: 0.85rem; opacity: 0.85; }
+
+/* ---- Middle: draw pile, discard pile, color to match ---- */
+.center { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 0.5rem; }
+.draw-pile {
+  position: relative;
+  width: var(--uno-card-w);
+  height: var(--uno-card-h);
+  padding: 0;
+  border-radius: 10px;
+  border: 3px solid #fff;
+  background: #1b1b1b;
+  color: #fff;
+  box-shadow: 3px 3px 0 #000, 6px 6px 0 rgb(0 0 0 / 0.5);
+}
+.draw-pile .back {
+  display: inline-block;
+  padding: 0.3rem 0.5rem;
+  border-radius: 50%;
+  background: var(--uno-red);
+  color: var(--uno-yellow);
+  font-weight: 900;
+  font-style: italic;
+  transform: rotate(-20deg);
+}
+.draw-pile .count { position: absolute; bottom: 0.25rem; right: 0.4rem; font-size: 0.75rem; opacity: 0.8; }
+.draw-pile.hint { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgb(245 197 66 / 0.6); } }
+
+.current { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; font-size: 1.6rem; }
+.current .swatch { width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 3px solid #fff; }
+.current.red .swatch { background: var(--uno-red); }
+.current.yellow .swatch { background: var(--uno-yellow); }
+.current.green .swatch { background: var(--uno-green); }
+.current.blue .swatch { background: var(--uno-blue); }
+
+/* ---- Cards ---- */
+.uno-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--uno-card-w);
+  height: var(--uno-card-h);
+  padding: 0;
+  border-radius: 10px;
+  border: 4px solid #fff;
+  color: #fff;
+  font-weight: 900;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.4);
+}
+.uno-card.red { background: var(--uno-red); }
+.uno-card.yellow { background: var(--uno-yellow); }
+.uno-card.green { background: var(--uno-green); }
+.uno-card.blue { background: var(--uno-blue); }
+.uno-card.wild {
+  background: conic-gradient(var(--uno-red) 0 25%, var(--uno-blue) 0 50%, var(--uno-yellow) 0 75%, var(--uno-green) 0);
+}
+.uno-card .face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 78%;
+  height: 58%;
+  border-radius: 50%;
+  background: #fff;
+  color: #222;
+  font-size: 1.7rem;
+  transform: rotate(-25deg);
+}
+.uno-card.red .face { color: var(--uno-red); }
+.uno-card.yellow .face { color: #a37f00; }
+.uno-card.green .face { color: var(--uno-green); }
+.uno-card.blue .face { color: var(--uno-blue); }
+.uno-card .corner { position: absolute; top: 0.2rem; left: 0.35rem; font-size: 0.8rem; text-shadow: 1px 1px 0 #000; }
+.uno-card .corner.end { top: auto; left: auto; bottom: 0.2rem; right: 0.35rem; transform: rotate(180deg); }
+
+/* ---- Status and color picker ---- */
+.status { font-size: 1.35rem; }
+.ghost { background: transparent; color: inherit; border: 2px solid currentColor; }
+.small { padding: 0.3rem 1rem; font-size: 0.9rem; }
+.picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.2rem;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.45);
+}
+.picker p { margin: 0; font-weight: 600; }
+.swatches { display: flex; gap: 0.6rem; }
+.swatch-button { width: 3rem; height: 3rem; padding: 0; border-radius: 50%; border: 3px solid #fff; }
+.swatch-button.red { background: var(--uno-red); }
+.swatch-button.yellow { background: var(--uno-yellow); }
+.swatch-button.green { background: var(--uno-green); }
+.swatch-button.blue { background: var(--uno-blue); }
+
+/* ---- Your hand ---- */
+.hand-title { margin: 0.4rem 0 0; font-size: 0.9rem; opacity: 0.75; }
+.hand { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem; width: 100%; padding: 0.5rem 0 0.5rem; }
+.hand .uno-card { cursor: pointer; transition: transform 0.15s; }
+.hand .uno-card:disabled { opacity: 0.45; cursor: not-allowed; }
+.hand .uno-card.playable:hover,
+.hand .uno-card.playable:focus-visible,
+.hand .uno-card.choosing { transform: translateY(-8px); }
+.hand .uno-card.choosing { outline: 3px solid #f5c542; outline-offset: 2px; }
+
+.commentary {
+  width: min(32rem, 100%);
+  min-height: 3em;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.3);
+  font-style: italic;
+  text-align: center;
+  opacity: 0.9;
+}
+
+@media (max-width: 480px) {
+  :host { --uno-card-w: 3.6rem; --uno-card-h: 5.4rem; }
+  .uno-card .face { font-size: 1.3rem; }
+  .opponent { min-width: 6.5rem; padding: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-pile.hint { animation: none; }
+  .hand .uno-card { transition: none; }
+}

@@ -396,6 +396,10 @@ onEvent((e) => {
     case "room_left":
       resetRoom();
       break;
+    case "room_closed":
+      resetRoom();
+      showToast("This room was closed after being idle too long.");
+      break;
     case "game_message":
       handleGamePayload(e.payload);
       break;

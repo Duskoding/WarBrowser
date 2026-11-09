@@ -1,38 +1,22 @@
 import type { GameEngine } from "../../engine/GameEngine.ts";
+import { createDeck, fisherYates } from "../shared/cards.ts";
 import type {
   Card,
   LastRound,
   Phase,
-  Rank,
   RoundSummary,
   StakeCard,
-  Suit,
   WarAction,
   WarEngineOptions,
   WarResult,
   WarState,
 } from "./types.ts";
 
-const SUITS: Suit[] = ["S", "H", "D", "C"];
 const WAR_BURN = 3;
 const other = (seat: number) => 1 - seat;
 
-export function createDeck(): Card[] {
-  const deck: Card[] = [];
-  for (const suit of SUITS) {
-    for (let rank = 2; rank <= 14; rank++) deck.push({ rank: rank as Rank, suit });
-  }
-  return deck;
-}
-
-export function fisherYates<T>(items: T[]): T[] {
-  const a = items.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+// Re-exported so existing imports from War keep working.
+export { createDeck, fisherYates };
 
 type InternalStake = { card: Card; faceUp: boolean };
 

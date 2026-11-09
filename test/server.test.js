@@ -182,6 +182,25 @@ test("creates a room and joins a second player", async () => {
   guest.close();
 });
 
+test("closes an idle room and returns connected players to the lobby", { timeout: 2000 }, async () => {
+  const { wsUrl, httpUrl } = await startServer({ roomIdleTimeoutMs: 25 });
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+
+  post(host, { type: "create_room" });
+  const { roomCode } = await host.next();
+  post(guest, { type: "join_room", roomCode });
+  assert.equal((await guest.next()).type, "room_joined");
+  assert.equal((await host.next()).type, "players_update");
+
+  const [hostClosed, guestClosed] = await Promise.all([host.next(), guest.next()]);
+  assert.deepEqual(hostClosed, { type: "room_closed", reason: "idle" });
+  assert.deepEqual(guestClosed, { type: "room_closed", reason: "idle" });
+
+  host.close();
+  guest.close();
+});
+
 test("deals a fresh game to both players when the second one joins", async () => {
   const { host, guest, hostState, guestState } = await startRoom();
   for (const [payload, yourName, opponentName] of [
@@ -504,7 +523,7 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno", "poker"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "poker"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
