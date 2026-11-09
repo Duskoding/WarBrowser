@@ -2,13 +2,13 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, and **Nim**.
 
 ## How it works
 
-The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
+The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -33,7 +33,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
@@ -92,6 +93,8 @@ export ANTHROPIC_API_KEY=your-key   # PowerShell: $env:ANTHROPIC_API_KEY = "your
 
 `ANTHROPIC_MODEL` overrides the default model (`claude-haiku-5-5`). Never commit your key; `.env` is gitignored, and tests never call the API.
 
+Commentary is capped at one call per room every three seconds and 20 calls per game. The server-wide calls-per-minute cap defaults to 60; override it with `COMMENTARY_CALLS_PER_MINUTE`. Calls skipped by any limit are logged and do not affect gameplay.
+
 ### Client development
 
 For client development, run `npm start` in one terminal and `npm run dev` in another. The dev server proxies the WebSocket to the game server.
@@ -136,10 +139,12 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 
 - `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" } }] }`
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `leave_room`, `rematch` (no payload; ignored until the current game has finished), and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
-- **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `rematch_requested` (`username`, sent to the other seated players when someone asks to play again and the room is still waiting on the rest), `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`. When every seated player has sent `rematch` after a finished game, the server keeps the room and the seats and sends each player a fresh `state` for a new game of the same kind.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `restart_game` (after the current game finishes; either seated player starts a new game immediately), `rematch` (no payload; ignored until the current game has finished; a new game starts only after every seated player has sent it), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `rematch_requested` (`username`, sent to the other seated players when someone asks to play again and the room is still waiting on the rest), `room_left`, `room_closed` (`reason: "idle"` when the room had no messages for the configured idle timeout), `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`. After a finished game, `restart_game` starts a fresh match immediately. The Play again button and the result splash send `rematch` instead: the room and seats stay, and each player gets a fresh `state` only once every seated player has asked.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno (server rules and protocol only for now — no browser screen yet, see "Adding a game"): your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat.
+Rooms close after 30 minutes without a client message by default. Set `ROOM_IDLE_TIMEOUT_MS` to change the timeout; invalid or non-positive values use the 30-minute default. A reconnect grace period, when active, takes precedence over idle cleanup.
+
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set.
 
 ## Deploy to Render
 

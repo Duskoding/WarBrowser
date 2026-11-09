@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Keep both-player Play again on the newer room shell (#75)
+
+- **Decision:** When merging `origin/main` into `issue-75-add-play-again`, keep main's room shell, result splash, `createGame`, idle-room close, and the existing `restart_game` message. Play again and the splash Rematch button send `rematch`, which still waits until every seated player has asked. The button stays on screen after a click and reads "Waiting for your opponent…". If the result splash is open, the other player sees "Your opponent wants to play again."
+- **Made by:** agent
+- **Reason:** Main landed a one-player replay and a new lobby while this branch was open. Issue #75 still requires every seated player to agree, and the newer shell is where that button has to live.
+
 ## 2026-11-09 — Count a finished game before Play again (#75)
 
 - **Decision:** Write the match record before sending the finished state. The room bar reloads wins and losses when that state arrives, and keeps those totals on screen when a new game starts in the same room. Each later game refreshes the totals again when it finishes.
@@ -11,6 +17,59 @@
 - **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
 - **Made by:** agent, with seats and the opponent notice chosen by Shulamit
 - **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
+## 2026-11-09 — Replay finished games in the same room
+
+- **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.
+- **Made by:** agent
+- **Reason:** Players should be able to start another match without copying a new invite or rebuilding the room. Keeping the room and seats preserves the existing lifecycle and win/loss behavior, while replacing the engine prevents stale game state from leaking into the replay.
+
+## 2026-11-09 — Port the remaining games from draft PR #70
+
+- **Decision:** Port Goofspiel (`goofspiel`), Connect Four (`connect4`), Dots and Boxes (`dots`) and Battleship (`battleship`) from draft PR #70 onto the current `GameModule` contract, the same way as Crazy Eights and Go Fish: `players: { min: 2, max: 2 }`, no `rules` field (left for #67), and tests pass `players: 2` in the module context. Rock-Paper-Scissors is not ported: Efrat's own version (#60, PR #89) reached main first and is kept as is. The other issues (#61–#64) stay open for their assignees to review and close.
+- **Made by:** agent
+- **Reason:** With all seven games ported, this branch replaces PR #70, which cannot merge onto the n-player contract. Keeping the port mechanical (no rule changes) leaves rule review to each game's assignee.
+
+## 2026-11-09 — Share one card module between War and future card games
+
+- **Decision:** Add `src/games/shared/cards.ts` with the standard 52-card deck (`Card`, `Suit`, `Rank` types, `createDeck`, `fisherYates`, `parseCard`, `sortHand`, `cardName`). War imports its deck from there; `src/games/war/types.ts` re-exports the types and `WarEngine.ts` re-exports `createDeck`/`fisherYates` so existing imports keep working. Uno keeps its own 108-card deck because its cards differ. Shared view and commentary helpers for 2-player games go in `src/games/shared/view.ts`.
+- **Made by:** agent
+- **Reason:** Crazy Eights and Go Fish both need a standard deck, and duplicating it per game would drift. Uno's deck is not a standard 52-card deck, so forcing it onto the shared module would add complexity for no gain.
+
+## 2026-11-09 — Port Crazy Eights and Go Fish from draft PR #70 instead of merging it
+
+- **Decision:** Take the Crazy Eights (`crazy8`) and Go Fish (`gofish`) code from draft PR #70 (branch `claude/more-games`) by porting it onto the current `GameModule` contract rather than merging the branch. PR #70 stays open for its other five games, which need the same port.
+- **Made by:** agent
+- **Reason:** PR #70 was branched before games could declare a player range (`players: { min, max }`, see the 2026-11-08 entry for #33), so it cannot merge cleanly as-is. Porting the two games in a focused change keeps the shared contracts intact and lets these two land without waiting for the rest of the branch.
+
+## 2026-11-09 — Limit Crazy Eights and Go Fish to two players
+
+- **Decision:** Both games use `players: { min: 2, max: 2 }`. Their engines and screens assume exactly two seats.
+- **Made by:** agent
+- **Reason:** The rules as specified (one opponent's hand to ask, one opponent to pass play to, two-pass end condition in Crazy Eights) are defined for two players. Supporting more seats would need rules decisions (turn order, what a pass means across several players) that were not part of the requested scope. Games with more players can widen `players.max` later with their own rules.
+
+## 2026-11-09 — Leave `rules` out of the ported games until issue #67
+
+- **Decision:** The ported `GameModule` objects for Crazy Eights and Go Fish do not include the `rules` field that PR #70 added. The lobby "How to play" feature is tracked in issue #67, which is assigned to someone else, and will define that field.
+- **Made by:** agent
+- **Reason:** Adding `rules` now would define a contract that issue #67 owns. Leaving it out keeps this change to game rules and screens, and the field can be added to both games when #67 lands.
+## 2026-11-09 — Close idle rooms without interrupting reconnect grace (#83)
+
+- **Decision:** Track the last client message for every room and close rooms after `ROOM_IDLE_TIMEOUT_MS`, defaulting to 30 minutes. Send connected players a `room_closed` event with `reason: "idle"` so the client returns to the lobby, and defer cleanup while a room's reconnect grace deadline is active.
+- **Made by:** agent
+- **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
+
+## 2026-11-09 — Cap AI commentary calls per room and server (#80)
+
+- **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
+
+## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
+
+- **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Reuse the existing War simultaneous-reveal lifecycle while keeping RPS rules, state, and presentation isolated from the game-agnostic server and shared lobby.
 
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
@@ -153,3 +212,57 @@
 - **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
 - **Made by:** agent
 - **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.
+
+## 2026-11-09 — Expose aggregate and per-game player statistics (#72)
+
+- **Decision:** Add per-game `games` statistics to the user API while retaining aggregate `wins` and `losses`. Both SQLite and PostgreSQL update the aggregate and the selected game's counters atomically when a match has a winner; draws create no win/loss increments.
+- **Made by:** user (selected compatibility-preserving API shape) and agent (implementation)
+- **Reason:** Existing clients rely on aggregate fields, while game-specific totals need a stable map keyed by the registered game id. Keeping both avoids a breaking protocol change and supports historical aggregate data that predates per-game tracking.
+
+## 2026-11-09 — Keep `connection.ts` in the shared lobby shell (#40)
+
+- **Decision:** Treat issue #40 as done. Leave `gui/src/connection.ts` where it is. It is already the shared GUI socket client: `gui/src/main.ts` is the only importer, and game screens send through the shell. Do not add a `gui/src/infra/` or `gui/src/shared/` folder for it.
+- **Made by:** agent
+- **Reason:** PR #25 put this boundary in place by moving game screens under `gui/src/games/` and keeping `connection.ts` in the shared lobby shell. Issue #40 was filed after that pull request merged. It is one task under parent issue #27 (extract the shared core), which stays open. Moving the file now would only change import paths and the preview alias.
+
+## 2026-11-09 — Uno GUI module (#36)
+
+- **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
+- **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
+- **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
+
+## 2026-11-09 — Resolve the new games onto current main (#59)
+
+- **Decision:** Keep main's `GameModule` (`players: { min, max }`, no How to play `rules` list), its lobby, and the games already there, including Uno. Add Nim as a two-player module in that shape. Put Battleship fleet placement back on main's Battleship: a `place` action, plus drag and Rotate on the existing setup row. Leave out the preview page main removed, and the older Rock-Paper-Scissors tests that no longer match main's engine.
+- **Made by:** agent
+- **Reason:** Pull request #94 conflicted because main had already landed the other games and a newer module contract. Nim (#77) and player-placed fleets (#81) were the parts still missing.
+
+## 2026-11-09 — Shell UI redesign: clean "game night" look with share and result moments
+
+- **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
+- **Made by:** user (asked for an "explosive and viral" UI and rejected the neon pass) and agent (design and implementation)
+- **Reason:** Sharing a room and celebrating a win are the moments that spread a two-player game; doing them in the shell gives every game the same treatment without touching game modules, the server or the room protocol. Motion is limited and honours `prefers-reduced-motion`.
+
+## 2026-11-09 — Keep the green felt as the site color
+
+- **Decision:** Use a felt green as the shell background (first the original `#1f6b3a`; lightened to `#2f8f52` after the user found it too dark, with per-game link colors brightened to stay readable), with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
+- **Made by:** user (asked to keep the green) and agent (gold accent, surface shades)
+- **Reason:** The team likes the green; gold was the site's original button color and reads well on felt, where coral clashed.
+
+## 2026-11-09 — Center a partly filled last row of lobby games
+
+- **Decision:** Lay out the lobby game list with wrapping flex rows (4/3/2/1 columns by width) and center them, so a last row with fewer games sits in the middle instead of at the left.
+- **Made by:** user
+- **Reason:** With ten games, the last two looked stranded on the left.
+
+## 2026-11-09 — Rematch from the result screen
+
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Made by:** agent
+- **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
+
+## 2026-11-09 — Keep both decision logs when main moves again (#59)
+
+- **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
+- **Made by:** agent
+- **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
