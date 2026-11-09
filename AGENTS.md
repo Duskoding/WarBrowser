@@ -46,3 +46,5 @@ Never commit secrets or weaken authentication, input-size limits, server-side va
 ## Decision log requirement
 
 Whenever a person or agent makes a project decision, record it in `decision.md`. Each entry must include the decision, the date, and who made it; identify the maker as `agent` when the decision is made by an agent. This applies to implementation, architecture, testing, documentation, and operational decisions.
+
+For session handoffs, add a concise entry to `LOG.md` covering who worked, related issues, what changed, and what remains.
