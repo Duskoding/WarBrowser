@@ -1,0 +1,19 @@
+/* Go Fish: books on each side of the pond, ask buttons above your hand. */
+.gf { color: #eefaf8; }
+.hand.opp { gap: 0; }
+.hand.opp .pcard { width: 2.2rem; height: 3.2rem; margin-left: -0.9rem; }
+.hand.opp .pcard:first-child { margin-left: 0; }
+.gf-books { display: flex; gap: 1.5rem; justify-content: center; align-items: flex-start; flex-wrap: wrap; text-align: center; }
+.gf-books > div { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; min-width: 7rem; }
+.gf-books .row { gap: 0.3rem; max-width: 12rem; }
+.gf-book {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2.6rem;
+  border-radius: 5px;
+  background: #fdfdf8;
+  color: #1d1d1d;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 #c9c9c0, 6px 6px 0 #a9a9a0;
+}
