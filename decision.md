@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Remount game screens when replay starts
+
+- **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
+- **Made by:** agent
+- **Reason:** Game screens keep transient state such as commentary round counters and animation timers. Reusing the finished screen lets replay state inherit stale values, so a fresh screen lifecycle is required for reliable replay behavior across all games.
+
 ## 2026-11-09 — Replay finished games in the same room
 
 - **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.

@@ -18,6 +18,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** Added the `restart_game` protocol, same-room engine recreation, a shared game-over **Play again** button, replay coverage, and README/spec/decision documentation.
 - **Remaining:** none
 
+## 2026-11-09 — Fix replay screen lifecycle
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #96
+- **Changed:** Remounted the client game screen when a replay begins so Tic-Tac-Toe commentary counters and other transient screen state reset; added replay commentary coverage.
+- **Remaining:** none
+
 ## 2026-11-09 — Add session log
 
 - **Who:** agent (GitHub Copilot)

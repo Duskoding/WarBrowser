@@ -338,15 +338,19 @@ function handleGamePayload(payload: unknown) {
   const p = payload as ServerPayload | null;
   if (!p || typeof p !== "object") return;
   if (p.kind === "state") {
-    mountGame();
-    guarded(() => {
-      screen?.applyState(p.view);
-      screen?.render();
-    });
     const client = roomGameId ? clientGames[roomGameId] : undefined;
     let finished = false;
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
+    });
+    if (gameOver && !finished) {
+      unmountGame();
+      gameOver = false;
+    }
+    mountGame();
+    guarded(() => {
+      screen?.applyState(p.view);
+      screen?.render();
     });
     gameOver = finished;
     // A rematch started by anyone in the room clears the result screen.
