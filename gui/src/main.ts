@@ -97,7 +97,7 @@ app.innerHTML = `
       <p class="record" id="splash-record"></p>
       <div class="share-row">
         <button id="splash-share" type="button">Brag about it</button>
-        <button id="splash-rematch" class="ghost small" type="button">Rematch</button>
+        <button id="splash-rematch" class="ghost small" type="button">Play again</button>
         <button id="splash-close" class="ghost small" type="button">See the board</button>
         <button id="splash-lobby" class="ghost small" type="button">Back to lobby</button>
       </div>
@@ -394,13 +394,12 @@ function showSplash(outcome: "win" | "lose", gameId: string | null) {
     ? streak >= 2
       ? `${streak} wins in a row at ${gameName(gameId)}. Unstoppable.`
       : `You won at ${gameName(gameId)}. Let everyone know.`
-    : `${gameName(gameId)} got you this time. Run it back?`;
+    : `${gameName(gameId)} got you this time.`;
   $("splash-record").textContent = me ? `Your record: ${me.wins}W · ${me.losses}L` : "";
   $("splash-share").textContent = win ? "Brag about it 📣" : "Challenge someone new";
   // After a loss, the rematch is the main ask; after a win, bragging is.
   $("splash-share").className = win ? "" : "ghost small";
   $("splash-rematch").className = win ? "ghost small" : "";
-  $("splash-rematch").textContent = win ? "Rematch" : "Run it back 🔁";
   splash.hidden = false;
   (win ? $("splash-share") : $("splash-rematch")).focus();
 }

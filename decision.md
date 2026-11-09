@@ -233,6 +233,6 @@
 
 ## 2026-11-09 — Rematch from the result screen
 
-- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is labeled "Play again", is the main button after a loss and a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
