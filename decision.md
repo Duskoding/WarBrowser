@@ -141,3 +141,9 @@
 - **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
 - **Made by:** agent
 - **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.
+
+## 2026-11-09 — Uno GUI module (#36)
+
+- **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
+- **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
+- **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
