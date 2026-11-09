@@ -1,14 +1,14 @@
 # WarBrowser
 
-WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
+WarBrowser is a site for live, server-authoritative browser games. Players create an account, choose a game from the lobby, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, and **Nim**.
+Games available now: **War**, **Tic-Tac-Toe**, **Uno**, **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, **Nim**, and **heads-up Hold'em**. Tic-Tac-Toe is the smallest complete example of how to add a game.
 
 ## How it works
 
-The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
+The server owns each game. It validates actions, advances the selected game's engine, and sends each player a view appropriate to their seat. Browsers only send game actions and render what they receive, so neither player can cheat. Rooms, accounts, authentication, invite links, and win/loss records are shared by every game.
 
-An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An optional AI commentator can add short descriptions after notable game events without blocking gameplay. Each game builds its own prompt, and prompts contain only information that is public to both players. Commentary is skipped when no API key is set.
 
 ## Features
 
@@ -19,7 +19,7 @@ An AI commentator can add a short description after game events (War rounds and 
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
+- Optional AI-generated commentary for games that provide a commentary prompt (needs an Anthropic API key)
 
 ## War rules
 
@@ -33,7 +33,7 @@ An AI commentator can add a short description after game events (War rounds and 
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`, `poker/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
 | `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
@@ -114,7 +114,7 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
 1. **Rules:** create `src/games/<id>/` with an engine that implements `GameEngine` (`src/engine/GameEngine.ts`) and a `GameModule` export (see `src/games/GameModule.ts`):
-   - `id`, `name`, `description`, `players: { min, max }` (the room accepts joiners up to `max`; the host can start once `min` have joined).
+   - `id`, `name`, `description`, `players: { min, max }` (the room accepts joiners up to `max`; the host can start once `min` have joined). Optional `rules` (a list of short lines) is returned by `GET /api/games` and shown as **How to play** under that lobby tile.
    - `createEngine(context)` builds the pure rules engine. `handleAction(engine, seat, payload, context)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle. `toView(engine, seat, players)` returns what that seat may see. For commentary, build a prompt string and call `context.commentator.describe(prompt)`.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
 3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `GuiModule` (see `gui/src/games/GuiModule.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `applyState(view)` + `render()` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
@@ -137,14 +137,14 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" } }] }`
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" }, "rules"? }] }`
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `restart_game` (after the current game finishes), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `restart_game` (after the current game finishes), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe, `{ "kind": "fold" | "check" | "call" | "raise" | "next_hand" }` in Hold'em (`raise` includes `to`).
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `room_left`, `room_closed` (`reason: "idle"` when the room had no messages for the configured idle timeout), `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`; after a finished game, either player can send `restart_game` to start a fresh match in the same room.
 
 Rooms close after 30 minutes without a client message by default. Set `ROOM_IDLE_TIMEOUT_MS` to change the timeout; invalid or non-positive values use the 30-minute default. A reconnect grace period, when active, takes precedence over idle cleanup.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set. In Hold'em: your hole cards, the board, both stacks and bets, whose turn it is, and the legal actions. The opponent's hole cards are omitted until showdown. A fold ends the hand with those cards still hidden. The match ends only when one player has every chip.
 
 ## Deploy to Render
 
@@ -174,3 +174,4 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears after a resolved round. In Tic-Tac-Toe, take turns and confirm each move appears on both screens, and, if a key is set, commentary appears after moves.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to work on an issue and get a change into `main`.
+4. Choose a game and play it through its normal actions. Confirm that both browsers receive the same authoritative result while each player's private information remains hidden from the other player. If a key is set and the game supplies commentary, confirm that a line appears after a supported event.

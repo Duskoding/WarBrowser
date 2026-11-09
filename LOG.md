@@ -11,6 +11,20 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Update game architecture documentation
+
+- **Who:** agent
+- **Issues:** #43
+- **Changed:** Rewrote `SPEC_v2.md` around the current `GameEngine` / `GameModule` / `GuiModule` contracts and updated `README.md` to describe the browser platform, room lifecycle, optional commentary, and the complete current game registry.
+- **Remaining:** none
+
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin
+
+- **Who:** agent
+- **Issues:** #79
+- **Changed:** Added `src/games/poker/` (engine, evaluator, module, public-only commentary) using the shared deck, the Hold'em screen, lobby How to play from `GameModule.rules`, and the decision in `decision.md`. Merged the lobby redesign and same-room replay from `main`; How to play stays under the new game tile.
+- **Remaining:** none
+
 ## 2026-11-09 — Replay completed games
 
 - **Who:** agent (GitHub Copilot)
