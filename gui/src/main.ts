@@ -35,7 +35,7 @@ app.innerHTML = `
         <span class="pc red" style="--r:18deg;--x:70px">J<small>♦</small></span>
       </div>
     </div>
-    <div class="auth-card">
+    <div class="auth-card paper">
       <h2 class="auth-title" id="auth-title">Jump in</h2>
       <form id="auth-form">
         <label>Username
@@ -75,7 +75,7 @@ app.innerHTML = `
       <button id="share-room" class="small" type="button">Share invite</button>
       <button id="leave-room" class="small ghost" type="button">Leave</button>
     </div>
-    <section class="lobby-card" id="waiting-card">
+    <section class="lobby-card paper" id="waiting-card">
       <p class="big-code" id="big-code" aria-hidden="true"></p>
       <p class="status" id="room-status"></p>
       <ul class="players" id="room-players" aria-label="Players"></ul>
@@ -90,7 +90,7 @@ app.innerHTML = `
     <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
-    <div class="splash-card">
+    <div class="splash-card paper">
       <div class="splash-emoji" id="splash-emoji" aria-hidden="true"></div>
       <h2 id="splash-title"></h2>
       <p id="splash-text"></p>
