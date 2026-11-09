@@ -5,12 +5,21 @@ export type Me = {
   wins: number;
   losses: number;
   mustResetPassword: boolean;
+  games: Record<string, { wins: number; losses: number }>;
 };
 
 type ApiResult = {
   ok: boolean;
   status: number;
-  body: { error?: string; username?: string; wins?: number; losses?: number; mustResetPassword?: boolean; ok?: boolean };
+  body: {
+    error?: string;
+    username?: string;
+    wins?: number;
+    losses?: number;
+    games?: Record<string, { wins: number; losses: number }>;
+    mustResetPassword?: boolean;
+    ok?: boolean;
+  };
 };
 
 async function api(path: string, init?: RequestInit): Promise<ApiResult> {
@@ -35,7 +44,8 @@ export async function fetchMe(): Promise<Me | null> {
     username: result.body.username,
     wins: Number(result.body.wins ?? 0),
     losses: Number(result.body.losses ?? 0),
-    mustResetPassword: Boolean(result.body.mustResetPassword)
+    mustResetPassword: Boolean(result.body.mustResetPassword),
+    games: result.body.games ?? {}
   };
 }
 
