@@ -504,7 +504,7 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno"]
+    ["war", "tictactoe", "uno", "rps"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");

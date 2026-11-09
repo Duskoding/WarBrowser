@@ -24,3 +24,10 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** #54
 - **Changed:** Kept the repository-root `AGENTS.md` and `decision.md` tracked; documented the preservation decision.
 - **Remaining:** none
+
+## 2026-11-09 — Implement Rock-Paper-Scissors
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #60
+- **Changed:** Added the RPS engine, tests, server and client module registrations, GUI screen/styles, README coverage, and decision-log entry.
+- **Remaining:** none; typecheck, build, and full test suite pass.
