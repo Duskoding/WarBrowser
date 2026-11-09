@@ -28,7 +28,7 @@ export type GameSummary = {
   name: string;
   description: string;
   players: { min: number; max: number };
-  rules?: string[];
+  rules?: string[]; // "How to play" steps; optional, so a game without them just has no link
 };
 
 // A player's action inside game_message, e.g. { kind: "flip" } in War.

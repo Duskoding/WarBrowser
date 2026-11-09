@@ -44,7 +44,7 @@ export interface GameModule<
   // Room needs at least `min` players before the host can start it, and
   // stops accepting joiners at `max`.
   players: { min: number; max: number };
-  // Optional "How to play" lines, shown from the lobby.
+  // Short "How to play" steps shown under the game's lobby tile, one sentence each.
   rules?: string[];
 
   createEngine(context: GameModuleContext): GameEngine<TState, TAction, TResult>;

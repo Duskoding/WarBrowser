@@ -264,23 +264,28 @@ function renderGameList() {
       );
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
-      if (game.rules?.length) {
-        const how = document.createElement("details");
-        how.className = "how-to-play";
-        const summary = document.createElement("summary");
-        summary.textContent = "How to play";
-        const list = document.createElement("ol");
-        for (const line of game.rules) {
-          const step = document.createElement("li");
-          step.textContent = line;
-          list.append(step);
-        }
-        how.append(summary, list);
-        item.append(how);
-      }
+      if (game.rules?.length) item.append(howToPlay(game));
       return item;
     })
   );
+}
+
+// A "How to play" link under a game's tile that expands its rules. It sits
+// next to the tile, not inside it, so opening it doesn't create a room.
+function howToPlay(game: GameSummary) {
+  const details = document.createElement("details");
+  details.className = "how-to";
+  details.name = "how-to"; // opening one game's rules closes the others
+  details.innerHTML = `<summary>How to play</summary><ol></ol>`;
+  details.querySelector("summary")!.setAttribute("aria-label", `How to play ${game.name}`);
+  details.querySelector("ol")!.append(
+    ...game.rules!.map((rule) => {
+      const li = document.createElement("li");
+      li.textContent = rule;
+      return li;
+    })
+  );
+  return details;
 }
 
 async function loadGames() {

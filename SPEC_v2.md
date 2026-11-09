@@ -1,105 +1,115 @@
-# WarBrowser — Live War, Two Browsers
+# WarBrowser — Live Browser Games
 
-*Spec v2: the original spec, updated where the code in this repository differs from it. Everything not listed under "Changes from v1" at the end is unchanged.*
+This is the current implementation specification for WarBrowser. The site hosts live, server-authoritative browser games in shared rooms. Players authenticate, choose a game in the lobby, share a room code or invite link, and receive real-time state over WebSockets.
 
-Scope for this sprint (60 min): two anonymous players join a room via a shared link and play a live, server-authoritative game of War with an AI commentator. No accounts, no abstraction layers for hypothetical future games — just War, built directly.
+The current server registry contains **War**, **Tic-Tac-Toe**, **Uno**, **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, **Nim**, and **heads-up Hold'em**. Tic-Tac-Toe is the smallest complete example for adding another game.
 
 ## Stack
 
-- **Language:** Node.js (24 or later) + TypeScript, full stack (server and client), single repo. The engine, commentator and client are TypeScript; the server entry point (`server.js`) is plain JavaScript that imports the TypeScript engine directly (Node 24 runs `.ts` natively, so there is no server build step).
-- **Realtime:** WebSockets (`ws` library — no need for Socket.IO's extra features at this scope).
-- **Hosting:** Render (one Web Service running the Node process; it serves the static client build and the WebSocket on the same port).
-- **AI commentator:** Claude API (Haiku-class model, short prompt, fired once per round — optimizes for cost/latency over depth).
+- **Language:** Node.js 24 or later, TypeScript for the game engines and browser client, and a JavaScript server entry point.
+- **Realtime:** WebSockets through the `ws` library.
+- **Hosting:** Render runs one Node.js web service that serves the built client and the WebSocket endpoint.
+- **Persistence:** SQLite is the local fallback; PostgreSQL is used when `DATABASE_URL` is configured. Authentication, sessions, aggregate statistics, and completed match records are shared across games.
+- **Commentary:** optional Claude API integration. Each game supplies a public-information prompt; commentary is non-blocking and skipped when no API key is configured.
 
 ## Architecture
 
-```
-Browser A ──ws──┐                  ┌── ws── Browser B
-                 │                  │
-                 ▼                  ▼
-            ┌─────────────────────────┐
-            │       Node server        │
-            │  - Room manager (Map)    │
-            │  - GameEngine (per room) │
-            │  - Claude API client     │
-            └─────────────────────────┘
+```text
+Browser A ── WebSocket ──┐                 ┌── WebSocket ── Browser B
+                          ▼                 ▼
+                    ┌────────────── Node server ──────────────┐
+                    │ accounts, rooms, seats, protocol        │
+                    │ selected GameModule + GameEngine        │
+                    │ database records and optional commentary │
+                    └─────────────────────────────────────────┘
 ```
 
-Server holds all state in memory, keyed by room code. No database for this sprint.
+The server owns room membership, lifecycle, authentication checks, game state, action validation, and match recording. A room is created for one game and uses that game's module for the match. The browser sends only game actions and renders the per-seat views returned by the server.
 
-`WarEngine`: holds the deck, both players' piles, and round state; exposes `flip(playerId)` and `getState(playerId)`.
+### Game extension contracts
 
-**Multiple games:** each game is a `GameDefinition` in `src/games/` (`id`, `name`, `description`, `players`, and `create()` returning a session with `view(seat, players)` and `act(seat, payload)`), listed in `src/games/index.ts`. `src/games/war.ts` wraps `WarEngine`; `src/games/tictactoe.ts` is a second, small game. A room is created for one game and the server runs that game's session once the room is full. In the browser, each game has a screen in `gui/src/games/<id>/` listed in `gui/src/games/index.ts`, and the lobby lists the games from `GET /api/games`.
+Each game has a server module and a browser module with the same string id. The server remains game-agnostic.
 
-## WebSocket protocol
+- **`GameEngine`** (`src/engine/GameEngine.ts`) is the pure rules contract. An engine implements `apply(seat, action)` and `getState(seat)`. It has no sockets, HTTP, database, or commentary dependencies. `apply` returns `{ ok: false, error }` for invalid actions or `{ ok: true, finished?: { winner } }` when an action succeeds; `winner` is a seat index or `null` for a draw.
+- **`GameModule`** (`src/games/GameModule.ts`) is the server plugin contract. It declares `id`, `name`, `description`, a `{ min, max }` player range, and optional `rules`. It creates an engine with `createEngine`, handles game payloads with `handleAction`, and maps engine state to a per-seat client view with `toView`. A module may request commentary by supplying a prompt to the shared commentator.
+- **`GuiModule`** (`gui/src/games/GuiModule.ts`) is the browser plugin contract. `mount(root, context)` creates the game screen inside its shadow root and returns a screen with `applyState(view)` and `render()`, plus optional `commentary()` and `destroy()`. `isFinished(view)` tells the shared shell when to refresh match statistics. Game styles stay in the module's own CSS.
 
-### Client → Server
+Both registries must list a new game: `src/games/index.ts` and `gui/src/games/index.ts`. `GET /api/games` is generated from the server registry and drives the lobby. Each game's `rules` (short steps) appear under its lobby tile behind a **How to play** link; every registered game sets them, and the games-list server test checks that.
 
-| type | payload | meaning |
+## Room lifecycle
+
+1. A logged-in client sends `create_room` with a `gameId` (default `"war"`). The server creates a six-character room code and records the selected module.
+2. Other logged-in clients send `join_room` with that code. The room accepts seats up to the module's `players.max`.
+3. The host sends `start_game` once at least `players.min` seats are occupied. The server creates the module's engine and broadcasts the initial state.
+4. Clients send game actions inside `game_message`. The server validates the action, applies it, and broadcasts a fresh per-seat view.
+5. After a finished match, either seated player may send `restart_game` to create a fresh engine in the same room.
+6. Leaving or disconnecting discards a running game and keeps the room available for a replacement. Rooms with no client message close after the configured idle timeout, subject to reconnect grace.
+
+## HTTP and WebSocket protocol
+
+HTTP JSON endpoints use the cookie session established by registration or login:
+
+- `POST /api/register` and `POST /api/login` with `{ "username", "password" }`
+- `POST /api/logout`
+- `GET /api/me` → `{ "username", "wins", "losses" }`
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" }, "rules"? }] }`
+
+WebSocket messages are JSON at `/ws`. Creating or joining a room requires a valid login.
+
+### Client → server
+
+| Type | Payload | Meaning |
 | --- | --- | --- |
-| `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
-| `join_room` | `{ roomCode }` | player joins an existing room, up to the game's `max` player count (the invite link `?room=CODE` joins automatically) |
-| `start_game` | `{}` | host-only; starts the room's game once at least `min` players have joined |
-| `restart_game` | `{}` | starts a fresh game in the same room after the previous game has finished |
-| `leave_room` | `{}` | player leaves their room |
-| `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
+| `create_room` | `{ gameId? }` | Create a room for the selected game; omitted `gameId` defaults to `"war"`. |
+| `join_room` | `{ roomCode }` | Join an existing room up to its module's maximum player count. |
+| `start_game` | `{}` | Host-only; start once the module's minimum player count has joined. |
+| `restart_game` | `{}` | Start a fresh match after the current match finishes. |
+| `leave_room` | `{}` | Leave the current room. |
+| `game_message` | `{ payload }` | Carry a game-specific action, such as `{ kind: "flip" }` in War or `{ kind: "move", cell: 0–8 }` in Tic-Tac-Toe. |
 
-### Server → Client
+### Server → client
 
-| type | payload | meaning |
+| Type | Payload | Meaning |
 | --- | --- | --- |
-| `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | confirms the player is in a room, which game it is for, the current roster (join order), and who the host is |
-| `players_update` | `{ players }` | roster changed while waiting for the host to start |
-| `player_left` / `room_left` / `room_closed` | `{ username }` / `{}` / `{ reason }` | a player disconnected or left; any running game is discarded, and the room stays open for a replacement to join. An idle room is closed with `reason: "idle"` and connected clients return to the lobby |
-| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
-| `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
-| `error` | `{ message }` | room full, invalid move, etc. |
+| `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | Confirm room membership, selected game, host, roster, and player range. |
+| `players_update` | `{ players }` | Update the waiting-room roster before the match starts. |
+| `player_left` | `{ username }` | A player left or disconnected; a running game is discarded. |
+| `room_left` | `{}` | The current client left its room. |
+| `room_closed` | `{ reason: "idle" }` | The room expired after inactivity. |
+| `game_message` | `{ payload: { kind: "state", view } }` | Authoritative state mapped for the receiving seat. |
+| `game_message` | `{ payload: { kind: "commentary", text, round } }` | Optional public commentary from the selected game. |
+| `error` | `{ message }` | Invalid room, action, lifecycle transition, or authentication-related request. |
 
-Each player gets their own view of the same state (`yourCard`/`opponentCard` and the two counts swap per player; `winner` is `"you"` or `"opponent"`). There is no private information in War: each player sees the other's card the moment it is flipped, even if they have not flipped yet, so the two views always show the same cards. Clients cannot send `state` or `commentary`; only the server can.
+Views are game-specific and may include private information for the receiving seat, but must never expose another player's hidden information. Clients cannot send `state` or `commentary`; only the server can.
 
-Three view fields make a war readable on screen: `inWar` stays `true` for the whole war (the phase alone is not enough, because it becomes `flipped` as soon as one player flips their war card), `warCards` lists the tied pairs so far as `{ yours, opponent }` (more than one when wars chain), and `lastRound` — `{ wasWar, winner: "you" | "opponent" | null, cardsWon }` — describes the round that just resolved until the next flip starts a new one.
+## War rules
 
-## War rules (this implementation)
+- A standard 52-card deck is split 26/26 between two players.
+- Both players flip their top card. The higher card wins both; aces are high.
+- A tie starts a war. Each player burns up to three cards face-down, then flips again. A player with fewer than four cards burns what is available and keeps a card to flip.
+- A tied flip starts another war. The winner takes the whole pot, and collected cards are shuffled before going to the bottom of that player's pile.
+- If both players run out of cards during a tie-break, the result is a draw. Otherwise the game ends when one player holds all 52 cards.
 
-- Standard 52-card deck, split 26/26, no jokers.
-- Both players flip their top card simultaneously (server waits for both `flip` messages before resolving).
-- Higher card takes both cards into the winner's pile. Ace high. Won cards go to the bottom of the winner's pile in random order.
-- Tie → "war": each player burns 3 cards face-down (the server does this automatically), then each sends one more `flip` for the face-up card. The tied cards stay on screen for the whole war (as `warCards`), and the UI keeps its war banner until the war resolves and then reports who won it and how many cards they took. Winner of that flip takes the whole pot — the tied cards, the burned cards and the new flips (10 cards for a single war), or more if the new flips also tie — war chains. If a player has fewer than 4 cards left during a war, they burn what they can and flip whatever they have left, always keeping one card to flip (standard "all-in" tie-break). A player with no card left to continue after a tie loses the war; if both are out, the game is a draw.
-- Game ends when one player holds all 52 cards, or (for sprint demo purposes) after a fixed round cap if you want a guaranteed-short demo — flag this as a `maxRounds` config, default off (an engine option; the server does not enable it).
+## Adding a game
 
-## AI commentator
+1. Add `src/games/<id>/` with a `GameEngine` implementation and a `GameModule` export.
+2. Register the server module in `src/games/index.ts`; its metadata and `rules` then appear in `GET /api/games` and the lobby's How to play link. Give it `rules`: the games-list test fails for a game without them.
+3. Add `gui/src/games/<id>/<id>.ts` exporting a `GuiModule`, with styles beside it. Render only inside the supplied shadow root and use `setBackground` for page background changes.
+4. Register the screen in `gui/src/games/index.ts`.
+5. Add engine tests next to the game and run `npm test`.
 
-- Fires server-side after each round resolves (not on every message — only on round resolution, to control cost).
-- Prompt gets a compact summary: cards flipped, who won, running score, whether it was a war. Keep the prompt short and the requested output short (one sentence) — this is what keeps it cheap and low-latency.
-- Commentary is broadcast to both players as a `game_message` with `kind: "commentary"` (tagged with the round number) alongside/after the `state` message. If the API call is slow, don't block gameplay on it — `state` always goes out immediately; commentary arrives when it arrives.
+The server handles accounts, rooms, invite links, seats, lifecycle, and shared match records. A game module owns only its rules, actions, views, and optional commentary prompt.
 
-## Team split (5 people) — proposed, reassign freely
+## Deployment and validation
 
-1. **Game engine (one person)** — `WarEngine`: deck/shuffle/deal/flip/war logic, unit tests; also owns the engine's types.
-2. **Server/realtime** — ws server, room manager, socket message handling, wiring GameEngine to sockets.
-3. **Client UI** — board rendering, flip button, card/pile/score display, connecting to the socket.
-4. **AI commentator integration** — Claude API call, prompt, wiring the commentary broadcast into the server.
-5. **Deploy + QA** — Render setup, env vars/secrets (Claude API key), smoke-testing two-browser play, demo script.
+The Render Blueprint uses `npm ci --include=dev && npm run build` to build the client and `npm start` to serve the application. The server reads `PORT`; secure WebSockets are selected automatically when the page is served over HTTPS.
 
-## 60-minute build order
+For local development:
 
-- **0–10 min:** scaffold repo (TS config, ws server listening, minimal static client), confirm everyone can run it locally. Agree on the message protocol above before splitting.
-- **10–40 min (parallel):** 1 builds `WarEngine` against the interface with unit tests; 2 builds room manager + socket wiring against a stubbed engine; 3 builds client UI against the message protocol (can fake server responses locally); 4 builds the Claude API call against a mocked round summary; 5 sets up the Render service and env vars.
-- **40–55 min:** integrate everything — wire `WarEngine` into the server, client into real sockets, commentator into the real broadcast. Play a full game in two browser tabs.
-- **55–60 min:** deploy to Render, smoke test from two separate machines/networks if possible, run the demo script.
+```bash
+npm install
+npm run build
+npm start
+```
 
-## Changes from v1
-
-What changed from the original spec, and why:
-
-- **Stack:** the server entry point is plain JavaScript rather than TypeScript, importing the TypeScript engine directly. Node 24 runs `.ts` natively, so the server needs no build step; the trade-off is that Node 24 or later is required.
-- **Protocol:** `join { roomId }` and top-level `flip` / `state` / `commentary` became `create_room` / `join_room` / `leave_room` plus a `game_message` envelope. The room server and client were built first as a generic two-player relay, and the engine was integrated behind it instead of rewriting both.
-- **Rooms:** a server-generated 6-character code (with a shareable `?room=CODE` link) replaced a caller-chosen `roomId`, so players can't collide on a name.
-- **State:** each player gets a view relative to themselves (`yourCount` / `opponentCount`) instead of `scoreA` / `scoreB`; the engine's own `getState(playerId)` still returns `scoreA` / `scoreB` plus `round` and `winner`, and the server converts it.
-- **Card visibility:** v1 kept the opponent's card face-down until both players had flipped. v2 shows each flipped card to the opponent immediately, because War has no private cards and players expect to see each other's flips as they happen.
-- **Commentary:** carries the round number, so the client can ignore a slow reply for an older round.
-- **War:** the burn is automatic and each player sends one flip after it; the tied cards, a war flag and the result of the last round are part of the state view, so the UI shows the whole war instead of only the moment of the tie; the winner's collected cards are shuffled before they go to the bottom of their pile, which prevents endless identical cycles.
-- **Game end:** a draw (both players out of cards) is possible and has no winner.
-- **Team:** the game engine was built by one person, so the two engine roles became one and the build order refers to 5 roles.
-- **Repo:** the client and server share one root `package.json` (one install, one build), and `render.yaml` defines the Render service.
-- **Multiple games:** v1 deliberately built only War, with no abstraction for future games. The site now hosts several games: a lobby to choose one, a `GameDefinition` interface on the server and a `ClientGame` interface in the browser, with War moved onto them unchanged and Tic-Tac-Toe added as a second game. `create_room` takes a `gameId`, room messages report it, and `GET /api/games` lists the games. Win/loss records are shared across games.
+Use two browser windows with separate accounts to create and join a room. `npm run typecheck` checks the TypeScript contracts, and `npm test` builds the client before running the engine and server tests.

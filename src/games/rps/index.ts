@@ -12,6 +12,12 @@ export const rps: GameModule<RpsState, RpsAction, RpsResult> = {
   name: "Rock-Paper-Scissors",
   description: "Choose rock, paper, or scissors. First to three round wins takes the match.",
   players: { min: 2, max: 2 },
+  rules: [
+    "Each round, both players secretly pick rock, paper or scissors.",
+    "Rock beats scissors, scissors beats paper, and paper beats rock. The same pick is a tie and nobody scores.",
+    "Both picks are shown once both players have chosen.",
+    "The first player to win three rounds wins the match.",
+  ],
 
   createEngine() {
     return new RpsEngine();

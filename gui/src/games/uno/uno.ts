@@ -17,6 +17,9 @@ type UnoView = {
   currentSeat: number;
   yourTurn: boolean;
   drawPileCount: number;
+  calledUno: boolean[]; // by seat: who has called UNO for their current hand
+  catchable: number | null; // seat that forgot to call UNO and can be caught
+  pendingDraw: number; // stacked Draw Two / Draw Four cards the current player must take unless they stack
   round: number; // moves so far; matches the commentary's round
   over: boolean;
   winnerSeat: number | null;
@@ -43,8 +46,12 @@ const sameCard = (a: Card, b: Card) => a.color === b.color && a.rank === b.rank;
 
 // Same rule as UnoEngine.canPlay; only used to highlight cards. The server
 // still checks every move.
+// While a penalty waits, only stacking is allowed: Draw Two on Draw Two, and
+// Wild Draw Four on either.
 const canPlay = (card: Card, v: UnoView) =>
-  isWild(card) || card.color === v.activeColor || card.rank === v.discardTop.rank;
+  v.pendingDraw > 0
+    ? card.rank === "wildDrawFour" || (card.rank === "drawTwo" && v.discardTop.rank === "drawTwo")
+    : isWild(card) || card.color === v.activeColor || card.rank === v.discardTop.rank;
 
 // Sort for display by color, then rank; each card keeps its server index.
 const COLOR_ORDER = (card: Card) => (card.color ? COLORS.indexOf(card.color) : COLORS.length);
@@ -63,13 +70,24 @@ function cardElement(card: Card, tag: "button" | "div" = "div"): HTMLElement {
 // A built-in line about the move that just happened, worked out by comparing
 // two views. Shown in the commentary box until the AI line for that move arrives.
 function describeMove(before: UnoView, after: UnoView): string | null {
+  const name = (s: number) => (s === after.yourSeat ? "You" : after.names[s] ?? `Player ${s + 1}`);
+  // Calling and catching can come from any seat, so check them first.
+  const caught = before.catchable;
+  if (caught !== null && after.catchable === null && after.handCounts[caught] > before.handCounts[caught]) {
+    return `${name(caught)} didn't call UNO and got caught: +2 cards!`;
+  }
+  const caller = after.calledUno.findIndex((called, s) => called && !before.calledUno[s]);
+  if (caller !== -1) return `${name(caller)} called UNO!`;
+
   const seat = before.currentSeat;
-  const who = seat === after.yourSeat ? "You" : after.names[seat] ?? `Player ${seat + 1}`;
+  const who = name(seat);
   if (!sameCard(before.discardTop, after.discardTop) || after.handCounts[seat] < before.handCounts[seat]) {
     const chose = isWild(after.discardTop) ? ` and chose ${COLOR_NAMES[after.activeColor]}` : "";
     return `${who} played ${cardName(after.discardTop)}${chose}.`;
   }
-  if (after.handCounts[seat] > before.handCounts[seat]) return `${who} drew a card.`;
+  const drew = after.handCounts[seat] - before.handCounts[seat];
+  if (drew > 1) return `${who} drew ${drew} cards!`;
+  if (drew === 1) return `${who} drew a card.`;
   return null;
 }
 
@@ -85,6 +103,7 @@ export const uno: GuiModule = {
         <div class="center">
           <button class="draw-pile" data-id="draw" aria-label="Draw a card">
             <span class="back">UNO</span><span class="count" data-id="count"></span>
+            <span class="penalty" data-id="penalty" hidden></span>
           </button>
           <div data-id="top" aria-label="Top of the discard pile"></div>
           <div class="current" data-id="current">
@@ -92,6 +111,10 @@ export const uno: GuiModule = {
           </div>
         </div>
         <p class="status" data-id="status" aria-live="polite"></p>
+        <div class="actions">
+          <button class="uno-call" data-id="uno" hidden>UNO!</button>
+          <button class="ghost" data-id="catch" hidden></button>
+        </div>
         <div class="picker" data-id="picker" hidden>
           <p>Choose a color</p>
           <div class="swatches">
@@ -120,6 +143,8 @@ export const uno: GuiModule = {
     };
 
     $("draw").addEventListener("click", () => act({ kind: "draw" }));
+    $("uno").addEventListener("click", () => act({ kind: "uno" }));
+    $("catch").addEventListener("click", () => act({ kind: "catch" }));
     $("cancel").addEventListener("click", () => {
       pendingWild = null;
       render();
@@ -145,12 +170,16 @@ export const uno: GuiModule = {
           li.classList.toggle("turn", !v.over && seat === v.currentSeat);
           li.classList.toggle("winner", seat === v.winnerSeat);
           li.classList.toggle("last-card", count === 1 && !v.over);
+          li.classList.toggle("catchable", v.catchable === seat && !v.over);
           li.innerHTML = `<strong></strong><span class="backs" aria-hidden="true"></span><span class="count"></span>`;
           li.querySelector("strong")!.textContent = v.names[seat] ?? `Player ${seat + 1}`;
           li.querySelector(".backs")!.append(
             ...Array.from({ length: Math.min(count, 10) }, () => Object.assign(document.createElement("span"), { className: "mini-back" }))
           );
-          li.querySelector(".count")!.textContent = `${count} card${count === 1 ? "" : "s"}${count === 1 && !v.over ? " · UNO!" : ""}`;
+          let note = "";
+          if (!v.over && v.catchable === seat) note = " · forgot UNO!";
+          else if (!v.over && count === 1 && v.calledUno[seat]) note = " · UNO!";
+          li.querySelector(".count")!.textContent = `${count} card${count === 1 ? "" : "s"}${note}`;
           return li;
         })
       );
@@ -184,8 +213,15 @@ export const uno: GuiModule = {
 
     function statusText(v: UnoView) {
       if (v.over) return v.winnerSeat === v.yourSeat ? "You win! 🎉" : `${playerName(v, v.winnerSeat ?? 0)} wins!`;
+      if (v.catchable === v.yourSeat) return "Call UNO before someone catches you!";
       if (!v.yourTurn) return `${playerName(v, v.currentSeat)}'s turn…`;
       if (pendingWild !== null) return "Pick a color for your wild card";
+      if (v.pendingDraw > 0) {
+        const stack = v.discardTop.rank === "wildDrawFour" ? "a +4" : "a +2 or +4";
+        return v.hand.some((card) => canPlay(card, v))
+          ? `Stack ${stack}, or draw ${v.pendingDraw} cards`
+          : `Draw ${v.pendingDraw} cards`;
+      }
       return v.hand.some((card) => canPlay(card, v)) ? "Your turn: play a card or draw" : "Your turn: no match, draw a card";
     }
 
@@ -202,7 +238,22 @@ export const uno: GuiModule = {
 
       const draw = $<HTMLButtonElement>("draw");
       draw.disabled = !v.yourTurn || v.over || waiting;
+      draw.setAttribute("aria-label", v.yourTurn && v.pendingDraw > 0 ? `Draw ${v.pendingDraw} cards` : "Draw a card");
+      $("penalty").hidden = v.pendingDraw === 0 || v.over;
+      $("penalty").textContent = `+${v.pendingDraw}`;
       draw.classList.toggle("hint", !draw.disabled && !v.hand.some((card) => canPlay(card, v)));
+
+      // Same conditions the server checks; it still has the final say.
+      const n = v.hand.length;
+      const canCall = !v.over && !v.calledUno[v.yourSeat] && (n === 1 || (n === 2 && v.yourTurn));
+      const uno = $<HTMLButtonElement>("uno");
+      uno.hidden = !canCall;
+      uno.disabled = waiting;
+      const target = v.catchable;
+      const catchButton = $<HTMLButtonElement>("catch");
+      catchButton.hidden = v.over || target === null || target === v.yourSeat;
+      catchButton.disabled = waiting;
+      if (target !== null) catchButton.textContent = `Catch ${v.names[target] ?? `Player ${target + 1}`}!`;
       $("picker").hidden = pendingWild === null;
       $("status").textContent = statusText(v);
       renderHand(v);

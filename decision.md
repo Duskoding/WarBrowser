@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Keep Play again beside the current game docs (#75)
+
+- **Decision:** Merge the documentation update from `main` into `issue-75-add-play-again` and keep both the Play again decisions and the architecture-doc decision. `rematch` stays the Play again path.
+- **Made by:** agent
+- **Reason:** `main` moved again with the game-architecture docs. The pull request has to contain that history and still wait for every seated player before a new game.
+
 ## 2026-11-09 — Keep Play again beside Hold'em and the replay remount (#75)
 
 - **Decision:** Merge the later `main` (Hold'em and the replay screen remount) into `issue-75-add-play-again` without dropping `rematch`. A finished screen is remounted when the next game's first state arrives. The commentary-after-replay test stays on `restart_game`. Play again still waits for every seated player.
@@ -23,6 +29,12 @@
 - **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
 - **Made by:** agent, with seats and the opponent notice chosen by Shulamit
 - **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
+## 2026-11-09 — Align README and specification with the current game architecture (#43)
+
+- **Decision:** Replace the stale single-game and `GameDefinition`/`ClientGame` descriptions with the current server-authoritative multi-game architecture. Document the live game registry from merged PR #70 and subsequent additions, and describe `GameEngine`, `GameModule`, and `GuiModule` as the extension contracts.
+- **Made by:** agent
+- **Reason:** README and `SPEC_v2.md` must describe the code that contributors and users actually run, including the lobby, room lifecycle, per-seat views, and the complete current game list.
 
 ## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
 
@@ -287,3 +299,24 @@
 - **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
 - **Made by:** agent
 - **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
+## 2026-11-09 — "How to play" rules in the lobby (#67)
+
+- **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors are new; Crazy Eights, Go Fish, Goofspiel, Connect Four, Dots and Boxes and Battleship reuse the text from draft PR #70, checked against the engines merged in PR #88. All of them match each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.
+- **Made by:** user (Ariella, assigned #67) asked for it; design by agent
+- **Reason:** Players can learn a game before starting a room, and adding rules to a future game needs no lobby changes.
+
+## 2026-11-09 — Uno: calling UNO, catching, and stacking draw cards
+
+- **Decision:** Add two Uno rules that the engine (#84) had left out on purpose.
+  - **Calling UNO:** new `uno` and `catch` actions, allowed out of turn. You can call UNO on your turn with two cards (before playing one) or any time with one card. Play down to one card without calling it and any other player can catch you (+2 cards) until the next card is played or drawn. Drawing cards cancels a call.
+  - **Stacking:** Draw Two and Wild Draw Four no longer make the next player draw straight away. The penalty waits (`pendingDraw`), and that player can stack a Draw Two on a Draw Two, or a Wild Draw Four on either, to add to it and pass it on, or draw the whole total and lose their turn. A Draw Two can't go on a Wild Draw Four. While a penalty waits, no other card can be played.
+  - The view gains `calledUno`, `catchable` and `pendingDraw`. The Uno screen adds UNO! and Catch buttons, a +N badge on the draw pile, matching status text, and lines in the move log; Uno's How to play steps describe both rules.
+- **Made by:** user (Ariella): asked for UNO calls to work and for stacking with "+2 can't stack on a +4, +4 can stack on a +2"; implementation details by agent
+- **Reason:** Players expected to call UNO, and the team wants stacking. Both replace house-rule defaults noted in `src/games/uno/types.ts`, which is updated to match.
+
+## 2026-11-09 — One "How to play" implementation after merging poker (#98)
+
+- **Decision:** PR #98 (poker) added its own `rules` field and a plain `.how-to-play` dropdown in the lobby, which overlapped issue #67's version. When merging `main` into the #67 branch, keep the #67 lobby link (`howToPlay()` and the `.how-to` styles: keyboard focus style, one open at a time, panel layout on wide screens), remove the `.how-to-play` markup and styles, and keep poker's rules text, which now shows through the same link. `gameSummaries()` keeps #98's version, which leaves `rules` out when a game has none.
+- **Made by:** agent, resolving merge conflicts at the user's request (Ariella)
+- **Reason:** Two implementations would show two How to play links on the poker tile. #98's own decision entry notes that the rules contract belongs to #67.
