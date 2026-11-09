@@ -237,8 +237,8 @@
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
 
-## 2026-11-09 — Full game test coverage
+## 2026-11-09 — Drop the added game test coverage
 
-- **Decision:** Cover every game with a `<id>.scenarios.test.ts` beside its existing tests (every rule branch and error message, payload validation, `finished` only on the ending action, commentary, per-seat views without hidden-info leaks), plus `src/games/contract.test.ts`, which checks module metadata and plays every game to the end with seeded random moves at its minimum, 3-player and maximum seat counts. Along the way it asserts that rejected actions leave every view unchanged, that the winner is a valid seat or null, and that every move is refused once the game is over. A server test starts a room for every listed game. Engine/module source is unchanged; issues found are reported rather than fixed in this change.
-- **Made by:** user (asked for full tests of every game and scenario); test design by agent
-- **Reason:** The contract test catches a new game that can deadlock, mutate state on a rejected move, or keep accepting moves after the end without having to write those checks per game.
+- **Decision:** Revert the scenario tests, the cross-game contract test and the every-game server test added earlier today on `claude/affectionate-wright-11y5g5`; the repository's tests are back to what `main` has.
+- **Made by:** user (someone else is writing these tests)
+- **Reason:** Avoid duplicate, conflicting test work.
