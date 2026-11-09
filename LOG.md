@@ -17,3 +17,10 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** none
 - **Changed:** Added `LOG.md`, linked it from `AGENTS.md`, and documented the decision in `decision.md`.
 - **Remaining:** none
+
+## 2026-11-09 — Keep project guidance files tracked
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #54
+- **Changed:** Kept the repository-root `AGENTS.md` and `decision.md` tracked; documented the preservation decision.
+- **Remaining:** none
