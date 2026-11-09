@@ -17,6 +17,12 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** #73
 - **Changed:** Show a record on every lobby tile and update the tiles when the overall record refreshes. Save the result before sending the final view.
 - **Remaining:** Review and merge.
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin
+
+- **Who:** agent
+- **Issues:** #79
+- **Changed:** Added `src/games/poker/` (engine, evaluator, module, public-only commentary) using the shared deck, the Hold'em screen, lobby How to play from `GameModule.rules`, and the decision in `decision.md`. Merged the lobby redesign and same-room replay from `main`; How to play stays under the new game tile.
+- **Remaining:** none
 
 ## 2026-11-09 — Replay completed games
 

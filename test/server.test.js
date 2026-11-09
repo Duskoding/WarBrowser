@@ -529,7 +529,7 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim", "poker"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
@@ -538,6 +538,7 @@ test("lists the available games", async () => {
     assert.equal(typeof game.players.max, "number");
   }
   assert.deepEqual(games.find((g) => g.id === "uno").players, { min: 2, max: 8 });
+  assert.ok(games.find((g) => g.id === "poker").rules.length >= 1);
 });
 
 test("rejects a room for a game that doesn't exist", async () => {
