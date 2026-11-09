@@ -7,6 +7,7 @@ import { gofish } from "./gofish/gofish";
 import { goofspiel } from "./goofspiel/goofspiel";
 import { rps } from "./rps/rps";
 import { ticTacToe } from "./tictactoe/tictactoe";
+import { uno } from "./uno/uno";
 import { war } from "./war/war";
 
 // Every game the browser can draw, by server game id. A game the server lists
@@ -14,6 +15,7 @@ import { war } from "./war/war";
 export const clientGames: Record<string, GuiModule> = {
   [war.id]: war,
   [ticTacToe.id]: ticTacToe,
+  [uno.id]: uno,
   [crazy8.id]: crazy8,
   [gofish.id]: gofish,
   [rps.id]: rps,

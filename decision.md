@@ -29,11 +29,18 @@
 - **Decision:** The ported `GameModule` objects for Crazy Eights and Go Fish do not include the `rules` field that PR #70 added. The lobby "How to play" feature is tracked in issue #67, which is assigned to someone else, and will define that field.
 - **Made by:** agent
 - **Reason:** Adding `rules` now would define a contract that issue #67 owns. Leaving it out keeps this change to game rules and screens, and the field can be added to both games when #67 lands.
+## 2026-11-09 — Close idle rooms without interrupting reconnect grace (#83)
+
+- **Decision:** Track the last client message for every room and close rooms after `ROOM_IDLE_TIMEOUT_MS`, defaulting to 30 minutes. Send connected players a `room_closed` event with `reason: "idle"` so the client returns to the lobby, and defer cleanup while a room's reconnect grace deadline is active.
+- **Made by:** agent
+- **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
+
 ## 2026-11-09 — Cap AI commentary calls per room and server (#80)
 
 - **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
 - **Made by:** agent (GitHub Copilot)
 - **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
+
 ## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
 
 - **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
@@ -193,3 +200,9 @@
 - **Decision:** Treat issue #40 as done. Leave `gui/src/connection.ts` where it is. It is already the shared GUI socket client: `gui/src/main.ts` is the only importer, and game screens send through the shell. Do not add a `gui/src/infra/` or `gui/src/shared/` folder for it.
 - **Made by:** agent
 - **Reason:** PR #25 put this boundary in place by moving game screens under `gui/src/games/` and keeping `connection.ts` in the shared lobby shell. Issue #40 was filed after that pull request merged. It is one task under parent issue #27 (extract the shared core), which stays open. Moving the file now would only change import paths and the preview alias.
+
+## 2026-11-09 — Uno GUI module (#36)
+
+- **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
+- **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
+- **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
