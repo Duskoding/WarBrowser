@@ -16,13 +16,13 @@ button {
   padding: 0.65rem 2rem;
   border: none;
   border-radius: 12px;
-  background: #ff5a36;
-  color: #fff;
+  background: #f5c542;
+  color: #1d1a0e;
   cursor: pointer;
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 8px 20px rgb(0 0 0 / 0.3);
   transition: background 0.15s ease, transform 0.1s ease;
 }
-button:hover:not(:disabled) { background: #ff7152; }
+button:hover:not(:disabled) { background: #ffd35c; }
 button:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

@@ -1,18 +1,20 @@
 /* WarBrowser shell: accounts, lobby and rooms. Game screens live in their own
    shadow roots and only change the page through setBackground. */
 :root {
-  --bg: #0e0e13;
-  --surface: #17171f;
-  --surface-2: #1f1f29;
+  /* The felt green the site has always used. */
+  --bg: #1f6b3a;
+  --field: #11432a;
+  --surface: #185a32;
+  --surface-2: #1d6539;
   --line: rgb(255 255 255 / 0.08);
   --line-strong: rgb(255 255 255 / 0.16);
   --ink: #f5f3ee;
-  --muted: #9b99a6;
-  --accent: #ff5a36;
-  --accent-hover: #ff7152;
-  --accent-ink: #fff;
-  --win: #4ade80;
-  --loss: #ff5a6e;
+  --muted: #b5d0bd;
+  --accent: #f5c542;
+  --accent-hover: #ffd35c;
+  --accent-ink: #1d1a0e;
+  --win: #a6f5bd;
+  --loss: #ffb0a3;
   --text: var(--ink);
   --radius: 16px;
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
@@ -29,7 +31,7 @@ body {
   min-height: 100vh;
   font: 400 16px/1.5 var(--font-body);
   /* A single soft light at the top; games replace this with setBackground. */
-  background: radial-gradient(70rem 28rem at 50% -8rem, rgb(255 90 54 / 0.16), transparent 70%), var(--bg);
+  background: radial-gradient(70rem 36rem at 50% -10rem, #2b8350, transparent 70%), var(--bg);
   background-repeat: no-repeat;
   background-color: var(--bg);
   color: var(--ink);
@@ -64,9 +66,9 @@ body {
   height: 2rem;
   border-radius: 9px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   font-size: 1.1rem;
-  box-shadow: 0 6px 18px rgb(255 90 54 / 0.35);
+  box-shadow: 0 6px 18px rgb(245 197 66 / 0.3);
 }
 .topbar-right { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .conn {
@@ -95,7 +97,7 @@ body {
 .me-chip .rec, .rec { font: 600 0.8rem var(--font-mono); color: var(--muted); }
 .rec b { color: var(--win); font-weight: 600; }
 .rec i { color: var(--loss); font-style: normal; }
-.me-chip .streak { color: #ffc53d; font-size: 0.85rem; }
+.me-chip .streak { color: var(--accent); font-size: 0.85rem; }
 
 .avatar {
   display: inline-grid;
@@ -119,7 +121,7 @@ button {
   background: var(--accent);
   color: var(--accent-ink);
   cursor: pointer;
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 8px 20px rgb(255 90 54 / 0.25);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 8px 20px rgb(0 0 0 / 0.2);
   transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 button:hover:not(:disabled) { background: var(--accent-hover); }
@@ -138,14 +140,14 @@ button.ghost:hover:not(:disabled) { background: var(--surface-2); }
 input {
   font: 600 1rem var(--font-body);
   color: var(--ink);
-  background: var(--bg);
+  background: var(--field);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-input::placeholder { color: #66646f; }
-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(255 90 54 / 0.22); }
+input::placeholder { color: #7fa58b; }
+input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(245 197 66 / 0.3); }
 
 /* ---- Sign in ---- */
 .auth {
@@ -373,7 +375,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
   width: clamp(2.3rem, 11vw, 3.1rem);
   height: clamp(3rem, 14vw, 3.9rem);
   border-radius: 10px;
-  background: var(--bg);
+  background: var(--field);
   border: 1px solid var(--line-strong);
   font: 600 clamp(1.4rem, 6vw, 2rem)/1 var(--font-mono);
   animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.3) both;
@@ -440,7 +442,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgb(8 8 12 / 0.72);
+  background: rgb(6 32 17 / 0.72);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: fade-in 0.2s ease both;

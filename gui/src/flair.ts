@@ -3,10 +3,10 @@
 
 export type GameFlair = { icon: string; a: string; b: string; badge?: string };
 
-const FALLBACK: GameFlair = { icon: "🎲", a: "#ff5a36", b: "#ff5a36" };
+const FALLBACK: GameFlair = { icon: "🎲", a: "#ff7a59", b: "#ff7a59" };
 
 const FLAIR: Record<string, GameFlair> = {
-  war: { icon: "⚔️", a: "#ff5a36", b: "#ff5a36", badge: "Popular" },
+  war: { icon: "⚔️", a: "#ff7a59", b: "#ff7a59", badge: "Popular" },
   tictactoe: { icon: "⭕", a: "#4cc9f0", b: "#4cc9f0", badge: "Quick" },
   uno: { icon: "🃏", a: "#ffc53d", b: "#ffc53d", badge: "Party" },
   crazy8: { icon: "🎱", a: "#b47cff", b: "#b47cff" },

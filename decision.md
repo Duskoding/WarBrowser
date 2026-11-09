@@ -212,3 +212,9 @@
 - **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
 - **Made by:** user (asked for an "explosive and viral" UI and rejected the neon pass) and agent (design and implementation)
 - **Reason:** Sharing a room and celebrating a win are the moments that spread a two-player game; doing them in the shell gives every game the same treatment without touching game modules, the server or the room protocol. Motion is limited and honours `prefers-reduced-motion`.
+
+## 2026-11-09 — Keep the green felt as the site color
+
+- **Decision:** Use the site's existing felt green (`#1f6b3a`) as the shell background, with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
+- **Made by:** user (asked to keep the green) and agent (gold accent, surface shades)
+- **Reason:** The team likes the green; gold was the site's original button color and reads well on felt, where coral clashed.
