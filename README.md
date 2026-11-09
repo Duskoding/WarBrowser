@@ -2,13 +2,13 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, and **Nim**.
+Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, **Nim**, and **heads-up Hold'em**.
 
 ## How it works
 
 The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and public Hold'em moments) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set. Hold'em prompts leave out hole cards.
 
 ## Features
 
@@ -19,7 +19,7 @@ An AI commentator can add a short description after game events (War rounds and 
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
+- AI-generated commentary for War, Tic-Tac-Toe, and Hold'em (optional, needs an Anthropic API key). Hold'em commentary uses public facts only.
 
 ## War rules
 
@@ -33,7 +33,7 @@ An AI commentator can add a short description after game events (War rounds and 
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`, `poker/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
 | `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
@@ -140,12 +140,12 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
 
 - `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" }, "rules"? }] }` (`rules` is a list of "How to play" steps, left out for a game that has none)
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `restart_game` (after the current game finishes), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `restart_game` (after the current game finishes), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe, `{ "kind": "fold" | "check" | "call" | "raise" | "next_hand" }` in Hold'em (`raise` includes `to`).
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `room_left`, `room_closed` (`reason: "idle"` when the room had no messages for the configured idle timeout), `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`; after a finished game, either player can send `restart_game` to start a fresh match in the same room.
 
 Rooms close after 30 minutes without a client message by default. Set `ROOM_IDLE_TIMEOUT_MS` to change the timeout; invalid or non-positive values use the 30-minute default. A reconnect grace period, when active, takes precedence over idle cleanup.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, who has called UNO (`calledUno`), who can be caught for not calling it (`catchable`), the stacked draw penalty waiting for the current player (`pendingDraw`), and the winning seat. Uno's actions are `{ "kind": "play", "cardIndex", "chosenColor"? }`, `{ "kind": "draw" }` (takes the whole penalty when `pendingDraw` is above 0), and, at any time, `{ "kind": "uno" }` and `{ "kind": "catch" }`. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, who has called UNO (`calledUno`), who can be caught for not calling it (`catchable`), the stacked draw penalty waiting for the current player (`pendingDraw`), and the winning seat. Uno's actions are `{ "kind": "play", "cardIndex", "chosenColor"? }`, `{ "kind": "draw" }` (takes the whole penalty when `pendingDraw` is above 0), and, at any time, `{ "kind": "uno" }` and `{ "kind": "catch" }`. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set. In Hold'em: your hole cards, the board, both stacks and bets, whose turn it is, and the legal actions. The opponent's hole cards are omitted until showdown. A fold ends the hand with those cards still hidden. The match ends only when one player has every chip.
 
 ## Deploy to Render
 

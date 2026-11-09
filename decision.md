@@ -1,5 +1,14 @@
 # Decision log
 
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
+
+- **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
+- **Decision:** Use the shared deck already in `src/games/shared/cards.ts` on `main`. Poker imports it and does not replace that file or move Uno onto it.
+- **Decision:** Add an optional `rules?: string[]` on `GameModule`, include it in `GET /api/games` when a game sets it, and show those lines as a lobby **How to play** disclosure next to the game tile (a sibling of the button, so opening it does not cover the tile). The disclosure is generic lobby behavior, not poker code in `gui/src/main.ts` or `server.js`. Poker is `{ min: 2, max: 2 }` and is the only game that fills `rules` here.
+- **Decision:** Hole cards are visible to the other seat only after a showdown, which `SPEC_POKER.md` already requires. They stay hidden for the whole hand on a fold. Commentary is included, per Shulamit's request, but only from a `PublicMoment` that has no hole cards: the action, board, pot, stacks, and (at showdown) the hand name.
+- **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
+- **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
+
 ## 2026-11-09 — Remount game screens when replay starts
 
 - **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
@@ -269,3 +278,9 @@
   - The view gains `calledUno`, `catchable` and `pendingDraw`. The Uno screen adds UNO! and Catch buttons, a +N badge on the draw pile, matching status text, and lines in the move log; Uno's How to play steps describe both rules.
 - **Made by:** user (Ariella): asked for UNO calls to work and for stacking with "+2 can't stack on a +4, +4 can stack on a +2"; implementation details by agent
 - **Reason:** Players expected to call UNO, and the team wants stacking. Both replace house-rule defaults noted in `src/games/uno/types.ts`, which is updated to match.
+
+## 2026-11-09 — One "How to play" implementation after merging poker (#98)
+
+- **Decision:** PR #98 (poker) added its own `rules` field and a plain `.how-to-play` dropdown in the lobby, which overlapped issue #67's version. When merging `main` into the #67 branch, keep the #67 lobby link (`howToPlay()` and the `.how-to` styles: keyboard focus style, one open at a time, panel layout on wide screens), remove the `.how-to-play` markup and styles, and keep poker's rules text, which now shows through the same link. `gameSummaries()` keeps #98's version, which leaves `rules` out when a game has none.
+- **Made by:** agent, resolving merge conflicts at the user's request (Ariella)
+- **Reason:** Two implementations would show two How to play links on the poker tile. #98's own decision entry notes that the rules contract belongs to #67.

@@ -273,7 +273,12 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 @media (max-width: 520px) { .game-list { --cols: 1; } }
 .game-list li {
   display: flex;
-  flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+  animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
 .game-tile {
   --a: var(--accent);
   position: relative;
@@ -282,7 +287,8 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
   align-items: flex-start;
   gap: 0.35rem;
   width: 100%;
-  height: 100%;
+  flex: 1;
+  height: auto;
   padding: 1.1rem 1.15rem 1rem;
   border-radius: var(--radius);
   background: var(--surface);
