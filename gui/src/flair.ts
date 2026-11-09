@@ -15,7 +15,8 @@ const FLAIR: Record<string, GameFlair> = {
   goofspiel: { icon: "🎯", a: "#6b8cff", b: "#6b8cff" },
   connect4: { icon: "🔴", a: "#ff4d6d", b: "#ff4d6d" },
   dots: { icon: "🔲", a: "#8fd14f", b: "#8fd14f" },
-  battleship: { icon: "🚢", a: "#3fa7ff", b: "#3fa7ff" }
+  battleship: { icon: "🚢", a: "#3fa7ff", b: "#3fa7ff" },
+  poker: { icon: "♠️", a: "#f5c542", b: "#f5c542" }
 };
 
 export function flairFor(id: string | null): GameFlair {

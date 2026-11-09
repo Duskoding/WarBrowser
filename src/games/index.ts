@@ -6,6 +6,7 @@ import { dots } from "./dots/index.ts";
 import { gofish } from "./gofish/index.ts";
 import { goofspiel } from "./goofspiel/index.ts";
 import { nim } from "./nim/index.ts";
+import { poker } from "./poker/index.ts";
 import { rps } from "./rps/index.ts";
 import { ticTacToe } from "./tictactoe/index.ts";
 import { uno } from "./uno/index.ts";
@@ -24,6 +25,7 @@ export const games: GameModule[] = [
   dots,
   battleship,
   nim,
+  poker,
 ];
 
 // Used when a client sends create_room without a gameId.
@@ -34,5 +36,7 @@ export function findGame(id: unknown): GameModule | undefined {
 }
 
 export function gameSummaries(): GameSummary[] {
-  return games.map(({ id, name, description, players }) => ({ id, name, description, players }));
+  return games.map(({ id, name, description, players, rules }) => (
+    rules?.length ? { id, name, description, players, rules } : { id, name, description, players }
+  ));
 }
