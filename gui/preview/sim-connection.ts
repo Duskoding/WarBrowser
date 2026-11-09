@@ -27,7 +27,12 @@ export function connect() {
 
 export function disconnect() {}
 
+export function isConnected() {
+  return true;
+}
+
 export const createRoom = (gameId: string) => send({ type: "create_room", gameId });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
-export const leaveRoom = () => send({ type: "leave_room" });
+export const leaveRoom = (roomCode?: string) =>
+  send(roomCode ? { type: "leave_room", roomCode } : { type: "leave_room" });
 export const sendGame = (payload: GameAction) => send({ type: "game_message", payload });

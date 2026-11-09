@@ -77,3 +77,16 @@
 - **Decision:** Full cutover from `GameDefinition`/`ClientGame` to `GameEngine` + `GameModule` + `GuiModule` for War and Tic-Tac-Toe. Move War engine/types/tests into `src/games/war/` and TTT into `src/games/tictactoe/`. Keep the lobby shell (`gui/src/main.ts`, etc.) shared. Promote commentary to shared: `Commentator.describe(prompt: string)`; each game builds its own prompt. `handleAction` takes `GameModuleContext` so modules can request commentary.
 - **Made by:** agent
 - **Reason:** Issues #29/#48–#51 (plus TTT) require adopting the #45–#47 contracts uniformly so both games and the server/GUI use one plugin shape before Uno and further shared-core work.
+
+## 2026-11-09 — Keep a dropped connection in the room (#78)
+
+- **Decision:** Any socket close while a player is in a room, including before the match starts, keeps that player's seat for a grace period instead of deleting the game. Moves are rejected until they return or the time runs out. Pressing Leave still ends the match immediately. After the grace period, the match is discarded the way a leave works today, and someone else can join for a new game.
+- **Made by:** user
+- **Reason:** A phone lock or a short network blip was ending the game for both players. The grace period should cover the waiting room as well as a match in progress, and the other player should not be able to keep playing alone.
+
+## 2026-11-09 — How a dropped player gets their seat back (#78)
+
+- **Decision:** The grace period is 60 seconds (`reconnectGraceMs` on the server, so tests can use a shorter wait). The open page keeps the room and retries the socket, then sends `join_room` for that room, which restores a reserved seat. A second connection is rejected with "You are already in this room." while the first socket is still open; if a retry arrives before the server has seen the drop, the page tries again. Opening the room link after the socket has dropped restores the same seat and the current view. Leave while offline reconnects only to send `leave_room` with the room code, which drops the reservation without resuming play. A different account cannot take a reserved seat. Joining or creating a different room abandons a seat this account still holds.
+- **Made by:** agent
+- **Reason:** The bug is a momentary drop while the page is still open, so the page should retry by itself. The room link still has to work for a refresh or another device once the old socket is gone. A live second connection stays rejected so two windows cannot fight over the seat.
+

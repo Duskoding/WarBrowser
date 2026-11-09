@@ -4,7 +4,7 @@ export type ClientMessage =
   | { type: "create_room"; gameId: string }
   | { type: "join_room"; roomCode: string }
   | { type: "game_message"; payload: GameAction }
-  | { type: "leave_room" };
+  | { type: "leave_room"; roomCode?: string };
 
 export type ServerEvent =
   | { type: "connected" } // local: socket opened
@@ -12,6 +12,8 @@ export type ServerEvent =
   | { type: "room_created"; roomCode: string; username?: string; gameId: string }
   | { type: "room_joined"; roomCode: string; username?: string; opponentUsername?: string; gameId: string }
   | { type: "opponent_joined"; username?: string }
+  | { type: "opponent_reconnecting" }
+  | { type: "opponent_reconnected" }
   | { type: "opponent_disconnected" }
   | { type: "room_left" }
   | { type: "game_message"; payload: unknown } // from the server (or relayed from the opponent), unchecked

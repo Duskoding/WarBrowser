@@ -44,6 +44,10 @@ export function disconnect() {
   socket = null;
 }
 
+export function isConnected() {
+  return socket?.readyState === WebSocket.OPEN;
+}
+
 function send(msg: ClientMessage) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
   else dispatch({ type: "error", message: "Not connected to the game server." });
@@ -51,5 +55,6 @@ function send(msg: ClientMessage) {
 
 export const createRoom = (gameId: string) => send({ type: "create_room", gameId });
 export const joinRoom = (roomCode: string) => send({ type: "join_room", roomCode });
-export const leaveRoom = () => send({ type: "leave_room" });
+export const leaveRoom = (roomCode?: string) =>
+  send(roomCode ? { type: "leave_room", roomCode } : { type: "leave_room" });
 export const sendGame = (payload: GameAction) => send({ type: "game_message", payload });

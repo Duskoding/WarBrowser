@@ -38,8 +38,8 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | type | payload | meaning |
 | --- | --- | --- |
 | `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
-| `join_room` | `{ roomCode }` | player joins an existing room (max 2 players; the invite link `?room=CODE` joins automatically) |
-| `leave_room` | `{}` | player leaves their room |
+| `join_room` | `{ roomCode }` | player joins an existing room (max 2 players; the invite link `?room=CODE` joins automatically). The same account reconnects into a reserved seat. A second connection is rejected while the first socket is still open |
+| `leave_room` | `{ roomCode? }` | player leaves their room immediately. `roomCode` lets a dropped player leave the reserved seat without rejoining |
 | `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 
 ### Server → Client
@@ -47,7 +47,7 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | type | payload | meaning |
 | --- | --- | --- |
 | `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
-| `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when a second player joins, and the game is discarded when one leaves |
+| `opponent_joined` / `opponent_reconnecting` / `opponent_reconnected` / `opponent_disconnected` / `room_left` | `{}` | room membership. A dropped socket keeps its seat for 60 seconds and the other player is told they are reconnecting; moves wait. The same account gets the current view back. If they do not return, or they press Leave, the game is discarded as before |
 | `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |

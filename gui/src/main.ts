@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
+import { connect, createRoom, disconnect, isConnected, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -80,8 +80,39 @@ let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
 let opponentHere = false;
+let opponentReconnecting = false;
+let linkDown = false;
+let autoRejoin = false;
+let pendingLeave = false;
+let reconnectAttempt = 0;
+let reconnectTimer: number | undefined;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
+
+// A blip retries within the server's grace period. Opening the room link is a separate, intentional join.
+function stopReconnect() {
+  if (reconnectTimer !== undefined) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+  }
+  reconnectAttempt = 0;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer !== undefined) return;
+  if (reconnectAttempt >= 8) {
+    showToast("Could not reconnect.");
+    resetRoom();
+    if (me) setConnected(false);
+    return;
+  }
+  const delay = Math.min(8000, 500 * 2 ** reconnectAttempt);
+  reconnectAttempt += 1;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = undefined;
+    connect();
+  }, delay);
+}
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -268,7 +299,10 @@ function render() {
   $("invite-link").hidden = opponentHere;
 
   let status = "";
-  if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
+  if (pendingLeave) status = "Leaving…";
+  else if (linkDown) status = "Reconnecting…";
+  else if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
+  else if (opponentReconnecting) status = "Opponent is reconnecting…";
   else if (!opponentHere) status = "Waiting for opponent — share the invite link";
   else if (!screen) status = "Starting…";
   $("room-status").textContent = status;
@@ -276,6 +310,11 @@ function render() {
 }
 
 function resetRoom() {
+  stopReconnect();
+  autoRejoin = false;
+  pendingLeave = false;
+  linkDown = false;
+  opponentReconnecting = false;
   unmountGame();
   $("invite-link").hidden = false;
   roomCode = null;
@@ -314,6 +353,9 @@ function afterLogin() {
 }
 
 async function signOut() {
+  stopReconnect();
+  autoRejoin = false;
+  pendingLeave = false;
   await logout();
   me = null;
   resetRoom();
@@ -327,27 +369,59 @@ onEvent((e) => {
   switch (e.type) {
     case "connected": {
       setConnected(true);
+      if (pendingLeave && roomCode) {
+        leaveRoom(roomCode);
+        break;
+      }
+      if (autoRejoin && roomCode) {
+        linkDown = true;
+        joinRoom(roomCode);
+        break;
+      }
+      linkDown = false;
       // Opened from an invite link → join straight away.
       const linked = new URLSearchParams(location.search).get("room");
-      if (linked) joinRoom(linked);
+      if (linked && roomCode === null) joinRoom(linked);
       break;
     }
     case "disconnected":
+      if (me && roomCode) {
+        linkDown = true;
+        if (!pendingLeave) autoRejoin = true;
+        scheduleReconnect();
+        break;
+      }
       resetRoom();
       if (me) setConnected(false);
       break;
     case "room_created":
+      reconnectAttempt = 0;
       enterRoom(e.roomCode, e.gameId);
       break;
     case "room_joined":
+      reconnectAttempt = 0;
+      autoRejoin = false;
+      linkDown = false;
       enterRoom(e.roomCode, e.gameId);
-      opponentHere = true;
+      opponentHere = Boolean(e.opponentUsername);
+      opponentReconnecting = false;
       break;
     case "opponent_joined":
       opponentHere = true;
+      opponentReconnecting = false;
+      break;
+    case "opponent_reconnecting":
+      opponentReconnecting = true;
+      showToast("Your opponent is reconnecting.");
+      break;
+    case "opponent_reconnected":
+      opponentHere = true;
+      opponentReconnecting = false;
+      showToast("Your opponent reconnected.");
       break;
     case "opponent_disconnected":
       opponentHere = false;
+      opponentReconnecting = false;
       unmountGame();
       showToast("Your opponent disconnected.");
       break;
@@ -359,8 +433,14 @@ onEvent((e) => {
       break;
     case "error":
       showToast(e.message);
-      // A bad invite link shouldn't keep retrying.
-      if (!roomCode) resetRoom();
+      if (e.message === "You are already in this room." && autoRejoin) {
+        linkDown = true;
+        disconnect();
+        scheduleReconnect();
+        break;
+      }
+      // A dead room, or a bad invite link, should not keep retrying.
+      if (e.message === "Room not found." || e.message === "That room is full." || !roomCode) resetRoom();
       break;
   }
   render();
@@ -372,7 +452,21 @@ $("join-form").addEventListener("submit", (ev) => {
   const code = codeInput.value.trim().toUpperCase();
   if (code) joinRoom(code);
 });
-$("leave-room").addEventListener("click", leaveRoom);
+$("leave-room").addEventListener("click", () => {
+  if (!roomCode) {
+    resetRoom();
+    return;
+  }
+  pendingLeave = true;
+  autoRejoin = false;
+  stopReconnect();
+  if (isConnected()) leaveRoom(roomCode);
+  else {
+    linkDown = true;
+    connect();
+  }
+  render();
+});
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();
