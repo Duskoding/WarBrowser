@@ -129,3 +129,9 @@
 - **Decision:** Treat issue #39 as complete on the current architecture: `server.js` owns static serving, API routing, room membership, WebSocket lifecycle, and protocol dispatch, while game-specific actions and views are supplied through `GameModule`.
 - **Made by:** agent
 - **Reason:** The server already resolves games through the shared registry and keeps room state independent of any game's message kinds. Replacing this working boundary without a concrete missing behavior would be an unrelated refactor.
+
+## 2026-11-09 — Verify generalized test harness (#41)
+
+- **Decision:** Treat issue #41 as complete on the current architecture: `test/server.test.js` provides reusable server startup, HTTP authentication, WebSocket connection/message queuing, room setup, and cleanup helpers shared by all game scenarios.
+- **Made by:** agent
+- **Reason:** The harness already exercises multiple game modules and player counts through common helpers. Extracting another layer without a remaining duplicated pattern would add indirection rather than improve coverage or maintainability.
