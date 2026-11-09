@@ -172,3 +172,5 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 2. On the first computer, register or log in, choose a game to create a room, and copy the displayed six-character room code or the invite link.
 3. On the second computer, register or log in with a different account, then enter the code (or open the link) and join the room.
 4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears after a resolved round. In Tic-Tac-Toe, take turns and confirm each move appears on both screens, and, if a key is set, commentary appears after moves.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to work on an issue and get a change into `main`.

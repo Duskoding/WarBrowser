@@ -254,3 +254,9 @@
 - **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
 - **Made by:** agent
 - **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
+## 2026-11-09 — Document the contribution workflow (#76)
+
+- **Decision:** Add `CONTRIBUTING.md` as the team's guide for issues, branches, testing, pull requests, and reviews. Link it from the README.
+- **Made by:** agent (Codex), draft for Joelle Bensadon
+- **Reason:** Give contributors one place to find the steps for getting a change into `main`.
