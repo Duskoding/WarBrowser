@@ -1,10 +1,17 @@
 # Decision log
 
+## 2026-11-09 — Close idle rooms without interrupting reconnect grace (#83)
+
+- **Decision:** Track the last client message for every room and close rooms after `ROOM_IDLE_TIMEOUT_MS`, defaulting to 30 minutes. Send connected players a `room_closed` event with `reason: "idle"` so the client returns to the lobby, and defer cleanup while a room's reconnect grace deadline is active.
+- **Made by:** agent
+- **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
+
 ## 2026-11-09 — Cap AI commentary calls per room and server (#80)
 
 - **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
 - **Made by:** agent (GitHub Copilot)
 - **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
+
 ## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
 
 - **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
