@@ -79,7 +79,7 @@ test("gives up after the timeout", async () => {
   assert.equal(await quiet(() => commentator.describe("x")), null);
 });
 
-test("limits commentary calls per room and logs skipped calls", async () => {
+test("skips a rapid second commentary call in the same room", async () => {
   let calls = 0;
   const logs: string[] = [];
   const log = console.info;
@@ -92,17 +92,16 @@ test("limits commentary calls per room and logs skipped calls", async () => {
           return "line";
         },
       },
-      { minIntervalMs: 0, maxCallsPerGame: 2, callsPerMinute: 10 },
+      { maxCallsPerGame: 2, callsPerMinute: 10 },
     );
     const room = commentator.forRoom("ABC123");
 
     assert.equal(await room.describe("one"), "line");
-    assert.equal(await room.describe("two"), "line");
-    assert.equal(await room.describe("three"), null);
-    assert.equal(calls, 2);
-    assert.match(logs[0], /game limit reached/);
+    assert.equal(await room.describe("two"), null);
+    assert.equal(calls, 1);
+    assert.match(logs[0], /room rate limit reached/);
     assert.equal(await commentator.forRoom("ABC123").describe("new game"), "line");
-    assert.equal(calls, 3);
+    assert.equal(calls, 2);
   } finally {
     console.info = log;
   }
@@ -136,13 +135,13 @@ test("enforces the room interval", async () => {
         return "line";
       },
     },
-    { minIntervalMs: 5000, now: () => now },
+    { minIntervalMs: 3000, now: () => now },
   );
   const room = commentator.forRoom("ABC123");
 
   assert.equal(await room.describe("one"), "line");
   assert.equal(await room.describe("two"), null);
-  now += 5000;
+  now += 3000;
   assert.equal(await room.describe("three"), "line");
   assert.equal(calls, 2);
 });

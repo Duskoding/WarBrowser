@@ -9,7 +9,7 @@ export interface Commentator {
 
 export const DEFAULT_COMMENTARY_CALLS_PER_MINUTE = 60;
 export const DEFAULT_COMMENTARY_MAX_CALLS_PER_GAME = 20;
-export const DEFAULT_COMMENTARY_MIN_INTERVAL_MS = 5000;
+export const DEFAULT_COMMENTARY_MIN_INTERVAL_MS = 3000;
 
 export interface CommentaryLimiterOptions {
   callsPerMinute?: number;

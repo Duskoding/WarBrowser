@@ -2,7 +2,7 @@
 
 ## 2026-11-09 — Cap AI commentary calls per room and server (#80)
 
-- **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every five seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
+- **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
 - **Made by:** agent (GitHub Copilot)
 - **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
 
