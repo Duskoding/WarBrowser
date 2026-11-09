@@ -10,7 +10,7 @@ export interface PlayerInfo {
   username: string;
 }
 
-// Kept here so game modules have no Node-only imports and can run in the preview.
+// Kept here so game modules have no Node-only imports and can run in either runtime.
 export interface GameCommentator {
   describe(prompt: string): Promise<string | null>;
 }
