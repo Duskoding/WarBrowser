@@ -749,3 +749,43 @@ test("tells the guest which game the room is for", async () => {
   host.close();
   guest.close();
 });
+
+// One malformed action per game; the server must reject it with an error to
+// the sender only, without changing the game.
+const malformedActions = {
+  tictactoe: { kind: "move", cell: "x" },
+  uno: { kind: "play", cardIndex: "x" },
+  crazy8: { kind: "play", card: null },
+  gofish: { kind: "ask", rank: 99 },
+  rps: { kind: "pick", choice: "lizard" },
+  goofspiel: { kind: "bid", value: "x" },
+  connect4: { kind: "drop", column: "x" },
+  dots: { kind: "line", dir: "x", row: 0, col: 0 },
+  battleship: { kind: "fire", cell: "x" }
+};
+
+test("every listed game starts in a room and rejects a malformed action", async () => {
+  const { httpUrl } = await startServer();
+  const { games } = await (await fetch(`${httpUrl}/api/games`)).json();
+  for (const { id } of games) {
+    const { host, guest, hostState, guestState } = await startRoom(silentCommentator, {}, id);
+    for (const state of [hostState, guestState]) {
+      assert.equal(state.kind, "state", id);
+      assert.equal(typeof state.view, "object", id);
+      assert.notEqual(state.view, null, id);
+    }
+
+    const payload = malformedActions[id];
+    if (payload) {
+      post(host, { type: "game_message", payload });
+      const reply = await host.next();
+      assert.equal(reply.type, "error", id);
+      assert.equal(typeof reply.message, "string", id);
+      // The guest sees nothing: the next thing it gets is the host's relayed note.
+      post(host, { type: "game_message", payload: { type: "ping" } });
+      assert.deepEqual(await guest.next(), { type: "game_message", payload: { type: "ping" } }, id);
+    }
+    host.close();
+    guest.close();
+  }
+});
