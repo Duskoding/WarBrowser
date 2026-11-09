@@ -84,8 +84,8 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId) {
-  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions });
+async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId, commentaryLimits = {}) {
+  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions, commentaryLimits });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
@@ -604,6 +604,50 @@ test("restarts a finished game in the same room", async () => {
   assert.deepEqual(await host.next(), {
     type: "error",
     message: "Finish the current game before playing again."
+  });
+  host.close();
+  guest.close();
+});
+
+test("sends Tic-Tac-Toe commentary after a replay", async () => {
+  const commentator = {
+    describe: async (prompt) => prompt.includes("Move 5.") ? "Final move commentary" : null
+  };
+  const { host, guest } = await startRoom(commentator, {}, "tictactoe", { minIntervalMs: 0 });
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+
+  post(guest, { type: "restart_game" });
+  await host.next();
+  await guest.next();
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
   });
   host.close();
   guest.close();
