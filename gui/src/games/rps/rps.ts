@@ -1,81 +1,91 @@
 import type { GuiModule } from "../GuiModule";
-import shared from "../shared/shared.css?inline";
-import { commentaryBox } from "../shared/cards";
 import styles from "./rps.css?inline";
 
 type Choice = "rock" | "paper" | "scissors";
-type Outcome = "you" | "opponent" | "draw";
-
+type Result = "you" | "opponent" | "draw";
 type RpsView = {
-  round: number;
-  yourPick: Choice | null;
-  opponentPicked: boolean;
+  yourChoice: Choice | null;
+  opponentChoice: Choice | null;
   yourScore: number;
   opponentScore: number;
-  winsNeeded: number;
-  lastRound: { round: number; yours: Choice; theirs: Choice; winner: Outcome } | null;
-  result?: Outcome;
+  round: number;
+  phase: "waiting" | "picked" | "roundOver" | "gameOver";
+  lastRound: { winner: Result; yourChoice: Choice; opponentChoice: Choice } | null;
+  winner?: Result;
   yourName?: string;
   opponentName?: string;
 };
 
-const ICON: Record<Choice, string> = { rock: "✊", paper: "✋", scissors: "✌️" };
-const CHOICES: Choice[] = ["rock", "paper", "scissors"];
-const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+const LABELS: Record<Choice, string> = {
+  rock: "🪨 Rock",
+  paper: "📄 Paper",
+  scissors: "✂️ Scissors"
+};
 
 export const rps: GuiModule = {
   id: "rps",
-  styles: shared + styles,
-  isFinished: (view) => (view as RpsView).result !== undefined,
+  styles,
+  isFinished: (view) => (view as RpsView).phase === "gameOver",
   mount(root, { send }) {
     root.innerHTML = `
-      <div class="game rps">
-        <p class="players" data-id="players"></p>
-        <div class="score" data-id="score"></div>
+      <div class="rps">
+        <p class="rps-players" data-id="players"></p>
         <p class="status" data-id="status"></p>
-        <div class="rps-picks">
-          ${CHOICES.map((c) => `<button class="rps-pick" data-choice="${c}"><span class="icon">${ICON[c]}</span><span>${cap(c)}</span></button>`).join("")}
+        <div class="rps-score" data-id="score"></div>
+        <div class="rps-choices" role="group" aria-label="Choose your move">
+          ${(["rock", "paper", "scissors"] as Choice[])
+            .map((choice) => `<button data-choice="${choice}">${LABELS[choice]}</button>`)
+            .join("")}
         </div>
-        <p class="note" data-id="last"></p>
-        <aside class="commentary" data-id="commentary">Commentary will appear here.</aside>
+        <p class="rps-picks" data-id="picks"></p>
+        <aside class="commentary" data-id="commentary">Choose your move.</aside>
       </div>
     `;
-    const buttons = [...root.querySelectorAll<HTMLButtonElement>(".rps-pick")];
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-choice]")];
     buttons.forEach((button) =>
       button.addEventListener("click", () => {
-        buttons.forEach((b) => (b.disabled = true));
-        send({ kind: "pick", choice: button.dataset.choice });
+        buttons.forEach((item) => (item.disabled = true));
+        send({ kind: "pick", choice: button.dataset.choice as Choice });
       })
     );
-    const $ = (id: string) => root.querySelector(`[data-id="${id}"]`)!;
+
     let view: RpsView | null = null;
 
     function render() {
       const v = view;
       if (!v) return;
-      $("players").textContent = `${v.yourName ?? "You"} vs ${v.opponentName ?? "Opponent"} · first to ${v.winsNeeded}`;
-      $("score").innerHTML = `<span>You <strong></strong></span><span>Them <strong></strong></span>`;
-      const [yours, theirs] = $("score").querySelectorAll("strong");
-      yours.textContent = String(v.yourScore);
-      theirs.textContent = String(v.opponentScore);
+      root.querySelector('[data-id="players"]')!.textContent =
+        `${v.yourName ?? "You"} vs ${v.opponentName ?? "Opponent"}`;
+      root.querySelector('[data-id="score"]')!.textContent =
+        `${v.yourScore} – ${v.opponentScore} · Round ${v.round + (v.phase === "roundOver" || v.phase === "gameOver" ? 0 : 1)}`;
 
-      let status = v.yourPick
-        ? v.opponentPicked ? "Revealing…" : "Waiting for your opponent to pick…"
-        : `Round ${v.round}: make your pick` + (v.opponentPicked ? " (they've picked)" : "");
-      if (v.result === "you") status = "You win the match!";
-      else if (v.result === "opponent") status = "You lose the match.";
-      $("status").textContent = status;
+      let status = "Choose rock, paper, or scissors.";
+      if (v.phase === "picked") status = "Waiting for your opponent…";
+      if (v.phase === "roundOver") {
+        status =
+          v.lastRound?.winner === "you"
+            ? "You won the round!"
+            : v.lastRound?.winner === "opponent"
+              ? "Your opponent won the round."
+              : "The round was a tie.";
+      }
+      if (v.phase === "gameOver") {
+        status = v.winner === "you" ? "You win the match!" : "You lose the match.";
+      }
+      root.querySelector('[data-id="status"]')!.textContent = status;
+      root.querySelector('[data-id="picks"]')!.textContent =
+        v.opponentChoice === null
+          ? v.yourChoice
+            ? `You picked ${LABELS[v.yourChoice]}.`
+            : ""
+          : `You: ${LABELS[v.yourChoice!]} · Opponent: ${LABELS[v.opponentChoice]}`;
 
-      buttons.forEach((b) => {
-        b.disabled = v.result !== undefined || v.yourPick !== null;
-        b.classList.toggle("chosen", b.dataset.choice === v.yourPick);
+      buttons.forEach((button) => {
+        const choice = button.dataset.choice as Choice;
+        const canPick = v.phase === "waiting" || v.phase === "roundOver";
+        button.disabled = !canPick || (v.phase === "waiting" && v.yourChoice !== null);
+        button.classList.toggle("selected", v.yourChoice === choice);
       });
-
-      const last = v.lastRound;
-      $("last").textContent = last
-        ? `Round ${last.round}: you threw ${ICON[last.yours]} ${last.yours}, they threw ${ICON[last.theirs]} ${last.theirs}. ` +
-          (last.winner === "draw" ? "Tie." : last.winner === "you" ? "You won the round." : "They won the round.")
-        : "";
     }
 
     return {
@@ -83,7 +93,9 @@ export const rps: GuiModule = {
         view = next as RpsView;
       },
       render,
-      commentary: commentaryBox($("commentary"))
+      destroy() {
+        buttons.forEach((button) => button.replaceWith(button.cloneNode(true)));
+      }
     };
   }
 };

@@ -2,13 +2,13 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, and **Battleship**.
+Games available now: **War**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, and **Battleship**. Uno's server rules are also present, but its browser screen is not yet available.
 
 ## How it works
 
-The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
+The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -92,6 +92,8 @@ export ANTHROPIC_API_KEY=your-key   # PowerShell: $env:ANTHROPIC_API_KEY = "your
 ```
 
 `ANTHROPIC_MODEL` overrides the default model (`claude-haiku-5-5`). Never commit your key; `.env` is gitignored, and tests never call the API.
+
+Commentary is capped at one call per room every three seconds and 20 calls per game. The server-wide calls-per-minute cap defaults to 60; override it with `COMMENTARY_CALLS_PER_MINUTE`. Calls skipped by any limit are logged and do not affect gameplay.
 
 ### Client development
 

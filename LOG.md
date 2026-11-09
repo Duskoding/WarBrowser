@@ -28,12 +28,26 @@ Add one short entry for each work session so the next person or agent can resume
 ## 2026-11-09 — Port the remaining PR #70 games
 
 - **Who:** agent, on behalf of yskolnick
-- **Issues:** #60, #61, #62, #63, #64 (closed #65, #66, #69 earlier this session)
-- **Changed:** Added `rps`, `goofspiel`, `connect4`, `dots` and `battleship` modules and screens, ported from draft PR #70 to `players: { min, max }`; registered them in `src/games/index.ts` and `gui/src/games/index.ts`; `test/server.test.js` lists all ten games; preview rebuilt. 121 tests pass.
-- **Remaining:** Open a PR for this branch and merge it; then close draft PR #70 without merging. Assignees of #60–#64 should review their game and close the issue. PR #70's lobby "How to play" work belongs to #67.
+- **Issues:** #61, #62, #63, #64 (closed #65, #66, #69 earlier this session)
+- **Changed:** Added `goofspiel`, `connect4`, `dots` and `battleship` modules and screens, ported from draft PR #70 to `players: { min, max }` (kept Efrat's `rps` from PR #89 rather than #70's); registered them in `src/games/index.ts` and `gui/src/games/index.ts`; `test/server.test.js` lists all ten games. All tests pass.
+- **Remaining:** Open a PR for this branch and merge it; then close draft PR #70 without merging. Assignees of #61–#64 should review their game and close the issue. PR #70's lobby "How to play" work belongs to #67.
+## 2026-11-09 — Cap AI commentary calls (#80)
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #80
+- **Changed:** Added shared per-room and per-server commentary limits, environment configuration, skip logging, tests, and documentation.
+- **Remaining:** none
+
 ## 2026-11-09 — Keep project guidance files tracked
 
 - **Who:** agent (GitHub Copilot)
 - **Issues:** #54
 - **Changed:** Kept the repository-root `AGENTS.md` and `decision.md` tracked; documented the preservation decision.
 - **Remaining:** none
+
+## 2026-11-09 — Implement Rock-Paper-Scissors
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #60
+- **Changed:** Added the RPS engine, tests, server and client module registrations, GUI screen/styles, README coverage, and decision-log entry.
+- **Remaining:** none; typecheck, build, and full test suite pass.
