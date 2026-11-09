@@ -84,8 +84,8 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId) {
-  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions });
+async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId, commentaryLimits = {}) {
+  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions, commentaryLimits });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
@@ -268,12 +268,18 @@ test("flips are resolved by the server and each player gets their own view", asy
 
 test("sends commentary to both players after a round resolves, not before", async () => {
   const summaries = [];
-  const { host, guest } = await startRoom({
-    describe: async (summary) => {
-      summaries.push(summary);
-      return "What a flip!";
-    }
-  });
+  // A fixed deal (3♠ vs 2♦) so the first flip can't tie and start a war, which
+  // would leave the round unresolved and this test waiting for commentary.
+  const noTieFirst = (items) => [items[1], items[0], ...items.slice(2)];
+  const { host, guest } = await startRoom(
+    {
+      describe: async (summary) => {
+        summaries.push(summary);
+        return "What a flip!";
+      }
+    },
+    { shuffle: noTieFirst }
+  );
 
   post(host, { type: "game_message", payload: { kind: "flip" } });
   await host.next();
@@ -523,7 +529,7 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "poker"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim", "poker"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
@@ -596,6 +602,50 @@ test("restarts a finished game in the same room", async () => {
   assert.deepEqual(await host.next(), {
     type: "error",
     message: "Finish the current game before playing again."
+  });
+  host.close();
+  guest.close();
+});
+
+test("sends Tic-Tac-Toe commentary after a replay", async () => {
+  const commentator = {
+    describe: async (prompt) => prompt.includes("Move 5.") ? "Final move commentary" : null
+  };
+  const { host, guest } = await startRoom(commentator, {}, "tictactoe", { minIntervalMs: 0 });
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+
+  post(guest, { type: "restart_game" });
+  await host.next();
+  await guest.next();
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
   });
   host.close();
   guest.close();
@@ -747,6 +797,64 @@ test("tells the guest which game the room is for", async () => {
   assert.equal(created.gameId, "tictactoe");
   post(guest, { type: "join_room", roomCode: created.roomCode });
   assert.equal((await guest.next()).gameId, "tictactoe");
+  host.close();
+  guest.close();
+});
+
+test("plays Connect Four over the network to a win, recorded on both accounts", async () => {
+  const { httpUrl, host, guest, hostState, hostAuth, guestAuth } = await startRoom(silentCommentator, {}, "connect4");
+  assert.equal(hostState.view.yourTurn, true);
+  const moves = [[host, 0], [guest, 1], [host, 0], [guest, 1], [host, 0], [guest, 1], [host, 0]];
+  let last;
+  for (const [player, column] of moves) {
+    post(player, { type: "game_message", payload: { kind: "drop", column } });
+    last = [(await host.next()).payload.view, (await guest.next()).payload.view];
+  }
+  assert.equal(last[0].result, "you");
+  assert.equal(last[1].result, "opponent");
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, {
+    username: "host",
+    wins: 1,
+    losses: 0,
+    games: { connect4: { wins: 1, losses: 0 } },
+  });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, {
+    username: "guest",
+    wins: 0,
+    losses: 1,
+    games: { connect4: { wins: 0, losses: 1 } },
+  });
+  host.close();
+  guest.close();
+});
+
+test("Rock-Paper-Scissors never sends a pick to the other player before both have picked", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "rps");
+  post(host, { type: "game_message", payload: { kind: "pick", choice: "scissors" } });
+  const hostView = (await host.next()).payload.view;
+  const guestMessage = await guest.next();
+  assert.equal(hostView.yourChoice, "scissors");
+  assert.equal(guestMessage.payload.view.opponentChoice, null);
+  assert.ok(!JSON.stringify(guestMessage).includes("scissors"));
+
+  post(guest, { type: "game_message", payload: { kind: "pick", choice: "rock" } });
+  const revealed = (await guest.next()).payload.view;
+  await host.next();
+  assert.equal(revealed.yourChoice, "rock");
+  assert.equal(revealed.opponentChoice, "scissors");
+  host.close();
+  guest.close();
+});
+
+test("Battleship never sends a player the opponent's fleet", async () => {
+  const { host, guest, hostState, guestState } = await startRoom(silentCommentator, {}, "battleship");
+  const hostCells = hostState.view.yourShips.flatMap((ship) => ship.cells);
+  assert.equal(guestState.view.phase, "setup");
+  assert.deepEqual(guestState.view.sunkEnemyShips, []);
+  // The guest's message holds the guest's own ships and nothing else that lists cells.
+  const guestShips = new Set(guestState.view.yourShips.flatMap((ship) => ship.cells));
+  assert.ok(hostCells.some((cell) => !guestShips.has(cell)));
+  assert.deepEqual(Object.keys(guestState.view.outgoing), []);
   host.close();
   guest.close();
 });

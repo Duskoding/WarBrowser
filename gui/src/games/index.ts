@@ -5,6 +5,7 @@ import { crazy8 } from "./crazy8/crazy8";
 import { dots } from "./dots/dots";
 import { gofish } from "./gofish/gofish";
 import { goofspiel } from "./goofspiel/goofspiel";
+import { nim } from "./nim/nim";
 import { poker } from "./poker/poker";
 import { rps } from "./rps/rps";
 import { ticTacToe } from "./tictactoe/tictactoe";
@@ -24,5 +25,6 @@ export const clientGames: Record<string, GuiModule> = {
   [connect4.id]: connect4,
   [dots.id]: dots,
   [battleship.id]: battleship,
+  [nim.id]: nim,
   [poker.id]: poker
 };
