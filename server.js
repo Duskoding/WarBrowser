@@ -116,7 +116,8 @@ function publicFields(user, includeReset = false) {
   const fields = {
     username: user.username,
     wins: user.wins,
-    losses: user.losses
+    losses: user.losses,
+    games: user.games
   };
   if (includeReset) fields.mustResetPassword = Boolean(user.mustResetPassword);
   return fields;
@@ -548,14 +549,15 @@ export function createWarServer({
                 db,
                 socket.roomCode,
                 playerIds,
-                winner === null ? null : playerIds[winner]
+                winner === null ? null : playerIds[winner],
+                game.module.id
               ).catch((error) => console.error("Failed to record match:", error));
             } else if (winner !== null) {
               const winnerId = game.players[winner].id;
               const loserIds = game.players
                 .filter((_, seat) => seat !== winner)
                 .map((player) => player.id);
-              recordWins(db, winnerId, loserIds);
+              recordWins(db, winnerId, loserIds, game.module.id);
             }
           }
           if (result.commentary) {

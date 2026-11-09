@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
+
+- **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Reuse the existing War simultaneous-reveal lifecycle while keeping RPS rules, state, and presentation isolated from the game-agnostic server and shared lobby.
+
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
 - **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
@@ -141,6 +147,18 @@
 - **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
 - **Made by:** agent
 - **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.
+
+## 2026-11-09 — Expose aggregate and per-game player statistics (#72)
+
+- **Decision:** Add per-game `games` statistics to the user API while retaining aggregate `wins` and `losses`. Both SQLite and PostgreSQL update the aggregate and the selected game's counters atomically when a match has a winner; draws create no win/loss increments.
+- **Made by:** user (selected compatibility-preserving API shape) and agent (implementation)
+- **Reason:** Existing clients rely on aggregate fields, while game-specific totals need a stable map keyed by the registered game id. Keeping both avoids a breaking protocol change and supports historical aggregate data that predates per-game tracking.
+
+## 2026-11-09 — Keep `connection.ts` in the shared lobby shell (#40)
+
+- **Decision:** Treat issue #40 as done. Leave `gui/src/connection.ts` where it is. It is already the shared GUI socket client: `gui/src/main.ts` is the only importer, and game screens send through the shell. Do not add a `gui/src/infra/` or `gui/src/shared/` folder for it.
+- **Made by:** agent
+- **Reason:** PR #25 put this boundary in place by moving game screens under `gui/src/games/` and keeping `connection.ts` in the shared lobby shell. Issue #40 was filed after that pull request merged. It is one task under parent issue #27 (extract the shared core), which stays open. Moving the file now would only change import paths and the preview alias.
 
 ## 2026-11-09 — Uno GUI module (#36)
 

@@ -2,13 +2,13 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now: **War**, **Tic-Tac-Toe**, and **Rock-Paper-Scissors**. Uno's server rules are also present, but its browser screen is not yet available.
 
 ## How it works
 
-The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
+The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -33,7 +33,7 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `rps/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
