@@ -482,9 +482,10 @@ $("auth-form").addEventListener("submit", async (ev) => {
       username: String(result.body.username ?? usernameInput.value.trim()),
       wins: Number(result.body.wins ?? 0),
       losses: Number(result.body.losses ?? 0),
-      mustResetPassword: Boolean(result.body.mustResetPassword)
+      mustResetPassword: Boolean(result.body.mustResetPassword),
+      games: result.body.games ?? {}
     };
-    if (me.mustResetPassword) {
+    if (me?.mustResetPassword) {
       resetting = true;
       setAuthError("You must set a new password before playing.");
       updateAuthMode();

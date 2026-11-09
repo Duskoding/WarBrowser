@@ -11,6 +11,7 @@ export type PublicUser = {
   username: string;
   wins: number;
   losses: number;
+  games: Record<string, { wins: number; losses: number }>;
 };
 
 export type AuthFailure = {
@@ -38,6 +39,13 @@ export function openAuthDatabase(path: string): DatabaseSync {
       expires_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS sessions_expires_at ON sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS game_stats (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      game_id TEXT NOT NULL,
+      wins INTEGER NOT NULL DEFAULT 0,
+      losses INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, game_id)
+    );
   `);
   return db;
 }
@@ -64,12 +72,26 @@ function isFailure(value: string | AuthFailure): value is AuthFailure {
   return typeof value !== "string";
 }
 
-function toPublicUser(row: { id: number; username: string; wins: number; losses: number }): PublicUser {
+function gameStats(db: DatabaseSync, userId: number): Record<string, { wins: number; losses: number }> {
+  const rows = db
+    .prepare("SELECT game_id, wins, losses FROM game_stats WHERE user_id = ?")
+    .all(userId) as { game_id: string; wins: number; losses: number }[];
+  return Object.fromEntries(rows.map((row) => [
+    row.game_id,
+    { wins: Number(row.wins), losses: Number(row.losses) }
+  ]));
+}
+
+function toPublicUser(
+  db: DatabaseSync,
+  row: { id: number; username: string; wins: number; losses: number }
+): PublicUser {
   return {
     id: Number(row.id),
     username: String(row.username),
     wins: Number(row.wins),
-    losses: Number(row.losses)
+    losses: Number(row.losses),
+    games: gameStats(db, Number(row.id))
   };
 }
 
@@ -109,7 +131,8 @@ export async function registerUser(
       id: Number(result.lastInsertRowid),
       username: validUsername,
       wins: 0,
-      losses: 0
+      losses: 0,
+      games: {}
     };
   } catch (error) {
     if (error instanceof Error && /UNIQUE/i.test(error.message)) {
@@ -142,7 +165,7 @@ export async function authenticateUser(
   if (!row || !(await verifyPassword(validPassword, row.password_hash))) {
     return { error: "Username or password is incorrect.", status: 401 };
   }
-  return toPublicUser(row);
+  return toPublicUser(db, row);
 }
 
 export function createSession(db: DatabaseSync, userId: number): string {
@@ -172,7 +195,7 @@ export function userFromSession(db: DatabaseSync, token: string | undefined): Pu
     db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
     return null;
   }
-  return toPublicUser(row);
+  return toPublicUser(db, row);
 }
 
 export function deleteSession(db: DatabaseSync, token: string | undefined): void {
@@ -184,7 +207,7 @@ export function findUserById(db: DatabaseSync, id: number): PublicUser | null {
   const row = db
     .prepare("SELECT id, username, wins, losses FROM users WHERE id = ?")
     .get(id) as { id: number; username: string; wins: number; losses: number } | undefined;
-  return row ? toPublicUser(row) : null;
+  return row ? toPublicUser(db, row) : null;
 }
 
 export function recordMatch(db: DatabaseSync, winnerId: number, loserId: number): void {
@@ -192,13 +215,32 @@ export function recordMatch(db: DatabaseSync, winnerId: number, loserId: number)
 }
 
 // winnerId gets exactly one win regardless of how many losers there are.
-export function recordWins(db: DatabaseSync, winnerId: number, loserIds: number[]): void {
+export function recordWins(
+  db: DatabaseSync,
+  winnerId: number,
+  loserIds: number[],
+  gameId?: string
+): void {
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("UPDATE users SET wins = wins + 1 WHERE id = ?").run(winnerId);
+    if (gameId) {
+      db.prepare(`
+        INSERT INTO game_stats (user_id, game_id, wins)
+        VALUES (?, ?, 1)
+        ON CONFLICT (user_id, game_id) DO UPDATE SET wins = wins + 1
+      `).run(winnerId, gameId);
+    }
     for (const loserId of loserIds) {
       if (loserId === winnerId) continue;
       db.prepare("UPDATE users SET losses = losses + 1 WHERE id = ?").run(loserId);
+      if (gameId) {
+        db.prepare(`
+          INSERT INTO game_stats (user_id, game_id, losses)
+          VALUES (?, ?, 1)
+          ON CONFLICT (user_id, game_id) DO UPDATE SET losses = losses + 1
+        `).run(loserId, gameId);
+      }
     }
     db.exec("COMMIT");
   } catch (error) {
