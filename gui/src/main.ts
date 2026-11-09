@@ -35,7 +35,7 @@ app.innerHTML = `
         <span class="pc red" style="--r:18deg;--x:70px">J<small>♦</small></span>
       </div>
     </div>
-    <div class="auth-card">
+    <div class="auth-card paper">
       <h2 class="auth-title" id="auth-title">Jump in</h2>
       <form id="auth-form">
         <label>Username
@@ -75,7 +75,7 @@ app.innerHTML = `
       <button id="share-room" class="small" type="button">Share invite</button>
       <button id="leave-room" class="small ghost" type="button">Leave</button>
     </div>
-    <section class="lobby-card" id="waiting-card">
+    <section class="lobby-card paper" id="waiting-card">
       <p class="big-code" id="big-code" aria-hidden="true"></p>
       <p class="status" id="room-status"></p>
       <ul class="players" id="room-players" aria-label="Players"></ul>
@@ -91,14 +91,14 @@ app.innerHTML = `
     <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
-    <div class="splash-card">
+    <div class="splash-card paper">
       <div class="splash-emoji" id="splash-emoji" aria-hidden="true"></div>
       <h2 id="splash-title"></h2>
       <p id="splash-text"></p>
       <p class="record" id="splash-record"></p>
       <div class="share-row">
         <button id="splash-share" type="button">Brag about it</button>
-        <button id="splash-rematch" class="ghost small" type="button">Rematch</button>
+        <button id="splash-rematch" class="ghost small" type="button">Play again</button>
         <button id="splash-close" class="ghost small" type="button">See the board</button>
         <button id="splash-lobby" class="ghost small" type="button">Back to lobby</button>
       </div>
@@ -457,13 +457,12 @@ function showSplash(outcome: "win" | "lose", gameId: string | null) {
     ? streak >= 2
       ? `${streak} wins in a row at ${gameName(gameId)}. Unstoppable.`
       : `You won at ${gameName(gameId)}. Let everyone know.`
-    : `${gameName(gameId)} got you this time. Run it back?`;
+    : `${gameName(gameId)} got you this time.`;
   $("splash-record").textContent = me ? `Your record: ${me.wins}W · ${me.losses}L` : "";
   $("splash-share").textContent = win ? "Brag about it 📣" : "Challenge someone new";
   // After a loss, the rematch is the main ask; after a win, bragging is.
   $("splash-share").className = win ? "" : "ghost small";
   $("splash-rematch").className = win ? "ghost small" : "";
-  $("splash-rematch").textContent = win ? "Rematch" : "Run it back 🔁";
   splash.hidden = false;
   (win ? $("splash-share") : $("splash-rematch")).focus();
 }

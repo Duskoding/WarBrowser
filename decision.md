@@ -290,7 +290,7 @@
 
 ## 2026-11-09 — Rematch from the result screen
 
-- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is labeled "Play again", is the main button after a loss and a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
 
@@ -350,3 +350,9 @@
 - **Decision:** Merging Play again (`rematch`, which waits for every seated player) keeps the 60-second reconnect grace period. Play again is rejected with "A player is reconnecting." while a seat is reserved, and the button can be pressed again after that error. `leave_room` can still include `roomCode`.
 - **Made by:** agent
 - **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
+
+## 2026-11-09 — Shell design tokens: felt, paper, ink, gold
+
+- **Decision:** Rebuild `gui/src/style.css` on one token set: felt green for the page, ivory "paper" cards with dark ink text for every panel (sign-in, game tiles, waiting card, result screen), gold only for primary actions, a 7-step type scale, a 4px spacing scale, four radii and three shadow levels. Game links use one ink-green instead of per-game colors; per-game color is kept only as a soft tint behind each game's icon. A `.paper` class marks surfaces so ghost buttons switch from light to ink automatically.
+- **Made by:** user (asked for a design-system pass because the green-on-green look was still ugly) and agent (token set and implementation)
+- **Reason:** An audit found 24 font sizes, 7 radii, 16 one-off shadows, cards nearly the same value as the page, and ten competing accent colors. Card-like light surfaces on the felt give contrast and fit a card-game site.
