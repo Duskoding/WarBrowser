@@ -385,7 +385,8 @@ export function createWarServer({
       context,
       seats: new Map(seated.map((player, seat) => [player, seat])),
       players: seated.map((player) => player.user),
-      recorded: false
+      recorded: false,
+      rematch: new Set()
     };
     games.set(roomCode, game);
     return game;
@@ -630,13 +631,15 @@ export function createWarServer({
             send(socket, { type: "error", message: result.error });
             return;
           }
-          sendStates(game);
+          // Record before the finished view goes out, so the header can show the
+          // new totals immediately, including when the players then play again.
+          let recording = null;
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
             if (postgres) {
               const playerIds = game.players.map((player) => player.id);
-              void recordPostgresMatch(
+              recording = recordPostgresMatch(
                 db,
                 socket.roomCode,
                 playerIds,
@@ -651,18 +654,24 @@ export function createWarServer({
               recordWins(db, winnerId, loserIds, game.module.id);
             }
           }
-          if (result.commentary) {
-            const { round } = result.commentary;
-            const roomCode = socket.roomCode;
-            void Promise.resolve(result.commentary.text)
-              .catch(() => null)
-              .then((text) => {
-                if (!text || games.get(roomCode) !== game) return;
-                for (const player of game.seats.keys()) {
-                  send(player, { type: "game_message", payload: { kind: "commentary", text, round } });
-                }
-              });
-          }
+          const publish = () => {
+            if (games.get(socket.roomCode) !== game) return;
+            sendStates(game);
+            if (result.commentary) {
+              const { round } = result.commentary;
+              const roomCode = socket.roomCode;
+              void Promise.resolve(result.commentary.text)
+                .catch(() => null)
+                .then((text) => {
+                  if (!text || games.get(roomCode) !== game) return;
+                  for (const player of game.seats.keys()) {
+                    send(player, { type: "game_message", payload: { kind: "commentary", text, round } });
+                  }
+                });
+            }
+          };
+          if (recording) void recording.then(publish);
+          else publish();
           return;
         }
 
@@ -671,6 +680,28 @@ export function createWarServer({
             send(player, { type: "game_message", payload: message.payload });
           }
         }
+        return;
+      }
+
+      if (message.type === "rematch") {
+        const room = rooms.get(socket.roomCode);
+        const game = socket.roomCode ? games.get(socket.roomCode) : undefined;
+        // `recorded` is set only when the current engine has finished. Ignore
+        // rematch before that, and ignore a second request from the same seat.
+        if (!room || !game?.recorded || !game.seats.has(socket) || game.rematch.has(socket)) return;
+
+        markRoomActive(socket.roomCode);
+        game.rematch.add(socket);
+        if (game.rematch.size < game.seats.size) {
+          const username = socket.user.username;
+          for (const player of game.seats.keys()) {
+            if (player !== socket) send(player, { type: "rematch_requested", username });
+          }
+          return;
+        }
+
+        // Same room, same seats, new engine. The new game records its own match.
+        sendStates(createGame(socket.roomCode, room));
         return;
       }
 

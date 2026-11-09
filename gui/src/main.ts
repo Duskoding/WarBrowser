@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, restartGame, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, rematch, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -87,6 +87,7 @@ app.innerHTML = `
       <p class="invite-link" id="invite-link"></p>
     </section>
     <div class="game-root" id="game-root"></div>
+    <p class="status" id="rematch-status" hidden></p>
     <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
@@ -132,6 +133,8 @@ let statsRefreshed = false;
 // Wins in a row this visit; shown in the header and the result splash.
 let streak = 0;
 let gameOver = false;
+let rematchSent = false;
+let opponentWantsRematch = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -351,6 +354,9 @@ function unmountGame() {
   $("game-root").replaceChildren();
   setBackground(null);
   statsRefreshed = false;
+  gameOver = false;
+  rematchSent = false;
+  opponentWantsRematch = false;
 }
 
 function handleGamePayload(payload: unknown) {
@@ -372,10 +378,13 @@ function handleGamePayload(payload: unknown) {
       screen?.render();
     });
     gameOver = finished;
-    // A rematch started by anyone in the room clears the result screen.
-    if (!finished) hideSplash();
-    $<HTMLButtonElement>("play-again").disabled = false;
-    if (!finished) statsRefreshed = false;
+    if (!finished) {
+      hideSplash();
+      rematchSent = false;
+      opponentWantsRematch = false;
+      // The next game gets its own refresh. Totals already on screen stay there.
+      statsRefreshed = false;
+    }
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void celebrate();
@@ -487,13 +496,25 @@ function render() {
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
-  $<HTMLButtonElement>("play-again").hidden = !gameOver;
+  const again = $<HTMLButtonElement>("play-again");
+  again.hidden = !gameOver;
+  again.disabled = rematchSent;
+  again.textContent = rematchSent ? "Waiting for your opponent…" : "Play again";
+  const rematchStatus = $("rematch-status");
+  const opponentNotice = opponentWantsRematch && !rematchSent;
+  rematchStatus.hidden = !gameOver || !opponentNotice;
+  rematchStatus.textContent = opponentNotice ? "Your opponent wants to play again." : "";
+  if (opponentNotice && !$("splash").hidden) {
+    $("splash-text").textContent = "Your opponent wants to play again.";
+  }
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
   else if (!screen && roomPlayers.length < roomMin) status = "Waiting for players — share the invite link";
   else if (!screen && !isHost) status = "Waiting for the host to start the game";
   else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
+  else if (rematchSent) status = "Waiting for your opponent…";
+  else if (opponentWantsRematch) status = "Your opponent wants to play again.";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
   $("room-status").classList.toggle("waiting", !screen && !canStart && status.startsWith("Waiting"));
@@ -622,7 +643,12 @@ onEvent((e) => {
       hideSplash();
       unmountGame();
       gameOver = false;
+      rematchSent = false;
+      opponentWantsRematch = false;
       showToast(`${e.username} left the room.`);
+      break;
+    case "rematch_requested":
+      opponentWantsRematch = true;
       break;
     case "room_left":
       resetRoom();
@@ -655,8 +681,9 @@ $("splash-share").addEventListener("click", () => share("brag"));
 $("splash-close").addEventListener("click", hideSplash);
 $("splash-rematch").addEventListener("click", () => {
   hideSplash();
-  $<HTMLButtonElement>("play-again").disabled = true;
-  restartGame();
+  rematch();
+  rematchSent = true;
+  render();
 });
 $("splash-lobby").addEventListener("click", () => {
   hideSplash();
@@ -670,8 +697,10 @@ document.addEventListener("keydown", (ev) => {
 });
 $("start-game").addEventListener("click", startGame);
 $("play-again").addEventListener("click", () => {
-  $<HTMLButtonElement>("play-again").disabled = true;
-  restartGame();
+  hideSplash();
+  rematch();
+  rematchSent = true;
+  render();
 });
 function selectInviteLink() {
   const el = $("invite-link");
