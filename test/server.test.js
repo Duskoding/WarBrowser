@@ -84,8 +84,8 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId) {
-  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions });
+async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId, commentaryLimits = {}) {
+  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions, commentaryLimits });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
@@ -529,7 +529,7 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim", "poker"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
@@ -538,6 +538,7 @@ test("lists the available games", async () => {
     assert.equal(typeof game.players.max, "number");
   }
   assert.deepEqual(games.find((g) => g.id === "uno").players, { min: 2, max: 8 });
+  assert.ok(games.find((g) => g.id === "poker").rules.length >= 1);
 });
 
 test("rejects a room for a game that doesn't exist", async () => {
@@ -658,6 +659,50 @@ test("rematch deals a new Tic-Tac-Toe board once both players ask, and records t
   }
   assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 2, losses: 0, games: { tictactoe: { wins: 2, losses: 0 } } });
   assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 2, games: { tictactoe: { wins: 0, losses: 2 } } });
+  host.close();
+  guest.close();
+});
+
+test("sends Tic-Tac-Toe commentary after a replay", async () => {
+  const commentator = {
+    describe: async (prompt) => prompt.includes("Move 5.") ? "Final move commentary" : null
+  };
+  const { host, guest } = await startRoom(commentator, {}, "tictactoe", { minIntervalMs: 0 });
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+
+  post(guest, { type: "restart_game" });
+  await host.next();
+  await guest.next();
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await host.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
+  assert.deepEqual((await guest.next()).payload, {
+    kind: "commentary",
+    text: "Final move commentary",
+    round: 5
+  });
   host.close();
   guest.close();
 });

@@ -15,7 +15,14 @@ Add one short entry for each work session so the next person or agent can resume
 
 - **Who:** agent
 - **Issues:** #75
-- **Changed:** `rematch` / `rematch_requested` in `server.js`, Play again on the shared game-over button and result splash, the README protocol, and server tests for a fresh Tic-Tac-Toe board plus a second recorded game. A finished game is recorded before its final state is sent, and those totals stay on screen when the next game starts. Merging main kept `restart_game` and the newer room shell; the buttons send `rematch`. Decisions are in `decision.md`.
+- **Changed:** `rematch` / `rematch_requested` in `server.js`, Play again on the shared game-over button and result splash, the README protocol, and server tests for a fresh Tic-Tac-Toe board plus a second recorded game. A finished game is recorded before its final state is sent, and those totals stay on screen when the next game starts. Later merges kept `restart_game`, the room shell, Hold'em, and the replay screen remount. The buttons send `rematch`. Decisions are in `decision.md`.
+- **Remaining:** none
+
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin
+
+- **Who:** agent
+- **Issues:** #79
+- **Changed:** Added `src/games/poker/` (engine, evaluator, module, public-only commentary) using the shared deck, the Hold'em screen, lobby How to play from `GameModule.rules`, and the decision in `decision.md`. Merged the lobby redesign and same-room replay from `main`; How to play stays under the new game tile.
 - **Remaining:** none
 
 ## 2026-11-09 — Replay completed games
@@ -23,6 +30,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Who:** agent (GitHub Copilot)
 - **Issues:** none
 - **Changed:** Added the `restart_game` protocol, same-room engine recreation, a shared game-over **Play again** button, replay coverage, and README/spec/decision documentation.
+- **Remaining:** none
+
+## 2026-11-09 — Fix replay screen lifecycle
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #96
+- **Changed:** Remounted the client game screen when a replay begins so Tic-Tac-Toe commentary counters and other transient screen state reset; added replay commentary coverage.
 - **Remaining:** none
 
 ## 2026-11-09 — Add session log

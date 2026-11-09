@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Keep Play again beside Hold'em and the replay remount (#75)
+
+- **Decision:** Merge the later `main` (Hold'em and the replay screen remount) into `issue-75-add-play-again` without dropping `rematch`. A finished screen is remounted when the next game's first state arrives. The commentary-after-replay test stays on `restart_game`. Play again still waits for every seated player.
+- **Made by:** agent
+- **Reason:** Main moved again after the first conflict resolution. Issue #75's agreement rule and main's newer games both have to be on the branch for the pull request to merge.
+
 ## 2026-11-09 — Keep both-player Play again on the newer room shell (#75)
 
 - **Decision:** When merging `origin/main` into `issue-75-add-play-again`, keep main's room shell, result splash, `createGame`, idle-room close, and the existing `restart_game` message. Play again and the splash Rematch button send `rematch`, which still waits until every seated player has asked. The button stays on screen after a click and reads "Waiting for your opponent…". If the result splash is open, the other player sees "Your opponent wants to play again."
@@ -17,6 +23,21 @@
 - **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
 - **Made by:** agent, with seats and the opponent notice chosen by Shulamit
 - **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
+
+- **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
+- **Decision:** Use the shared deck already in `src/games/shared/cards.ts` on `main`. Poker imports it and does not replace that file or move Uno onto it.
+- **Decision:** Add an optional `rules?: string[]` on `GameModule`, include it in `GET /api/games` when a game sets it, and show those lines as a lobby **How to play** disclosure next to the game tile (a sibling of the button, so opening it does not cover the tile). The disclosure is generic lobby behavior, not poker code in `gui/src/main.ts` or `server.js`. Poker is `{ min: 2, max: 2 }` and is the only game that fills `rules` here.
+- **Decision:** Hole cards are visible to the other seat only after a showdown, which `SPEC_POKER.md` already requires. They stay hidden for the whole hand on a fold. Commentary is included, per Shulamit's request, but only from a `PublicMoment` that has no hole cards: the action, board, pot, stacks, and (at showdown) the hand name.
+- **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
+- **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
+
+## 2026-11-09 — Remount game screens when replay starts
+
+- **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
+- **Made by:** agent
+- **Reason:** Game screens keep transient state such as commentary round counters and animation timers. Reusing the finished screen lets replay state inherit stale values, so a fresh screen lifecycle is required for reliable replay behavior across all games.
 
 ## 2026-11-09 — Replay finished games in the same room
 
