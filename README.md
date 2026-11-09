@@ -1,14 +1,14 @@
 # WarBrowser
 
-WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
+WarBrowser is a site for live, server-authoritative browser games. Players create an account, choose a game from the lobby, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, **Nim**, and **heads-up Hold'em**.
+Games available now: **War**, **Tic-Tac-Toe**, **Uno**, **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, **Nim**, and **heads-up Hold'em**. Tic-Tac-Toe is the smallest complete example of how to add a game.
 
 ## How it works
 
-The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
+The server owns each game. It validates actions, advances the selected game's engine, and sends each player a view appropriate to their seat. Browsers only send game actions and render what they receive, so neither player can cheat. Rooms, accounts, authentication, invite links, and win/loss records are shared by every game.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and public Hold'em moments) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set. Hold'em prompts leave out hole cards.
+An optional AI commentator can add short descriptions after notable game events without blocking gameplay. Each game builds its own prompt, and prompts contain only information that is public to both players. Commentary is skipped when no API key is set.
 
 ## Features
 
@@ -19,7 +19,7 @@ An AI commentator can add a short description after game events (War rounds, Tic
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated commentary for War, Tic-Tac-Toe, and Hold'em (optional, needs an Anthropic API key). Hold'em commentary uses public facts only.
+- Optional AI-generated commentary for games that provide a commentary prompt (needs an Anthropic API key)
 
 ## War rules
 
@@ -171,4 +171,4 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 1. Open the Render URL in a browser on both computers. Do not use `localhost`, since that points to each computer itself.
 2. On the first computer, register or log in, choose a game to create a room, and copy the displayed six-character room code or the invite link.
 3. On the second computer, register or log in with a different account, then enter the code (or open the link) and join the room.
-4. In War, both players click **Flip**. Confirm that each screen shows both cards after the second flip, the card counts update, and, if a key is set, a line of commentary appears after a resolved round. In Tic-Tac-Toe, take turns and confirm each move appears on both screens, and, if a key is set, commentary appears after moves.
+4. Choose a game and play it through its normal actions. Confirm that both browsers receive the same authoritative result while each player's private information remains hidden from the other player. If a key is set and the game supplies commentary, confirm that a line appears after a supported event.
