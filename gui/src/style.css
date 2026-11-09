@@ -1,15 +1,15 @@
 /* WarBrowser shell: accounts, lobby and rooms. Game screens live in their own
    shadow roots and only change the page through setBackground. */
 :root {
-  /* The felt green the site has always used. */
-  --bg: #1f6b3a;
-  --field: #11432a;
-  --surface: #185a32;
-  --surface-2: #1d6539;
+  /* Felt green, a few shades lighter than the original #1f6b3a. */
+  --bg: #2f8f52;
+  --field: #1f6a3d;
+  --surface: #287d47;
+  --surface-2: #2d8a4f;
   --line: rgb(255 255 255 / 0.08);
   --line-strong: rgb(255 255 255 / 0.16);
   --ink: #f5f3ee;
-  --muted: #b5d0bd;
+  --muted: #d3eadb;
   --accent: #f5c542;
   --accent-hover: #ffd35c;
   --accent-ink: #1d1a0e;
@@ -31,7 +31,7 @@ body {
   min-height: 100vh;
   font: 400 16px/1.5 var(--font-body);
   /* A single soft light at the top; games replace this with setBackground. */
-  background: radial-gradient(70rem 36rem at 50% -10rem, #2b8350, transparent 70%), var(--bg);
+  background: radial-gradient(70rem 36rem at 50% -10rem, #3fa866, transparent 70%), var(--bg);
   background-repeat: no-repeat;
   background-color: var(--bg);
   color: var(--ink);
@@ -146,7 +146,7 @@ input {
   padding: 0.75rem 0.9rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-input::placeholder { color: #7fa58b; }
+input::placeholder { color: #9fc8ad; }
 input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(245 197 66 / 0.3); }
 
 /* ---- Sign in ---- */
@@ -256,15 +256,24 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 }
 .join input::placeholder { letter-spacing: 0.02em; text-transform: none; font-family: var(--font-body); }
 
+/* Flex rather than grid so an unfilled last row sits in the middle. */
 .game-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
-  gap: 0.9rem;
+  --cols: 4;
+  --gap: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.game-list li { animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+@media (max-width: 1000px) { .game-list { --cols: 3; } }
+@media (max-width: 760px) { .game-list { --cols: 2; } }
+@media (max-width: 520px) { .game-list { --cols: 1; } }
+.game-list li {
+  display: flex;
+  flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 35ms); }
 .game-tile {
   --a: var(--accent);
   position: relative;
@@ -311,8 +320,8 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   font: 600 0.72rem/1.3 var(--font-body);
-  color: var(--a);
-  background: color-mix(in srgb, var(--a) 12%, transparent);
+  color: color-mix(in srgb, var(--a) 40%, white);
+  background: color-mix(in srgb, var(--a) 22%, rgb(0 0 0 / 0.15));
 }
 .game-tile strong { font: 800 1.3rem/1.1 var(--font-display); letter-spacing: -0.02em; }
 .game-tile .desc { color: var(--muted); line-height: 1.45; font-size: 0.95rem; }
@@ -328,7 +337,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 .game-tile .go {
   margin-top: 0.4rem;
   font: 700 0.9rem var(--font-display);
-  color: var(--a);
+  color: color-mix(in srgb, var(--a) 45%, white);
 }
 .game-tile:disabled { opacity: 0.5; }
 .lobby-note { margin: 0; color: var(--muted); }
@@ -442,7 +451,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgb(6 32 17 / 0.72);
+  background: rgb(14 58 32 / 0.62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: fade-in 0.2s ease both;

@@ -215,6 +215,12 @@
 
 ## 2026-11-09 — Keep the green felt as the site color
 
-- **Decision:** Use the site's existing felt green (`#1f6b3a`) as the shell background, with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
+- **Decision:** Use a felt green as the shell background (first the original `#1f6b3a`; lightened to `#2f8f52` after the user found it too dark, with per-game link colors brightened to stay readable), with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
 - **Made by:** user (asked to keep the green) and agent (gold accent, surface shades)
 - **Reason:** The team likes the green; gold was the site's original button color and reads well on felt, where coral clashed.
+
+## 2026-11-09 — Center a partly filled last row of lobby games
+
+- **Decision:** Lay out the lobby game list with wrapping flex rows (4/3/2/1 columns by width) and center them, so a last row with fewer games sits in the middle instead of at the left.
+- **Made by:** user
+- **Reason:** With ten games, the last two looked stranded on the left.
