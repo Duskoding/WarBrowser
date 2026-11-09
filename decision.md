@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
+
+- **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Reuse the existing War simultaneous-reveal lifecycle while keeping RPS rules, state, and presentation isolated from the game-agnostic server and shared lobby.
+
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
 - **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
