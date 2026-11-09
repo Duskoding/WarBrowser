@@ -113,3 +113,17 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** #59
 - **Changed:** Merged the latest main. Kept the Nim and Battleship log and the shell, felt, and rematch entries from main.
 - **Remaining:** Play Nim and Battleship setup in the browser.
+
+## 2026-11-09 — How to play links in the lobby
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** #67
+- **Changed:** `rules?: string[]` on `GameModule` and in `GET /api/games` (`src/games/GameModule.ts`, `src/games/index.ts`); rules for all twelve games, each in its own `index.ts` (Nim added, Battleship updated for hand placement, and poker's #98 rules kept after merging main); the **How to play** link in `gui/src/main.ts` and `gui/src/style.css`; `GameSummary.rules` in `gui/src/types.ts`; the games-list server test now checks every game has rules; README and SPEC_v2. Removed #98's duplicate `.how-to-play` lobby dropdown so there is one How to play link. Checked in a browser at desktop and phone width, by mouse and keyboard. 203 tests pass.
+- **Remaining:** New games must add `rules` (the games-list test enforces it). If a game's rules change in its engine, update its `rules` text too.
+
+## 2026-11-09 — Uno: call UNO, catch, and stack +2/+4
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** none (follow-up to #36)
+- **Changed:** `src/games/uno/` engine, types, prompt and module: `uno` and `catch` actions, stacked draw penalties, and view fields `calledUno`, `catchable`, `pendingDraw`; the two Draw Two / Draw Four engine tests now take the penalty on the victim's turn, plus 12 new rule tests. `gui/src/games/uno/`: UNO! and Catch buttons, the +N badge, status text, move-log lines, and stacking-aware card highlighting. Uno's How to play steps, README and decision.md.
+- **Remaining:** none known. Anyone changing the Uno engine should keep the client's `canPlay` in `gui/src/games/uno/uno.ts` in step with the engine's `canPlay`/`canStack`.

@@ -633,6 +633,9 @@ test("lists the available games", async () => {
     assert.equal(typeof game.description, "string");
     assert.equal(typeof game.players.min, "number");
     assert.equal(typeof game.players.max, "number");
+    // Every game listed today has "How to play" rules for the lobby (#67).
+    assert.ok(Array.isArray(game.rules) && game.rules.length > 0, `${game.id} has rules`);
+    for (const rule of game.rules) assert.equal(typeof rule, "string");
   }
   assert.deepEqual(games.find((g) => g.id === "uno").players, { min: 2, max: 8 });
   assert.ok(games.find((g) => g.id === "poker").rules.length >= 1);

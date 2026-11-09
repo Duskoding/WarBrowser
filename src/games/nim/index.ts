@@ -2,13 +2,18 @@ import type { GameModule } from "../GameModule.ts";
 import { names, outcomeFor, whoFor } from "../shared/view.ts";
 import { NimEngine } from "./NimEngine.ts";
 import { buildNimPrompt } from "./prompt.ts";
-import type { NimAction, NimResult, NimState } from "./types.ts";
+import { PILES, type NimAction, type NimResult, type NimState } from "./types.ts";
 
 export const nim: GameModule<NimState, NimAction, NimResult> = {
   id: "nim",
   name: "Nim",
   description: "Take stones from one pile. Whoever takes the last stone wins.",
   players: { min: 2, max: 2 },
+  rules: [
+    `There are ${PILES.length} piles of stones (${PILES.join(", ")}). Players take turns; the room's host goes first.`,
+    "On your turn, take one or more stones from a single pile.",
+    "Whoever takes the last stone wins.",
+  ],
 
   createEngine() {
     return new NimEngine();
