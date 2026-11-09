@@ -6,6 +6,18 @@
 - **Made by:** agent
 - **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
 
+## 2026-11-09 — Cap AI commentary calls per room and server (#80)
+
+- **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
+
+## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
+
+- **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Reuse the existing War simultaneous-reveal lifecycle while keeping RPS rules, state, and presentation isolated from the game-agnostic server and shared lobby.
+
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
 - **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
@@ -153,3 +165,9 @@
 - **Decision:** Add per-game `games` statistics to the user API while retaining aggregate `wins` and `losses`. Both SQLite and PostgreSQL update the aggregate and the selected game's counters atomically when a match has a winner; draws create no win/loss increments.
 - **Made by:** user (selected compatibility-preserving API shape) and agent (implementation)
 - **Reason:** Existing clients rely on aggregate fields, while game-specific totals need a stable map keyed by the registered game id. Keeping both avoids a breaking protocol change and supports historical aggregate data that predates per-game tracking.
+
+## 2026-11-09 — Keep `connection.ts` in the shared lobby shell (#40)
+
+- **Decision:** Treat issue #40 as done. Leave `gui/src/connection.ts` where it is. It is already the shared GUI socket client: `gui/src/main.ts` is the only importer, and game screens send through the shell. Do not add a `gui/src/infra/` or `gui/src/shared/` folder for it.
+- **Made by:** agent
+- **Reason:** PR #25 put this boundary in place by moving game screens under `gui/src/games/` and keeping `connection.ts` in the shared lobby shell. Issue #40 was filed after that pull request merged. It is one task under parent issue #27 (extract the shared core), which stays open. Moving the file now would only change import paths and the preview alias.
