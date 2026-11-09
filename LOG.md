@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Play again in the same room
+
+- **Who:** agent
+- **Issues:** #75
+- **Changed:** `rematch` / `rematch_requested` in `server.js`, Play again on the shared game-over button and result splash, the README protocol, and server tests for a fresh Tic-Tac-Toe board plus a second recorded game. A finished game is recorded before its final state is sent, and those totals stay on screen when the next game starts. Later merges kept `restart_game`, the room shell, Hold'em, the replay screen remount, and the current game docs. The buttons send `rematch`. Decisions are in `decision.md`.
+- **Remaining:** none
+
 ## 2026-11-09 — Update game architecture documentation
 
 - **Who:** agent

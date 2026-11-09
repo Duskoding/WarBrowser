@@ -6,6 +6,7 @@ export type ClientMessage =
   | { type: "start_game" }
   | { type: "restart_game" }
   | { type: "game_message"; payload: GameAction }
+  | { type: "rematch" }
   | { type: "leave_room" };
 
 export type ServerEvent =
@@ -15,6 +16,7 @@ export type ServerEvent =
   | { type: "room_joined"; roomCode: string; gameId: string; host: string; players: string[]; min: number; max: number }
   | { type: "players_update"; players: string[] } // roster changed while the room waits for the host to start
   | { type: "player_left"; username: string } // someone left or disconnected; any running game was discarded
+  | { type: "rematch_requested"; username: string } // someone seated wants a new game; waiting on the others
   | { type: "room_left" }
   | { type: "room_closed"; reason: "idle" }
   | { type: "game_message"; payload: unknown } // from the server (or relayed from another player), unchecked
