@@ -1,20 +1,40 @@
 /* Defaults inside every game's shadow root. A game's own CSS comes after this
-   and can override any of it. */
-:host { display: block; width: 100%; }
+   and can override any of it. Matches the shell's look. */
+:host {
+  display: block;
+  width: 100%;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+}
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
 button {
   font: inherit;
-  font-size: 1.2rem;
-  padding: 0.6rem 2.5rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.65rem 2rem;
   border: none;
-  border-radius: 999px;
-  background: #f5c542;
-  color: #222;
+  border-radius: 12px;
+  background: #ff5a36;
+  color: #fff;
   cursor: pointer;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 8px 20px rgb(0 0 0 / 0.3);
+  transition: background 0.15s ease, transform 0.1s ease;
 }
+button:hover:not(:disabled) { background: #ff7152; }
+button:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-button:focus-visible { outline: 3px solid #8fb3f0; outline-offset: 2px; }
+button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
-.status { min-height: 1.5em; font-size: 1.5rem; font-weight: bold; margin: 0; text-align: center; }
+.status {
+  min-height: 1.5em;
+  margin: 0;
+  font: 800 1.5rem/1.2 var(--font-display);
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
