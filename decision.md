@@ -213,6 +213,42 @@
 - **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
 - **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
 
+## 2026-11-09 — Resolve the new games onto current main (#59)
+
+- **Decision:** Keep main's `GameModule` (`players: { min, max }`, no How to play `rules` list), its lobby, and the games already there, including Uno. Add Nim as a two-player module in that shape. Put Battleship fleet placement back on main's Battleship: a `place` action, plus drag and Rotate on the existing setup row. Leave out the preview page main removed, and the older Rock-Paper-Scissors tests that no longer match main's engine.
+- **Made by:** agent
+- **Reason:** Pull request #94 conflicted because main had already landed the other games and a newer module contract. Nim (#77) and player-placed fleets (#81) were the parts still missing.
+
+## 2026-11-09 — Shell UI redesign: clean "game night" look with share and result moments
+
+- **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
+- **Made by:** user (asked for an "explosive and viral" UI and rejected the neon pass) and agent (design and implementation)
+- **Reason:** Sharing a room and celebrating a win are the moments that spread a two-player game; doing them in the shell gives every game the same treatment without touching game modules, the server or the room protocol. Motion is limited and honours `prefers-reduced-motion`.
+
+## 2026-11-09 — Keep the green felt as the site color
+
+- **Decision:** Use a felt green as the shell background (first the original `#1f6b3a`; lightened to `#2f8f52` after the user found it too dark, with per-game link colors brightened to stay readable), with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
+- **Made by:** user (asked to keep the green) and agent (gold accent, surface shades)
+- **Reason:** The team likes the green; gold was the site's original button color and reads well on felt, where coral clashed.
+
+## 2026-11-09 — Center a partly filled last row of lobby games
+
+- **Decision:** Lay out the lobby game list with wrapping flex rows (4/3/2/1 columns by width) and center them, so a last row with fewer games sits in the middle instead of at the left.
+- **Made by:** user
+- **Reason:** With ten games, the last two looked stranded on the left.
+
+## 2026-11-09 — Rematch from the result screen
+
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Made by:** agent
+- **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
+
+## 2026-11-09 — Keep both decision logs when main moves again (#59)
+
+- **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
+- **Made by:** agent
+- **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
 ## 2026-11-09 — "How to play" rules in the lobby (#67)
 
 - **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors are new; Crazy Eights, Go Fish, Goofspiel, Connect Four, Dots and Boxes and Battleship reuse the text from draft PR #70, checked against the engines merged in PR #88. All of them match each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.

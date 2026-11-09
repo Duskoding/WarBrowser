@@ -34,3 +34,7 @@ button.bs-cell:disabled { opacity: 1; cursor: default; }
 .bs-cell.hit::after { background: #ffd2c8; }
 .bs-cell.sunk { background: #5a1810; }
 .bs-cell.ship.sunk { background: #5a1810; }
+.bs-cell.preview { box-shadow: inset 0 0 0 2px #f5c542; }
+.bs-cell.preview.bad { box-shadow: inset 0 0 0 2px #c8412f; background: #6a3030; }
+.bs-cell.selected { box-shadow: inset 0 0 0 2px #f5c542; }
+.bs-grid.mine { touch-action: none; }

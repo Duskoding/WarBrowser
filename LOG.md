@@ -72,11 +72,32 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** Added `gui/src/games/uno/uno.ts` and `uno.css` and registered `uno` in `gui/src/games/index.ts`. Shows other players with card counts and an UNO! marker at one card, the draw and discard piles, the color to match and play direction, your hand sorted by color with playable cards highlighted, a color picker for wilds, and a per-move line in the commentary box. No server, engine or protocol changes. Checked with a full 3-player game in real browsers (winner and stats update, no errors, no sideways scroll at phone width); all 83 tests pass.
 - **Remaining:** No GUI tests exist for any game yet. The Uno engine has no "call UNO" or "play the card you just drew" rules, so the screen has no buttons for them; if the engine owner (#30) adds them, the screen needs matching buttons. Once `gui/src/games/shared/` (cards module, PR #70 work) is on `main`, card drawing could move there. Keyboard/screen-reader pass is tracked in #82.
 
+## 2026-11-09 — Add Nim and Battleship placement onto current main
+
+- **Who:** agent
+- **Issues:** #59, #77, #81
+- **Changed:** Merged current main into the branch. Kept main's module contract and existing games. Added Nim. Restored Battleship drag-and-rotate placement on main's screen.
+- **Remaining:** Play Nim and Battleship setup in the browser. Commentary was not tried with a real API key.
+
+## 2026-11-09 — Shell UI redesign
+
+- **Who:** agent (Claude Code), for the repository owner
+- **Issues:** none filed; user request to make the whole UI more striking and shareable
+- **Changed:** New look for sign-in, lobby, room waiting card, toast and shared in-game button/status defaults. Added share-invite button, win/lose splash with confetti and a brag share, session win streak in the header, per-game records on lobby tiles. New `gui/src/flair.ts` (game icons/colors) and `gui/src/fx.ts` (confetti, shake, native share). No server, engine or protocol changes. Checked a full Tic-Tac-Toe game in two browsers (desktop and 390px phone, no sideways scroll); all 128 tests pass.
+- **Remaining:** Game screens keep their own colors; individual games could adopt the coral accent and fonts in their own CSS. No rematch flow: the server has no restart for a finished room.
+
+## 2026-11-09 — Keep both log entries after main moved again
+
+- **Who:** agent
+- **Issues:** #59
+- **Changed:** Merged the latest main. Kept the Nim and Battleship log and the shell, felt, and rematch entries from main.
+- **Remaining:** Play Nim and Battleship setup in the browser.
+
 ## 2026-11-09 — How to play links in the lobby
 
 - **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
 - **Issues:** #67
-- **Changed:** `rules?: string[]` on `GameModule` and in `GET /api/games` (`src/games/GameModule.ts`, `src/games/index.ts`); rules for all ten games in each game's `index.ts`; the **How to play** link in `gui/src/main.ts` and `gui/src/style.css`; `GameSummary.rules` in `gui/src/types.ts`; the games-list server test now checks every game has rules; README and SPEC_v2. Checked in a browser at desktop and phone width, by mouse and keyboard. 94 tests pass.
+- **Changed:** `rules?: string[]` on `GameModule` and in `GET /api/games` (`src/games/GameModule.ts`, `src/games/index.ts`); rules for all eleven games in each game (Nim added and Battleship updated for hand placement after merging #94 and #97)'s `index.ts`; the **How to play** link in `gui/src/main.ts` and `gui/src/style.css`; `GameSummary.rules` in `gui/src/types.ts`; the games-list server test now checks every game has rules; README and SPEC_v2. Checked in a browser at desktop and phone width, by mouse and keyboard. 94 tests pass.
 - **Remaining:** New games should add `rules` when they're built (Battleship #64, and the games in PR #70 already have them). If a game's rules change in its engine, update its `rules` text too.
 
 ## 2026-11-09 — Uno: call UNO, catch, and stack +2/+4
