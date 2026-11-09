@@ -92,6 +92,8 @@ export ANTHROPIC_API_KEY=your-key   # PowerShell: $env:ANTHROPIC_API_KEY = "your
 
 `ANTHROPIC_MODEL` overrides the default model (`claude-haiku-5-5`). Never commit your key; `.env` is gitignored, and tests never call the API.
 
+Commentary is capped at one call per room every three seconds and 20 calls per game. The server-wide calls-per-minute cap defaults to 60; override it with `COMMENTARY_CALLS_PER_MINUTE`. Calls skipped by any limit are logged and do not affect gameplay.
+
 ### Client development
 
 For client development, run `npm start` in one terminal and `npm run dev` in another. The dev server proxies the WebSocket to the game server.

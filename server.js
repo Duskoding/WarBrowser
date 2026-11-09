@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
-import { ClaudeCommentator } from "./src/commentator.ts";
+import { ClaudeCommentator, CommentaryLimiter, commentaryCallsPerMinuteFromEnv } from "./src/commentator.ts";
 import { DEFAULT_GAME_ID, findGame, gameSummaries } from "./src/games/index.ts";
 import {
   SESSION_COOKIE,
@@ -166,10 +166,15 @@ function openDatabase(databasePath) {
 export function createWarServer({
   commentator = new ClaudeCommentator(),
   database = ":memory:",
-  engineOptions = {}
+  engineOptions = {},
+  commentaryLimits = {}
 } = {}) {
   const postgres = database === "postgres" || database === process.env.DATABASE_URL;
   const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
+  const commentaryLimiter = new CommentaryLimiter(commentator, {
+    callsPerMinute: commentaryLimits.callsPerMinute ?? commentaryCallsPerMinuteFromEnv(),
+    ...commentaryLimits
+  });
   // roomCode -> { game: GameModule, sockets: Set<WebSocket> }
   const rooms = new Map();
   // roomCode -> the running match once the room is full
@@ -492,7 +497,11 @@ export function createWarServer({
         room.started = true;
         // Room is starting: seats follow join order (the host is seat 0).
         const seated = [...room.sockets];
-        const context = { commentator, options: engineOptions, players: seated.length };
+        const context = {
+          commentator: commentaryLimiter.forRoom(socket.roomCode),
+          options: engineOptions,
+          players: seated.length
+        };
         const game = {
           module: room.game,
           engine: room.game.createEngine(context),
