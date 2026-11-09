@@ -7,6 +7,96 @@ export interface Commentator {
   describe(prompt: string): Promise<string | null>;
 }
 
+export const DEFAULT_COMMENTARY_CALLS_PER_MINUTE = 60;
+export const DEFAULT_COMMENTARY_MAX_CALLS_PER_GAME = 20;
+export const DEFAULT_COMMENTARY_MIN_INTERVAL_MS = 5000;
+
+export interface CommentaryLimiterOptions {
+  callsPerMinute?: number;
+  maxCallsPerGame?: number;
+  minIntervalMs?: number;
+  now?: () => number;
+}
+
+function nonNegativeInteger(value: number | undefined, fallback: number): number {
+  if (value !== undefined && Number.isInteger(value) && value >= 0) return value;
+  return fallback;
+}
+
+export function commentaryCallsPerMinuteFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const configured = Number(env.COMMENTARY_CALLS_PER_MINUTE);
+  return nonNegativeInteger(configured, DEFAULT_COMMENTARY_CALLS_PER_MINUTE);
+}
+
+interface RoomCommentaryState {
+  calls: number;
+  lastCallAt: number | null;
+}
+
+export class CommentaryLimiter {
+  private readonly callTimes: number[] = [];
+  private readonly commentator: Commentator;
+  private readonly callsPerMinute: number;
+  private readonly maxCallsPerGame: number;
+  private readonly minIntervalMs: number;
+  private readonly now: () => number;
+
+  constructor(
+    commentator: Commentator,
+    options: CommentaryLimiterOptions = {},
+  ) {
+    this.commentator = commentator;
+    this.callsPerMinute = nonNegativeInteger(
+      options.callsPerMinute,
+      commentaryCallsPerMinuteFromEnv(),
+    );
+    this.maxCallsPerGame = nonNegativeInteger(
+      options.maxCallsPerGame,
+      DEFAULT_COMMENTARY_MAX_CALLS_PER_GAME,
+    );
+    this.minIntervalMs = nonNegativeInteger(
+      options.minIntervalMs,
+      DEFAULT_COMMENTARY_MIN_INTERVAL_MS,
+    );
+    this.now = options.now ?? Date.now;
+  }
+
+  forRoom(roomCode: string): Commentator {
+    const room: RoomCommentaryState = { calls: 0, lastCallAt: null };
+    return {
+      describe: (prompt) => this.describe(roomCode, room, prompt),
+    };
+  }
+
+  private describe(roomCode: string, room: RoomCommentaryState, prompt: string) {
+    const now = this.now();
+
+    while (this.callTimes[0] !== undefined && this.callTimes[0] <= now - 60_000) {
+      this.callTimes.shift();
+    }
+
+    if (room.calls >= this.maxCallsPerGame) {
+      console.info(`Commentary skipped for room ${roomCode}: game limit reached.`);
+      return Promise.resolve(null);
+    }
+    if (room.lastCallAt !== null && now - room.lastCallAt < this.minIntervalMs) {
+      console.info(`Commentary skipped for room ${roomCode}: room rate limit reached.`);
+      return Promise.resolve(null);
+    }
+    if (this.callTimes.length >= this.callsPerMinute) {
+      console.info(`Commentary skipped for room ${roomCode}: server rate limit reached.`);
+      return Promise.resolve(null);
+    }
+
+    room.calls += 1;
+    room.lastCallAt = now;
+    this.callTimes.push(now);
+    return this.commentator.describe(prompt);
+  }
+}
+
 export interface CommentatorOptions {
   apiKey?: string;
   model?: string;
