@@ -1,5 +1,6 @@
 import type { GuiModule } from "./GuiModule";
 import { ticTacToe } from "./tictactoe/tictactoe";
+import { uno } from "./uno/uno";
 import { war } from "./war/war";
 import { rps } from "./rps/rps";
 
@@ -8,5 +9,6 @@ import { rps } from "./rps/rps";
 export const clientGames: Record<string, GuiModule> = {
   [war.id]: war,
   [ticTacToe.id]: ticTacToe,
+  [uno.id]: uno,
   [rps.id]: rps
 };

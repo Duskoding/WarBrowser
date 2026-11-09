@@ -44,3 +44,10 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** #60
 - **Changed:** Added the RPS engine, tests, server and client module registrations, GUI screen/styles, README coverage, and decision-log entry.
 - **Remaining:** none; typecheck, build, and full test suite pass.
+
+## 2026-11-09 — Uno GUI module
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** #36 (child of #30)
+- **Changed:** Added `gui/src/games/uno/uno.ts` and `uno.css` and registered `uno` in `gui/src/games/index.ts`. Shows other players with card counts and an UNO! marker at one card, the draw and discard piles, the color to match and play direction, your hand sorted by color with playable cards highlighted, a color picker for wilds, and a per-move line in the commentary box. No server, engine or protocol changes. Checked with a full 3-player game in real browsers (winner and stats update, no errors, no sideways scroll at phone width); all 83 tests pass.
+- **Remaining:** No GUI tests exist for any game yet. The Uno engine has no "call UNO" or "play the card you just drew" rules, so the screen has no buttons for them; if the engine owner (#30) adds them, the screen needs matching buttons. Once `gui/src/games/shared/` (cards module, PR #70 work) is on `main`, card drawing could move there. Keyboard/screen-reader pass is tracked in #82.
