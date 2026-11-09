@@ -162,9 +162,28 @@ function renderGameList() {
       tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
+      if (game.rules?.length) item.append(howToPlay(game));
       return item;
     })
   );
+}
+
+// A "How to play" link under a game's tile that expands its rules. It sits
+// next to the tile, not inside it, so opening it doesn't create a room.
+function howToPlay(game: GameSummary) {
+  const details = document.createElement("details");
+  details.className = "how-to";
+  details.name = "how-to"; // opening one game's rules closes the others
+  details.innerHTML = `<summary>How to play</summary><ol></ol>`;
+  details.querySelector("summary")!.setAttribute("aria-label", `How to play ${game.name}`);
+  details.querySelector("ol")!.append(
+    ...game.rules!.map((rule) => {
+      const li = document.createElement("li");
+      li.textContent = rule;
+      return li;
+    })
+  );
+  return details;
 }
 
 async function loadGames() {

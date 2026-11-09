@@ -15,5 +15,5 @@ export function findGame(id: unknown): GameModule | undefined {
 }
 
 export function gameSummaries(): GameSummary[] {
-  return games.map(({ id, name, description, players }) => ({ id, name, description, players }));
+  return games.map(({ id, name, description, players, rules }) => ({ id, name, description, players, rules }));
 }

@@ -28,6 +28,13 @@ export const uno: GameModule<UnoState, UnoAction, UnoResult> = {
   name: "Uno",
   description: "Match the color or number on top, dodge Draw Twos, and empty your hand first.",
   players: { min: 2, max: 8 },
+  rules: [
+    "Everyone gets 7 cards and the host goes first. One card starts the discard pile.",
+    "On your turn, play a card that matches the top card's color or its number or symbol. Wild cards can always be played, and you choose the next color.",
+    "Skip makes the next player miss a turn. Reverse changes direction (with two players it works like Skip). Draw Two and Wild Draw Four make the next player draw 2 or 4 cards and miss their turn.",
+    "If you can't or don't want to play, draw one card and your turn ends.",
+    "The first player to get rid of all their cards wins.",
+  ],
 
   createEngine(context) {
     return new UnoEngine(context.players, context.options as UnoEngineOptions);

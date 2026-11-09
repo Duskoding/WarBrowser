@@ -29,7 +29,7 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 
 `WarEngine`: holds the deck, both players' piles, and round state; exposes `flip(playerId)` and `getState(playerId)`.
 
-**Multiple games:** each game is a `GameDefinition` in `src/games/` (`id`, `name`, `description`, `players`, and `create()` returning a session with `view(seat, players)` and `act(seat, payload)`), listed in `src/games/index.ts`. `src/games/war.ts` wraps `WarEngine`; `src/games/tictactoe.ts` is a second, small game. A room is created for one game and the server runs that game's session once the room is full. In the browser, each game has a screen in `gui/src/games/<id>/` listed in `gui/src/games/index.ts`, and the lobby lists the games from `GET /api/games`.
+**Multiple games:** each game is a `GameDefinition` in `src/games/` (`id`, `name`, `description`, `players`, and `create()` returning a session with `view(seat, players)` and `act(seat, payload)`), listed in `src/games/index.ts`. `src/games/war.ts` wraps `WarEngine`; `src/games/tictactoe.ts` is a second, small game. A room is created for one game and the server runs that game's session once the room is full. In the browser, each game has a screen in `gui/src/games/<id>/` listed in `gui/src/games/index.ts`, and the lobby lists the games from `GET /api/games`. Each game may supply `rules` (a list of short steps), which the lobby shows under its tile behind a **How to play** link.
 
 ## WebSocket protocol
 

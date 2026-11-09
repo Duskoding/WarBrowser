@@ -177,3 +177,9 @@
 - **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
 - **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
 - **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
+
+## 2026-11-09 — "How to play" rules in the lobby (#67)
+
+- **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors, matching each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.
+- **Made by:** user (Ariella, assigned #67) asked for it; design by agent
+- **Reason:** Players can learn a game before starting a room, and adding rules to a future game needs no lobby changes.
