@@ -1,7 +1,9 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, restartGame, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
+import { flairFor, hueFor } from "./flair";
+import { confetti, nativeShare, shake } from "./fx";
 import { fetchGames, fetchMe, login, logout, register, resetPassword, type Me } from "./session";
 import type { GameSummary, ServerPayload } from "./types";
 
@@ -10,58 +12,98 @@ import type { GameSummary, ServerPayload } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <header>
-    <h1>WarBrowser</h1>
-    <p class="conn" id="conn">Checking whether you are signed in…</p>
-    <p class="user-bar" id="user-bar" hidden>
-      <span id="user-stats"></span>
-      <button type="button" id="logout" class="small ghost">Log out</button>
-    </p>
+  <header class="topbar" id="site-header">
+    <a class="wordmark" href="/" aria-label="WarBrowser home"><span class="mark" aria-hidden="true">♠</span>WarBrowser</a>
+    <div class="topbar-right">
+      <p class="conn" id="conn">Checking whether you are signed in…</p>
+      <p class="user-bar" id="user-bar" hidden>
+        <span class="me-chip" id="user-stats"></span>
+        <button type="button" id="logout" class="small ghost">Log out</button>
+      </p>
+    </div>
   </header>
 
   <section class="auth" id="auth" hidden>
-    <form id="auth-form">
-      <label>Username
-        <input id="username" name="username" autocomplete="username" maxlength="20" required />
-      </label>
-      <label>Password
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
-      </label>
-      <p class="auth-error" id="auth-error" hidden></p>
-      <button type="submit" id="auth-submit">Log in</button>
-    </form>
-    <p class="auth-switch">
-      <button type="button" id="auth-toggle" class="small ghost">Need an account? Register</button>
-    </p>
+    <div class="hero">
+      <p class="eyebrow">10 games · live · free</p>
+      <h1>Play anyone.<br /><span>One link.</span></h1>
+      <p class="hero-sub">Pick a game, send the link, and you're playing before they finish reading the text.</p>
+      <div class="fan" aria-hidden="true">
+        <span class="pc" style="--r:-18deg;--x:-70px">A<small>♠</small></span>
+        <span class="pc red" style="--r:-6deg;--x:-24px">K<small>♥</small></span>
+        <span class="pc" style="--r:6deg;--x:24px">Q<small>♣</small></span>
+        <span class="pc red" style="--r:18deg;--x:70px">J<small>♦</small></span>
+      </div>
+    </div>
+    <div class="auth-card">
+      <h2 class="auth-title" id="auth-title">Jump in</h2>
+      <form id="auth-form">
+        <label>Username
+          <input id="username" name="username" autocomplete="username" maxlength="20" required />
+        </label>
+        <label>Password
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="auth-error" id="auth-error" hidden></p>
+        <button type="submit" id="auth-submit">Log in</button>
+      </form>
+      <p class="auth-switch">
+        <button type="button" id="auth-toggle" class="small ghost">Need an account? Register</button>
+      </p>
+    </div>
   </section>
 
   <section class="lobby" id="lobby" hidden>
-    <h2>Choose a game</h2>
-    <ul class="game-list" id="game-list"></ul>
-    <p class="lobby-note" id="games-note" hidden></p>
-    <div class="join-row">
-      <span class="or">Have a room code?</span>
+    <div class="lobby-head">
+      <div>
+        <h2>Pick your battle</h2>
+        <p>Create a room and send the link — or join a friend's.</p>
+      </div>
       <form class="join" id="join-form">
-        <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" />
-        <button type="submit" id="join-room" disabled>Join</button>
+        <input id="room-code" maxlength="6" placeholder="Room code" aria-label="Room code" autocomplete="off" spellcheck="false" />
+        <button type="submit" id="join-room" class="ghost" disabled>Join</button>
       </form>
     </div>
+    <ul class="game-list" id="game-list"></ul>
+    <p class="lobby-note" id="games-note" hidden></p>
   </section>
 
   <main class="room-screen" id="room-screen" hidden>
     <div class="room">
       <span class="game-name" id="room-game"></span>
-      · Room <strong id="room-id"></strong>
-      <button id="copy-link" class="small">Copy invite link</button>
-      <button id="leave-room" class="small ghost">Leave</button>
+      <span class="code-label">Room</span> <strong id="room-id"></strong>
+      <button id="share-room" class="small" type="button">Share invite</button>
+      <button id="leave-room" class="small ghost" type="button">Leave</button>
     </div>
-    <p class="invite-link" id="invite-link"></p>
-    <p class="status" id="room-status"></p>
-    <p class="players" id="room-players"></p>
-    <button id="start-game" class="small" hidden>Start game</button>
+    <section class="lobby-card" id="waiting-card">
+      <p class="big-code" id="big-code" aria-hidden="true"></p>
+      <p class="status" id="room-status"></p>
+      <ul class="players" id="room-players" aria-label="Players"></ul>
+      <p class="player-count" id="player-count"></p>
+      <button id="start-game" type="button" hidden>Start game</button>
+      <div class="share-row">
+        <button id="copy-link" class="small ghost" type="button">Copy invite link</button>
+      </div>
+      <p class="invite-link" id="invite-link"></p>
+    </section>
     <div class="game-root" id="game-root"></div>
+    <button id="play-again" class="small" hidden>Play again</button>
   </main>
-  <div class="toast" id="toast" hidden></div>
+  <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
+    <div class="splash-card">
+      <div class="splash-emoji" id="splash-emoji" aria-hidden="true"></div>
+      <h2 id="splash-title"></h2>
+      <p id="splash-text"></p>
+      <p class="record" id="splash-record"></p>
+      <div class="share-row">
+        <button id="splash-share" type="button">Brag about it</button>
+        <button id="splash-rematch" class="ghost small" type="button">Rematch</button>
+        <button id="splash-close" class="ghost small" type="button">See the board</button>
+        <button id="splash-lobby" class="ghost small" type="button">Back to lobby</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -87,12 +129,17 @@ let roomMin = 0;
 let roomMax = 0;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
+// Wins in a row this visit; shown in the header and the result splash.
+let streak = 0;
+let gameOver = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
 function showToast(text: string) {
   const toast = $("toast");
   toast.textContent = text;
+  toast.hidden = true;
+  void toast.offsetWidth;
   toast.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
@@ -109,8 +156,36 @@ function renderUserBar() {
   const loggedIn = me !== null;
   $("user-bar").hidden = !loggedIn;
   if (me) {
-    $("user-stats").textContent = `${me.username}  ${me.wins}–${me.losses}`;
+    const chip = $("user-stats");
+    chip.replaceChildren(
+      avatar(me.username),
+      text("span", me.username),
+      recordEl(me.wins, me.losses)
+    );
+    if (streak >= 2) chip.append(text("span", `🔥 ${streak} streak`, "streak"));
   }
+}
+
+function text(tag: string, content: string, className?: string) {
+  const el = document.createElement(tag);
+  el.textContent = content;
+  if (className) el.className = className;
+  return el;
+}
+
+function avatar(name: string) {
+  const el = text("span", name.slice(0, 1) || "?", "avatar");
+  el.style.setProperty("--h", String(hueFor(name)));
+  el.setAttribute("aria-hidden", "true");
+  return el;
+}
+
+function recordEl(wins: number, losses: number) {
+  const el = document.createElement("span");
+  el.className = "rec";
+  el.setAttribute("aria-label", `${wins} wins, ${losses} losses`);
+  el.append(text("b", `${wins}W`), " · ", text("i", `${losses}L`));
+  return el;
 }
 
 function showAuth() {
@@ -126,7 +201,8 @@ function showAuth() {
 }
 
 function updateAuthMode() {
-  authSubmit.textContent = resetting ? "Set new password" : registering ? "Register" : "Log in";
+  authSubmit.textContent = resetting ? "Set new password" : registering ? "Create account" : "Log in & play";
+  $("auth-title").textContent = resetting ? "New password" : registering ? "Claim your name" : "Jump in";
   authToggle.hidden = resetting;
   authToggle.textContent = registering ? "Have an account? Log in" : "Need an account? Register";
   passwordInput.autocomplete = registering || resetting ? "new-password" : "current-password";
@@ -145,21 +221,44 @@ const gameName = (id: string | null) => games.find((g) => g.id === id)?.name ?? 
 function renderGameList() {
   const list = $("game-list");
   list.replaceChildren(
-    ...games.map((game) => {
+    ...games.map((game, i) => {
       const playable = game.id in clientGames;
+      const flair = flairFor(game.id);
       const item = document.createElement("li");
+      item.style.setProperty("--i", String(i));
       const tile = document.createElement("button");
       tile.type = "button";
       tile.className = "game-tile";
       tile.disabled = !connected || !playable;
-      tile.innerHTML = `<strong></strong><span class="desc"></span><span class="meta"></span><span class="go"></span>`;
-      tile.querySelector("strong")!.textContent = game.name;
-      tile.querySelector(".desc")!.textContent = game.description;
-      tile.querySelector(".meta")!.textContent =
-        game.players.min === game.players.max
-          ? `${game.players.min} players`
-          : `${game.players.min}–${game.players.max} players`;
-      tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
+      tile.style.setProperty("--a", flair.a);
+      tile.style.setProperty("--b", flair.b);
+      const icon = text("span", flair.icon, "icon");
+      icon.setAttribute("aria-hidden", "true");
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.append(
+        text(
+          "span",
+          game.players.min === game.players.max
+            ? `${game.players.min} players`
+            : `${game.players.min}–${game.players.max} players`
+        )
+      );
+      const record = me?.games[game.id];
+      if (record && record.wins + record.losses > 0) {
+        meta.append(text("span", `${record.wins}W ${record.losses}L`, "rec"));
+      }
+      const top = document.createElement("span");
+      top.className = "tile-top";
+      top.append(icon);
+      if (flair.badge && playable) top.append(text("span", flair.badge, "badge"));
+      tile.append(
+        top,
+        text("strong", game.name),
+        text("span", game.description, "desc"),
+        meta,
+        text("span", playable ? "Create a room →" : "Not available in this version", "go")
+      );
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
       return item;
@@ -249,13 +348,98 @@ function handleGamePayload(payload: unknown) {
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
+    gameOver = finished;
+    // A rematch started by anyone in the room clears the result screen.
+    if (!finished) hideSplash();
+    $<HTMLButtonElement>("play-again").disabled = false;
+    if (!finished) statsRefreshed = false;
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
-      void refreshMe();
+      void celebrate();
     }
   } else if (p.kind === "commentary") {
     guarded(() => screen?.commentary?.(p.text, p.round));
   }
+}
+
+// ---- Result splash ----
+// The game view's shape belongs to each game, so the outcome is read from the
+// player's record before and after the server stores the match.
+async function celebrate() {
+  const before = me ? { wins: me.wins, losses: me.losses } : null;
+  const gameId = roomGameId;
+  const after = await refreshMe();
+  if (!before || !after || roomGameId !== gameId) return;
+  if (after.wins > before.wins) {
+    streak += 1;
+    showSplash("win", gameId);
+    confetti();
+  } else if (after.losses > before.losses) {
+    streak = 0;
+    showSplash("lose", gameId);
+    shake();
+  }
+  renderUserBar();
+  renderGameList();
+}
+
+function showSplash(outcome: "win" | "lose", gameId: string | null) {
+  const splash = $("splash");
+  const win = outcome === "win";
+  splash.classList.toggle("lose", !win);
+  const wins = ["VICTORY", "FLAWLESS", "GG EZ", "LEGENDARY"];
+  $("splash-emoji").textContent = win ? (streak >= 3 ? "🔥" : "🏆") : "💀";
+  $("splash-title").textContent = win ? wins[Math.floor(Math.random() * wins.length)] : "DEFEAT";
+  $("splash-text").textContent = win
+    ? streak >= 2
+      ? `${streak} wins in a row at ${gameName(gameId)}. Unstoppable.`
+      : `You won at ${gameName(gameId)}. Let everyone know.`
+    : `${gameName(gameId)} got you this time. Run it back?`;
+  $("splash-record").textContent = me ? `Your record: ${me.wins}W · ${me.losses}L` : "";
+  $("splash-share").textContent = win ? "Brag about it 📣" : "Challenge someone new";
+  // After a loss, the rematch is the main ask; after a win, bragging is.
+  $("splash-share").className = win ? "" : "ghost small";
+  $("splash-rematch").className = win ? "ghost small" : "";
+  $("splash-rematch").textContent = win ? "Rematch" : "Run it back 🔁";
+  splash.hidden = false;
+  (win ? $("splash-share") : $("splash-rematch")).focus();
+}
+
+function hideSplash() {
+  $("splash").hidden = true;
+}
+
+function shareData(kind: "invite" | "brag") {
+  const name = gameName(roomGameId);
+  const site = `${location.origin}${location.pathname}`;
+  if (kind === "invite") {
+    return {
+      title: `Play ${name} on WarBrowser`,
+      text: `⚡ I challenge you to ${name}! Room ${roomCode} — tap to join:`,
+      url: location.href
+    };
+  }
+  const won = !$("splash").classList.contains("lose");
+  return {
+    title: "WarBrowser",
+    text: won
+      ? `🏆 Just won at ${name} on WarBrowser${streak >= 2 ? ` — ${streak} in a row 🔥` : ""}. Think you can beat me?`
+      : `⚔️ Who wants to play ${name} on WarBrowser? Loser picks the next game.`,
+    url: site
+  };
+}
+
+/** Share sheet on phones, clipboard elsewhere. */
+function share(kind: "invite" | "brag") {
+  const data = shareData(kind);
+  if (nativeShare(data)) return;
+  const message = kind === "invite" ? data.url : `${data.text} ${data.url}`;
+  if (copyInviteLink(message)) {
+    showToast(kind === "invite" ? "Invite link copied — send it to a friend!" : "Copied! Paste it anywhere 🚀");
+    return;
+  }
+  if (kind === "invite") selectInviteLink();
+  showToast("Press Ctrl+C to copy");
 }
 
 // ---- Rendering ----
@@ -269,17 +453,18 @@ function render() {
   renderUserBar();
   if (!me || !inRoom) return;
 
-  $("room-game").textContent = gameName(roomGameId);
+  $("room-game").textContent = `${flairFor(roomGameId).icon} ${gameName(roomGameId)}`;
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
-  // Invite URL and player count are only useful before the game starts.
-  $("invite-link").hidden = screen !== null;
-  $("room-players").hidden = screen !== null;
-  $("room-players").textContent = `${roomPlayers.join(", ")} (${roomPlayers.length}/${roomMin}–${roomMax})`;
+  // The waiting card (code, invite, players) is only useful before the game starts.
+  $("waiting-card").hidden = screen !== null;
+  renderBigCode(roomCode ?? "");
+  renderPlayers();
 
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
+  $<HTMLButtonElement>("play-again").hidden = !gameOver;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
@@ -288,10 +473,43 @@ function render() {
   else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
+  $("room-status").classList.toggle("waiting", !screen && !canStart && status.startsWith("Waiting"));
+}
+
+function renderBigCode(code: string) {
+  const el = $("big-code");
+  if (el.dataset.code === code) return;
+  el.dataset.code = code;
+  el.replaceChildren(
+    ...[...code].map((ch, i) => {
+      const span = text("span", ch);
+      span.style.setProperty("--i", String(i));
+      return span;
+    })
+  );
+}
+
+function renderPlayers() {
+  const list = $("room-players");
+  const items: HTMLElement[] = roomPlayers.map((name) => {
+    const li = document.createElement("li");
+    if (name === roomHost) li.className = "host";
+    li.append(avatar(name), text("span", name === me?.username ? `${name} (you)` : name));
+    return li;
+  });
+  const open = Math.max(0, roomMin - roomPlayers.length);
+  for (let i = 0; i < open; i++) items.push(text("li", "Waiting for a challenger…", "empty"));
+  list.replaceChildren(...items);
+  $("player-count").textContent =
+    roomMin === roomMax
+      ? `${roomPlayers.length}/${roomMax} players`
+      : `${roomPlayers.length} players · ${roomMin}–${roomMax} can play`;
 }
 
 function resetRoom() {
+  hideSplash();
   unmountGame();
+  gameOver = false;
   $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
@@ -326,8 +544,10 @@ function enterRoom(
 function setConnected(value: boolean) {
   connected = value;
   $("conn").textContent = value
-    ? "Connected. Choose a game or join a room."
+    ? "Live — pick a game or join a room"
     : "Disconnected from the server. Refresh to reconnect.";
+  $("conn").classList.toggle("live", value);
+  $("conn").classList.toggle("down", !value);
   $<HTMLButtonElement>("join-room").disabled = !value;
   renderGameList();
 }
@@ -376,7 +596,9 @@ onEvent((e) => {
       break;
     case "player_left":
       roomPlayers = roomPlayers.filter((username) => username !== e.username);
+      hideSplash();
       unmountGame();
+      gameOver = false;
       showToast(`${e.username} left the room.`);
       break;
     case "room_left":
@@ -405,7 +627,29 @@ $("join-form").addEventListener("submit", (ev) => {
   if (code) joinRoom(code);
 });
 $("leave-room").addEventListener("click", leaveRoom);
+$("share-room").addEventListener("click", () => share("invite"));
+$("splash-share").addEventListener("click", () => share("brag"));
+$("splash-close").addEventListener("click", hideSplash);
+$("splash-rematch").addEventListener("click", () => {
+  hideSplash();
+  $<HTMLButtonElement>("play-again").disabled = true;
+  restartGame();
+});
+$("splash-lobby").addEventListener("click", () => {
+  hideSplash();
+  leaveRoom();
+});
+$("splash").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) hideSplash();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !$("splash").hidden) hideSplash();
+});
 $("start-game").addEventListener("click", startGame);
+$("play-again").addEventListener("click", () => {
+  $<HTMLButtonElement>("play-again").disabled = true;
+  restartGame();
+});
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();
@@ -439,7 +683,7 @@ $("copy-link").addEventListener("click", () => {
   $("invite-link").textContent = text;
   // Copy during the click, before any await, or the browser drops the user gesture.
   if (copyInviteLink(text)) {
-    showToast("Invite link copied");
+    showToast("Invite link copied — send it to a friend!");
     return;
   }
   if (!navigator.clipboard?.writeText) {

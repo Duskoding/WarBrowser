@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Replay completed games
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** none
+- **Changed:** Added the `restart_game` protocol, same-room engine recreation, a shared game-over **Play again** button, replay coverage, and README/spec/decision documentation.
+- **Remaining:** none
+
 ## 2026-11-09 — Add session log
 
 - **Who:** agent (GitHub Copilot)
@@ -71,3 +78,17 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** #59, #77, #81
 - **Changed:** Merged current main into the branch. Kept main's module contract and existing games. Added Nim. Restored Battleship drag-and-rotate placement on main's screen.
 - **Remaining:** Play Nim and Battleship setup in the browser. Commentary was not tried with a real API key.
+
+## 2026-11-09 — Shell UI redesign
+
+- **Who:** agent (Claude Code), for the repository owner
+- **Issues:** none filed; user request to make the whole UI more striking and shareable
+- **Changed:** New look for sign-in, lobby, room waiting card, toast and shared in-game button/status defaults. Added share-invite button, win/lose splash with confetti and a brag share, session win streak in the header, per-game records on lobby tiles. New `gui/src/flair.ts` (game icons/colors) and `gui/src/fx.ts` (confetti, shake, native share). No server, engine or protocol changes. Checked a full Tic-Tac-Toe game in two browsers (desktop and 390px phone, no sideways scroll); all 128 tests pass.
+- **Remaining:** Game screens keep their own colors; individual games could adopt the coral accent and fonts in their own CSS. No rematch flow: the server has no restart for a finished room.
+
+## 2026-11-09 — Keep both log entries after main moved again
+
+- **Who:** agent
+- **Issues:** #59
+- **Changed:** Merged the latest main. Kept the Nim and Battleship log and the shell, felt, and rematch entries from main.
+- **Remaining:** Play Nim and Battleship setup in the browser.
