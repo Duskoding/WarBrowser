@@ -63,7 +63,8 @@ WebSocket messages are JSON at `/ws`. Creating or joining a room requires a vali
 | `create_room` | `{ gameId? }` | Create a room for the selected game; omitted `gameId` defaults to `"war"`. |
 | `join_room` | `{ roomCode }` | Join an existing room up to its module's maximum player count. |
 | `start_game` | `{}` | Host-only; start once the module's minimum player count has joined. |
-| `restart_game` | `{}` | Start a fresh match after the current match finishes. |
+| `restart_game` | `{}` | Start a fresh match immediately after the current match finishes. |
+| `rematch` | `{}` | Ask to play again. A new match starts only after every seated player has asked, and only once the current match has finished. |
 | `leave_room` | `{ roomCode? }` | Leave the current room immediately. `roomCode` lets a dropped player leave the reserved seat without rejoining. |
 | `game_message` | `{ payload }` | Carry a game-specific action, such as `{ kind: "flip" }` in War or `{ kind: "move", cell: 0–8 }` in Tic-Tac-Toe. |
 
@@ -75,6 +76,7 @@ WebSocket messages are JSON at `/ws`. Creating or joining a room requires a vali
 | `players_update` | `{ players }` | Update the waiting-room roster before the match starts. |
 | `player_reconnecting` / `player_reconnected` | `{ username }` | A dropped player still has their seat. Moves wait until they return or the 60-second grace period ends. |
 | `player_left` | `{ username }` | A player left on purpose, or did not reconnect in time. A running game is discarded. |
+| `rematch_requested` | `{ username }` | A seated player asked to play again, and the room is still waiting on the others. |
 | `room_left` | `{}` | The current client left its room. |
 | `room_closed` | `{ reason: "idle" }` | The room expired after inactivity. |
 | `game_message` | `{ payload: { kind: "state", view } }` | Authoritative state mapped for the receiving seat. |

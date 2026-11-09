@@ -707,6 +707,77 @@ test("restarts a finished game in the same room", async () => {
   guest.close();
 });
 
+test("ignores rematch while Tic-Tac-Toe is still in progress", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "tictactoe");
+  post(host, { type: "rematch" });
+  post(host, { type: "game_message", payload: { kind: "move", cell: 0 } });
+  const hostView = (await host.next()).payload.view;
+  const guestView = (await guest.next()).payload.view;
+  assert.equal(hostView.board[0], "X");
+  assert.equal(guestView.board[0], "X");
+  host.close();
+  guest.close();
+});
+
+test("rematch deals a new Tic-Tac-Toe board once both players ask, and records the next game", async () => {
+  const { httpUrl, host, guest, hostAuth, guestAuth } = await startRoom(
+    silentCommentator,
+    {},
+    "tictactoe"
+  );
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+
+  post(host, { type: "rematch" });
+  post(host, { type: "rematch" });
+  assert.deepEqual(await guest.next(), { type: "rematch_requested", username: "host" });
+
+  post(guest, { type: "rematch" });
+  const hostAgain = (await host.next()).payload.view;
+  const guestAgain = (await guest.next()).payload.view;
+  const empty = [null, null, null, null, null, null, null, null, null];
+  assert.deepEqual(hostAgain.board, empty);
+  assert.equal(hostAgain.result, undefined);
+  assert.equal(hostAgain.yourMark, "X");
+  assert.equal(hostAgain.yourTurn, true);
+  assert.deepEqual(guestAgain.board, empty);
+  assert.equal(guestAgain.result, undefined);
+  assert.equal(guestAgain.yourMark, "O");
+  assert.equal(guestAgain.yourTurn, false);
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { tictactoe: { wins: 0, losses: 1 } } });
+
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 2, losses: 0, games: { tictactoe: { wins: 2, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 2, games: { tictactoe: { wins: 0, losses: 2 } } });
+  host.close();
+  guest.close();
+});
+
+test("rematch waits while a player is reconnecting", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "tictactoe");
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  guest.close();
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
+  post(host, { type: "rematch" });
+  assert.deepEqual(await host.next(), { type: "error", message: "A player is reconnecting." });
+  host.close();
+});
+
 test("sends Tic-Tac-Toe commentary after a replay", async () => {
   const commentator = {
     describe: async (prompt) => prompt.includes("Move 5.") ? "Final move commentary" : null

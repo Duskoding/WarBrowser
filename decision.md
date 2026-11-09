@@ -1,5 +1,35 @@
 # Decision log
 
+## 2026-11-09 — Keep Play again beside the current game docs (#75)
+
+- **Decision:** Merge the documentation update from `main` into `issue-75-add-play-again` and keep both the Play again decisions and the architecture-doc decision. `rematch` stays the Play again path.
+- **Made by:** agent
+- **Reason:** `main` moved again with the game-architecture docs. The pull request has to contain that history and still wait for every seated player before a new game.
+
+## 2026-11-09 — Keep Play again beside Hold'em and the replay remount (#75)
+
+- **Decision:** Merge the later `main` (Hold'em and the replay screen remount) into `issue-75-add-play-again` without dropping `rematch`. A finished screen is remounted when the next game's first state arrives. The commentary-after-replay test stays on `restart_game`. Play again still waits for every seated player.
+- **Made by:** agent
+- **Reason:** Main moved again after the first conflict resolution. Issue #75's agreement rule and main's newer games both have to be on the branch for the pull request to merge.
+
+## 2026-11-09 — Keep both-player Play again on the newer room shell (#75)
+
+- **Decision:** When merging `origin/main` into `issue-75-add-play-again`, keep main's room shell, result splash, `createGame`, idle-room close, and the existing `restart_game` message. Play again and the splash Rematch button send `rematch`, which still waits until every seated player has asked. The button stays on screen after a click and reads "Waiting for your opponent…". If the result splash is open, the other player sees "Your opponent wants to play again."
+- **Made by:** agent
+- **Reason:** Main landed a one-player replay and a new lobby while this branch was open. Issue #75 still requires every seated player to agree, and the newer shell is where that button has to live.
+
+## 2026-11-09 — Count a finished game before Play again (#75)
+
+- **Decision:** Write the match record before sending the finished state. The room bar reloads wins and losses when that state arrives, and keeps those totals on screen when a new game starts in the same room. Each later game refreshes the totals again when it finishes.
+- **Made by:** agent, requested by Shulamit
+- **Reason:** The first game's result has to be visible even when the same players stay and play again, rather than waiting until they leave the room.
+
+## 2026-11-09 — Play again in the same room (#75)
+
+- **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
+- **Made by:** agent, with seats and the opponent notice chosen by Shulamit
+- **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
 ## 2026-11-09 — Align README and specification with the current game architecture (#43)
 
 - **Decision:** Replace the stale single-game and `GameDefinition`/`ClientGame` descriptions with the current server-authoritative multi-game architecture. Document the live game registry from merged PR #70 and subsequent additions, and describe `GameEngine`, `GameModule`, and `GuiModule` as the extension contracts.
@@ -314,3 +344,9 @@
 - **Decision:** Main's How to play rewrite of `SPEC_v2.md` stays, including the lobby rules note, and the reconnect rows stay with it.
 - **Made by:** agent
 - **Reason:** The spec conflict was main's rewrite against the grace-period rows. Both describe current behavior.
+
+## 2026-11-09 — Keep Play again and reconnect grace (#78)
+
+- **Decision:** Merging Play again (`rematch`, which waits for every seated player) keeps the 60-second reconnect grace period. Play again is rejected with "A player is reconnecting." while a seat is reserved, and the button can be pressed again after that error. `leave_room` can still include `roomCode`.
+- **Made by:** agent
+- **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
