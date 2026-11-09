@@ -236,3 +236,9 @@
 - **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
+
+## 2026-11-09 — Full game test coverage
+
+- **Decision:** Cover every game with a `<id>.scenarios.test.ts` beside its existing tests (every rule branch and error message, payload validation, `finished` only on the ending action, commentary, per-seat views without hidden-info leaks), plus `src/games/contract.test.ts`, which checks module metadata and plays every game to the end with seeded random moves at its minimum, 3-player and maximum seat counts. Along the way it asserts that rejected actions leave every view unchanged, that the winner is a valid seat or null, and that every move is refused once the game is over. A server test starts a room for every listed game. Engine/module source is unchanged; issues found are reported rather than fixed in this change.
+- **Made by:** user (asked for full tests of every game and scenario); test design by agent
+- **Reason:** The contract test catches a new game that can deadlock, mutate state on a rejected move, or keep accepting moves after the end without having to write those checks per game.

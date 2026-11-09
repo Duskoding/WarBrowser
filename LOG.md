@@ -78,3 +78,10 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** none filed; user request to make the whole UI more striking and shareable
 - **Changed:** New look for sign-in, lobby, room waiting card, toast and shared in-game button/status defaults. Added share-invite button, win/lose splash with confetti and a brag share, session win streak in the header, per-game records on lobby tiles. New `gui/src/flair.ts` (game icons/colors) and `gui/src/fx.ts` (confetti, shake, native share). No server, engine or protocol changes. Checked a full Tic-Tac-Toe game in two browsers (desktop and 390px phone, no sideways scroll); all 128 tests pass.
 - **Remaining:** Game screens keep their own colors; individual games could adopt the coral accent and fonts in their own CSS. No rematch flow: the server has no restart for a finished room.
+
+## 2026-11-09 — Full game test coverage
+
+- **Who:** agent (Claude Code), for the repository owner
+- **Issues:** none filed
+- **Changed:** Added scenario tests for all ten games (`src/games/*/*.scenarios.test.ts`), a cross-game contract test with seeded random playthroughs (`src/games/contract.test.ts`), and a server test that starts every game and rejects a malformed action. No source changes. 487 tests pass (was 129).
+- **Remaining:** Uno can get stuck if the draw pile is empty, the discard pile holds only its top card, and the current player can't play (it has no pass action). This is rare and needs about 107 cards in hands. Goofspiel's commentary for a tied final round says the prize carries to "next round". `node --test <directory>` doesn't work; run files or globs.
