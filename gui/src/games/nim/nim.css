@@ -1,0 +1,27 @@
+/* Nim: three piles of stones. Tap a stone to take it and every stone above it. */
+.nim { color: #f6f1e7; }
+.nim-piles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  width: 100%;
+}
+.nim-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 5.5rem;
+}
+.nim-stones { display: flex; flex-direction: column; gap: 0.4rem; align-items: center; }
+.nim-stone {
+  width: 3.2rem;
+  height: 3.2rem;
+  padding: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f0d7a2, #b8883e 55%, #7a5420);
+  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.25);
+}
+.nim-stone:disabled { opacity: 0.85; }
+.nim-empty { margin: 0; opacity: 0.6; }

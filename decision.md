@@ -1,5 +1,26 @@
 # Decision log
 
+## 2026-11-09 — Align README and specification with the current game architecture (#43)
+
+- **Decision:** Replace the stale single-game and `GameDefinition`/`ClientGame` descriptions with the current server-authoritative multi-game architecture. Document the live game registry from merged PR #70 and subsequent additions, and describe `GameEngine`, `GameModule`, and `GuiModule` as the extension contracts.
+- **Made by:** agent
+- **Reason:** README and `SPEC_v2.md` must describe the code that contributors and users actually run, including the lobby, room lifecycle, per-seat views, and the complete current game list.
+
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
+
+- **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
+- **Decision:** Use the shared deck already in `src/games/shared/cards.ts` on `main`. Poker imports it and does not replace that file or move Uno onto it.
+- **Decision:** Add an optional `rules?: string[]` on `GameModule`, include it in `GET /api/games` when a game sets it, and show those lines as a lobby **How to play** disclosure next to the game tile (a sibling of the button, so opening it does not cover the tile). The disclosure is generic lobby behavior, not poker code in `gui/src/main.ts` or `server.js`. Poker is `{ min: 2, max: 2 }` and is the only game that fills `rules` here.
+- **Decision:** Hole cards are visible to the other seat only after a showdown, which `SPEC_POKER.md` already requires. They stay hidden for the whole hand on a fold. Commentary is included, per Shulamit's request, but only from a `PublicMoment` that has no hole cards: the action, board, pot, stacks, and (at showdown) the hand name.
+- **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
+- **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
+
+## 2026-11-09 — Remount game screens when replay starts
+
+- **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
+- **Made by:** agent
+- **Reason:** Game screens keep transient state such as commentary round counters and animation timers. Reusing the finished screen lets replay state inherit stale values, so a fresh screen lifecycle is required for reliable replay behavior across all games.
+
 ## 2026-11-09 — Replay finished games in the same room
 
 - **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.
@@ -213,6 +234,12 @@
 - **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
 - **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
 
+## 2026-11-09 — Resolve the new games onto current main (#59)
+
+- **Decision:** Keep main's `GameModule` (`players: { min, max }`, no How to play `rules` list), its lobby, and the games already there, including Uno. Add Nim as a two-player module in that shape. Put Battleship fleet placement back on main's Battleship: a `place` action, plus drag and Rotate on the existing setup row. Leave out the preview page main removed, and the older Rock-Paper-Scissors tests that no longer match main's engine.
+- **Made by:** agent
+- **Reason:** Pull request #94 conflicted because main had already landed the other games and a newer module contract. Nim (#77) and player-placed fleets (#81) were the parts still missing.
+
 ## 2026-11-09 — Shell UI redesign: clean "game night" look with share and result moments
 
 - **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
@@ -236,6 +263,33 @@
 - **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is labeled "Play again", is the main button after a loss and a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
+
+## 2026-11-09 — Keep both decision logs when main moves again (#59)
+
+- **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
+- **Made by:** agent
+- **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
+## 2026-11-09 — "How to play" rules in the lobby (#67)
+
+- **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors are new; Crazy Eights, Go Fish, Goofspiel, Connect Four, Dots and Boxes and Battleship reuse the text from draft PR #70, checked against the engines merged in PR #88. All of them match each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.
+- **Made by:** user (Ariella, assigned #67) asked for it; design by agent
+- **Reason:** Players can learn a game before starting a room, and adding rules to a future game needs no lobby changes.
+
+## 2026-11-09 — Uno: calling UNO, catching, and stacking draw cards
+
+- **Decision:** Add two Uno rules that the engine (#84) had left out on purpose.
+  - **Calling UNO:** new `uno` and `catch` actions, allowed out of turn. You can call UNO on your turn with two cards (before playing one) or any time with one card. Play down to one card without calling it and any other player can catch you (+2 cards) until the next card is played or drawn. Drawing cards cancels a call.
+  - **Stacking:** Draw Two and Wild Draw Four no longer make the next player draw straight away. The penalty waits (`pendingDraw`), and that player can stack a Draw Two on a Draw Two, or a Wild Draw Four on either, to add to it and pass it on, or draw the whole total and lose their turn. A Draw Two can't go on a Wild Draw Four. While a penalty waits, no other card can be played.
+  - The view gains `calledUno`, `catchable` and `pendingDraw`. The Uno screen adds UNO! and Catch buttons, a +N badge on the draw pile, matching status text, and lines in the move log; Uno's How to play steps describe both rules.
+- **Made by:** user (Ariella): asked for UNO calls to work and for stacking with "+2 can't stack on a +4, +4 can stack on a +2"; implementation details by agent
+- **Reason:** Players expected to call UNO, and the team wants stacking. Both replace house-rule defaults noted in `src/games/uno/types.ts`, which is updated to match.
+
+## 2026-11-09 — One "How to play" implementation after merging poker (#98)
+
+- **Decision:** PR #98 (poker) added its own `rules` field and a plain `.how-to-play` dropdown in the lobby, which overlapped issue #67's version. When merging `main` into the #67 branch, keep the #67 lobby link (`howToPlay()` and the `.how-to` styles: keyboard focus style, one open at a time, panel layout on wide screens), remove the `.how-to-play` markup and styles, and keep poker's rules text, which now shows through the same link. `gameSummaries()` keeps #98's version, which leaves `rules` out when a game has none.
+- **Made by:** agent, resolving merge conflicts at the user's request (Ariella)
+- **Reason:** Two implementations would show two How to play links on the poker tile. #98's own decision entry notes that the rules contract belongs to #67.
 
 ## 2026-11-09 — Shell design tokens: felt, paper, ink, gold
 

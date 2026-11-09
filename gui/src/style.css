@@ -320,6 +320,8 @@ input:focus { outline: none; border-color: var(--felt); box-shadow: 0 0 0 3px rg
 @media (max-width: 520px) { .game-list { --cols: 1; } }
 .game-list li {
   display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
   flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
   animation: rise 0.4s var(--ease) both;
   animation-delay: calc(var(--i, 0) * 30ms);
@@ -331,6 +333,7 @@ input:focus { outline: none; border-color: var(--felt); box-shadow: 0 0 0 3px rg
   align-items: flex-start;
   gap: var(--sp-1);
   width: 100%;
+  flex: 1;
   padding: var(--sp-4);
   background: var(--paper);
   color: var(--ink);
@@ -390,6 +393,50 @@ input:focus { outline: none; border-color: var(--felt); box-shadow: 0 0 0 3px rg
 .game-tile:not(:disabled):hover .go { color: var(--felt); }
 .game-tile:disabled { opacity: 0.6; }
 .lobby-note { margin: 0; color: var(--on-felt-muted); }
+
+/* "How to play" (#67): a <details> under each tile, beside the tile button
+   rather than inside it, so opening it never creates a room. */
+.game-list > li { position: relative; }
+/* Each tile animates in, so each is its own layer: lift the one whose rules are open. */
+.game-list > li:has(.how-to[open]) { z-index: 3; }
+.game-list > li > .game-tile { flex: 1; }
+.how-to { padding: 0 var(--sp-1); font-size: var(--fs-sm); }
+.how-to summary {
+  width: fit-content;
+  cursor: pointer;
+  font: 700 var(--fs-sm) var(--font-display);
+  color: var(--on-felt);
+  text-decoration: underline;
+  text-decoration-color: var(--on-felt-line);
+  text-underline-offset: 3px;
+}
+.how-to summary:hover { text-decoration-color: currentColor; }
+.how-to summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+.how-to ol {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-6);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-2);
+  line-height: 1.45;
+  list-style: decimal; /* .game-list turns markers off, and list-style is inherited */
+}
+/* The steps are list items inside .game-list too: undo the tile-slot rules. */
+.game-list .how-to li { display: list-item; flex: none; animation: none; }
+.how-to li + li { margin-top: var(--sp-1); }
+/* With tiles side by side, the rules open as a panel over the tiles below,
+   so the other tiles in the row don't stretch. */
+@media (min-width: 521px) {
+  .how-to ol {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    box-shadow: var(--shadow-3);
+  }
+}
 
 /* ---- Room ---- */
 .room-screen {
