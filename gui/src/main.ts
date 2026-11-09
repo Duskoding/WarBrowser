@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, restartGame, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -60,6 +60,7 @@ app.innerHTML = `
     <p class="players" id="room-players"></p>
     <button id="start-game" class="small" hidden>Start game</button>
     <div class="game-root" id="game-root"></div>
+    <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="toast" id="toast" hidden></div>
 `;
@@ -87,6 +88,7 @@ let roomMin = 0;
 let roomMax = 0;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
+let gameOver = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -249,6 +251,9 @@ function handleGamePayload(payload: unknown) {
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
+    gameOver = finished;
+    $<HTMLButtonElement>("play-again").disabled = false;
+    if (!finished) statsRefreshed = false;
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void refreshMe();
@@ -280,6 +285,7 @@ function render() {
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
+  $<HTMLButtonElement>("play-again").hidden = !gameOver;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
@@ -292,6 +298,7 @@ function render() {
 
 function resetRoom() {
   unmountGame();
+  gameOver = false;
   $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
@@ -377,6 +384,7 @@ onEvent((e) => {
     case "player_left":
       roomPlayers = roomPlayers.filter((username) => username !== e.username);
       unmountGame();
+      gameOver = false;
       showToast(`${e.username} left the room.`);
       break;
     case "room_left":
@@ -406,6 +414,10 @@ $("join-form").addEventListener("submit", (ev) => {
 });
 $("leave-room").addEventListener("click", leaveRoom);
 $("start-game").addEventListener("click", startGame);
+$("play-again").addEventListener("click", () => {
+  $<HTMLButtonElement>("play-again").disabled = true;
+  restartGame();
+});
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();
