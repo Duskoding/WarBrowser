@@ -112,3 +112,8 @@
   - Added `src/games/uno/index.ts` (the `GameModule`: `id: "uno"`, `players: { min: 2, max: 8 }`, `createEngine` wiring the new context field into `UnoEngine`, `handleAction` for `play`/`draw` payloads, `toView` exposing hand/handCounts/discardTop/activeColor/direction/currentSeat/winnerSeat — raw seat numbers rather than War/Tic-Tac-Toe's "you"/"opponent" strings, since those don't generalize past 2 players) and `src/games/uno/prompt.ts` (commentary prompt). Registered `uno` in `src/games/index.ts`.
 - **Made by:** agent (Claude Code); option 1 vs. the full migration for #71 was the user's call (minimal fix now, migration deferred)
 - **Reason:** #35 explicitly includes "win recording," and Uno is the first game that can actually exceed 2 players, so the existing double-counting bug and the Postgres two-player-only schema both had to be addressed here rather than deferred further. `toView` uses seat numbers instead of "you"/"opponent" because Uno's GUI (#36) needs to display more than one opponent.
+## 2026-11-09 — Verify shared auth/session module (#38)
+
+- **Decision:** Treat issue #38 as complete on the current architecture: SQLite users, sessions, authentication, and match-record helpers are already centralized in `src/auth.ts`, and the server consumes them through that shared module without game-specific copies.
+- **Made by:** agent
+- **Reason:** Re-moving or duplicating the module would create unnecessary risk and violate the issue's “unchanged” requirement. This verification records the implementation state before continuing with the remaining assigned issues.
