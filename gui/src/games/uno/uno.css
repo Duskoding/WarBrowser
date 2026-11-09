@@ -71,6 +71,16 @@
 }
 .draw-pile .count { position: absolute; bottom: 0.25rem; right: 0.4rem; font-size: 0.75rem; opacity: 0.8; }
 .draw-pile.hint { animation: pulse 1.2s ease-in-out infinite; }
+.draw-pile .penalty {
+  position: absolute;
+  top: -0.7rem;
+  right: -0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--uno-red);
+  border: 2px solid #fff;
+  font-weight: 900;
+}
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgb(245 197 66 / 0.6); } }
 
 .current { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; font-size: 1.6rem; }
@@ -124,6 +134,11 @@
 
 /* ---- Status and color picker ---- */
 .status { font-size: 1.35rem; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
+.actions button { padding: 0.5rem 1.4rem; font-size: 1rem; }
+.uno-call { background: var(--uno-red); color: #fff; font-weight: 900; font-style: italic; letter-spacing: 0.05em; }
+.opponent.catchable { border-color: var(--uno-red); }
+.opponent.catchable .count { color: #ffb4b4; font-weight: 700; }
 .ghost { background: transparent; color: inherit; border: 2px solid currentColor; }
 .small { padding: 0.3rem 1rem; font-size: 0.9rem; }
 .picker {

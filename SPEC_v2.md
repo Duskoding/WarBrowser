@@ -34,7 +34,7 @@ Each game has a server module and a browser module with the same string id. The 
 - **`GameModule`** (`src/games/GameModule.ts`) is the server plugin contract. It declares `id`, `name`, `description`, a `{ min, max }` player range, and optional `rules`. It creates an engine with `createEngine`, handles game payloads with `handleAction`, and maps engine state to a per-seat client view with `toView`. A module may request commentary by supplying a prompt to the shared commentator.
 - **`GuiModule`** (`gui/src/games/GuiModule.ts`) is the browser plugin contract. `mount(root, context)` creates the game screen inside its shadow root and returns a screen with `applyState(view)` and `render()`, plus optional `commentary()` and `destroy()`. `isFinished(view)` tells the shared shell when to refresh match statistics. Game styles stay in the module's own CSS.
 
-Both registries must list a new game: `src/games/index.ts` and `gui/src/games/index.ts`. `GET /api/games` is generated from the server registry and drives the lobby.
+Both registries must list a new game: `src/games/index.ts` and `gui/src/games/index.ts`. `GET /api/games` is generated from the server registry and drives the lobby. Each game's `rules` (short steps) appear under its lobby tile behind a **How to play** link; every registered game sets them, and the games-list server test checks that.
 
 ## Room lifecycle
 
@@ -93,7 +93,7 @@ Views are game-specific and may include private information for the receiving se
 ## Adding a game
 
 1. Add `src/games/<id>/` with a `GameEngine` implementation and a `GameModule` export.
-2. Register the server module in `src/games/index.ts`; its metadata and optional rules then appear in `GET /api/games`.
+2. Register the server module in `src/games/index.ts`; its metadata and `rules` then appear in `GET /api/games` and the lobby's How to play link. Give it `rules`: the games-list test fails for a game without them.
 3. Add `gui/src/games/<id>/<id>.ts` exporting a `GuiModule`, with styles beside it. Render only inside the supplied shadow root and use `setBackground` for page background changes.
 4. Register the screen in `gui/src/games/index.ts`.
 5. Add engine tests next to the game and run `npm test`.

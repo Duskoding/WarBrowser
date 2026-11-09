@@ -56,6 +56,12 @@ export const war: GameModule<WarState, WarAction, WarResult> = {
   name: "War",
   description: "Flip your top card; the higher card takes both. Ties go to war.",
   players: { min: 2, max: 2 },
+  rules: [
+    "The deck is shuffled and split in half. Each player keeps their cards face down.",
+    "Each round, both players flip their top card. The higher card wins both cards (Ace is high).",
+    "If the cards tie, it's war: each player puts three cards face down and flips another. The higher flip takes every card in the war, and another tie starts another war.",
+    "The player who ends up with all 52 cards wins.",
+  ],
 
   createEngine(context) {
     return new WarEngine(context.options as WarEngineOptions);
