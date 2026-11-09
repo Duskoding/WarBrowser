@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Replay completed games
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** none
+- **Changed:** Added the `restart_game` protocol, same-room engine recreation, a shared game-over **Play again** button, replay coverage, and README/spec/decision documentation.
+- **Remaining:** none
+
 ## 2026-11-09 — Add session log
 
 - **Who:** agent (GitHub Copilot)

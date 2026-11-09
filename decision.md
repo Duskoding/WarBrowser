@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Replay finished games in the same room
+
+- **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.
+- **Made by:** agent
+- **Reason:** Players should be able to start another match without copying a new invite or rebuilding the room. Keeping the room and seats preserves the existing lifecycle and win/loss behavior, while replacing the engine prevents stale game state from leaking into the replay.
+
 ## 2026-11-09 — Port the remaining games from draft PR #70
 
 - **Decision:** Port Goofspiel (`goofspiel`), Connect Four (`connect4`), Dots and Boxes (`dots`) and Battleship (`battleship`) from draft PR #70 onto the current `GameModule` contract, the same way as Crazy Eights and Go Fish: `players: { min: 2, max: 2 }`, no `rules` field (left for #67), and tests pass `players: 2` in the module context. Rock-Paper-Scissors is not ported: Efrat's own version (#60, PR #89) reached main first and is kept as is. The other issues (#61–#64) stay open for their assignees to review and close.
@@ -224,3 +230,9 @@
 - **Decision:** Lay out the lobby game list with wrapping flex rows (4/3/2/1 columns by width) and center them, so a last row with fewer games sits in the middle instead of at the left.
 - **Made by:** user
 - **Reason:** With ten games, the last two looked stranded on the left.
+
+## 2026-11-09 — Rematch from the result screen
+
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Made by:** agent
+- **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.

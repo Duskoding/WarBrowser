@@ -481,7 +481,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 .splash p { margin: 0; color: var(--muted); }
 .splash .record { font: 600 0.85rem var(--font-mono); color: var(--ink); }
 .splash .share-row { margin-top: 0.8rem; width: 100%; }
-.splash #splash-share { width: 100%; padding-block: 0.85rem; }
+.splash .share-row > :not(.ghost) { order: -1; width: 100%; padding-block: 0.85rem; }
 .splash .share-row .ghost { flex: 1; }
 @keyframes slam {
   from { transform: scale(0.85) translateY(20px); opacity: 0; }

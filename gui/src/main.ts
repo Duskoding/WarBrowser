@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, restartGame, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -87,6 +87,7 @@ app.innerHTML = `
       <p class="invite-link" id="invite-link"></p>
     </section>
     <div class="game-root" id="game-root"></div>
+    <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
     <div class="splash-card">
@@ -96,6 +97,7 @@ app.innerHTML = `
       <p class="record" id="splash-record"></p>
       <div class="share-row">
         <button id="splash-share" type="button">Brag about it</button>
+        <button id="splash-rematch" class="ghost small" type="button">Rematch</button>
         <button id="splash-close" class="ghost small" type="button">See the board</button>
         <button id="splash-lobby" class="ghost small" type="button">Back to lobby</button>
       </div>
@@ -129,6 +131,7 @@ let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
 // Wins in a row this visit; shown in the header and the result splash.
 let streak = 0;
+let gameOver = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -345,6 +348,11 @@ function handleGamePayload(payload: unknown) {
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
+    gameOver = finished;
+    // A rematch started by anyone in the room clears the result screen.
+    if (!finished) hideSplash();
+    $<HTMLButtonElement>("play-again").disabled = false;
+    if (!finished) statsRefreshed = false;
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void celebrate();
@@ -389,8 +397,12 @@ function showSplash(outcome: "win" | "lose", gameId: string | null) {
     : `${gameName(gameId)} got you this time. Run it back?`;
   $("splash-record").textContent = me ? `Your record: ${me.wins}W · ${me.losses}L` : "";
   $("splash-share").textContent = win ? "Brag about it 📣" : "Challenge someone new";
+  // After a loss, the rematch is the main ask; after a win, bragging is.
+  $("splash-share").className = win ? "" : "ghost small";
+  $("splash-rematch").className = win ? "ghost small" : "";
+  $("splash-rematch").textContent = win ? "Rematch" : "Run it back 🔁";
   splash.hidden = false;
-  $("splash-share").focus();
+  (win ? $("splash-share") : $("splash-rematch")).focus();
 }
 
 function hideSplash() {
@@ -452,6 +464,7 @@ function render() {
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
+  $<HTMLButtonElement>("play-again").hidden = !gameOver;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
@@ -496,6 +509,7 @@ function renderPlayers() {
 function resetRoom() {
   hideSplash();
   unmountGame();
+  gameOver = false;
   $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
@@ -584,6 +598,7 @@ onEvent((e) => {
       roomPlayers = roomPlayers.filter((username) => username !== e.username);
       hideSplash();
       unmountGame();
+      gameOver = false;
       showToast(`${e.username} left the room.`);
       break;
     case "room_left":
@@ -615,6 +630,11 @@ $("leave-room").addEventListener("click", leaveRoom);
 $("share-room").addEventListener("click", () => share("invite"));
 $("splash-share").addEventListener("click", () => share("brag"));
 $("splash-close").addEventListener("click", hideSplash);
+$("splash-rematch").addEventListener("click", () => {
+  hideSplash();
+  $<HTMLButtonElement>("play-again").disabled = true;
+  restartGame();
+});
 $("splash-lobby").addEventListener("click", () => {
   hideSplash();
   leaveRoom();
@@ -626,6 +646,10 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && !$("splash").hidden) hideSplash();
 });
 $("start-game").addEventListener("click", startGame);
+$("play-again").addEventListener("click", () => {
+  $<HTMLButtonElement>("play-again").disabled = true;
+  restartGame();
+});
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();
