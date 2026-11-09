@@ -10,9 +10,8 @@ WarBrowser is a site for live two-player, server-authoritative browser games: Wa
 - `src/auth.ts` contains SQLite-backed users, sessions, and match records.
 - `src/commentator.ts` is shared optional AI commentary (games supply prompt strings).
 - `gui/` contains the Vite + TypeScript client. `gui/src/main.ts` and `gui/src/style.css` are the shell (accounts, lobby, rooms); each game's `GuiModule` screen is in `gui/src/games/<id>/`.
-- `gui/preview/` builds `live-war-preview.html`, a no-install two-window preview that runs the real games from `src/games/`.
 - `test/` contains server-level tests.
-- `SPEC_v2.md` is the current implementation specification; `SPEC_v1.md` is historical context.
+- `SPEC_v2.md` is the current implementation specification.
 
 ## Runtime and commands
 
@@ -23,7 +22,6 @@ WarBrowser is a site for live two-player, server-authoritative browser games: Wa
 - Run `npm test` for the full test suite; it builds the client first.
 - Run `npm start` to serve the built client and WebSocket server.
 - Run `npm run dev` for Vite client development.
-- Run `npm run build:preview` after client or game changes to refresh `gui/preview/live-war-preview.html`.
 
 Do not commit generated output, local databases, environment files, or credentials. The repository ignores `node_modules/`, build output, `.env`, and SQLite data files. Keep `ANTHROPIC_API_KEY` out of source control; commentary must remain optional when the key is absent.
 

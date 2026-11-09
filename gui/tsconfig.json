@@ -13,10 +13,5 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true
   },
-  "include": [
-    "src",
-    "preview/sim-connection.ts",
-    "preview/sim-session.ts",
-    "preview/sim-server.ts"
-  ]
+  "include": ["src"]
 }
