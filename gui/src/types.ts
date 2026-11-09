@@ -15,6 +15,7 @@ export type ServerEvent =
   | { type: "players_update"; players: string[] } // roster changed while the room waits for the host to start
   | { type: "player_left"; username: string } // someone left or disconnected; any running game was discarded
   | { type: "room_left" }
+  | { type: "room_closed"; reason: "idle" }
   | { type: "game_message"; payload: unknown } // from the server (or relayed from another player), unchecked
   | { type: "error"; message: string };
 

@@ -49,7 +49,7 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | --- | --- | --- |
 | `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | confirms the player is in a room, which game it is for, the current roster (join order), and who the host is |
 | `players_update` | `{ players }` | roster changed while waiting for the host to start |
-| `player_left` / `room_left` | `{ username }` / `{}` | a player disconnected or left; any running game is discarded, and the room stays open for a replacement to join |
+| `player_left` / `room_left` / `room_closed` | `{ username }` / `{}` / `{ reason }` | a player disconnected or left; any running game is discarded, and the room stays open for a replacement to join. An idle room is closed with `reason: "idle"` and connected clients return to the lobby |
 | `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |

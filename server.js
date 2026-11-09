@@ -37,6 +37,7 @@ const defaultDatabasePath = fileURLToPath(new URL("./data/warbrowser.sqlite", im
 const roomCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const maxMessageBytes = 16 * 1024;
 const maxJsonBytes = 8 * 1024;
+const defaultRoomIdleTimeoutMs = 30 * 60 * 1000;
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -166,7 +167,8 @@ function openDatabase(databasePath) {
 export function createWarServer({
   commentator = new ClaudeCommentator(),
   database = ":memory:",
-  engineOptions = {}
+  engineOptions = {},
+  roomIdleTimeoutMs = Number(process.env.ROOM_IDLE_TIMEOUT_MS ?? defaultRoomIdleTimeoutMs)
 } = {}) {
   const postgres = database === "postgres" || database === process.env.DATABASE_URL;
   const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
@@ -174,6 +176,9 @@ export function createWarServer({
   const rooms = new Map();
   // roomCode -> the running match once the room is full
   const games = new Map();
+  const idleTimeout = Number.isFinite(roomIdleTimeoutMs) && roomIdleTimeoutMs > 0
+    ? roomIdleTimeoutMs
+    : defaultRoomIdleTimeoutMs;
 
   async function handleApi(request, response, pathname) {
     if (pathname === "/api/register" && request.method === "POST") {
@@ -322,6 +327,46 @@ export function createWarServer({
     maxPayload: maxMessageBytes
   });
 
+  function clearRoomIdleTimer(room) {
+    if (room.idleTimer) {
+      clearTimeout(room.idleTimer);
+      room.idleTimer = undefined;
+    }
+  }
+
+  function scheduleRoomIdleTimeout(roomCode, room) {
+    clearRoomIdleTimer(room);
+    room.idleTimer = setTimeout(() => {
+      const current = rooms.get(roomCode);
+      if (current !== room) return;
+
+      const now = Date.now();
+      if (room.reconnectGraceUntil > now) {
+        scheduleRoomIdleTimeout(roomCode, room);
+        return;
+      }
+      if (now - room.lastMessageAt < idleTimeout) {
+        scheduleRoomIdleTimeout(roomCode, room);
+        return;
+      }
+
+      for (const player of room.sockets) {
+        player.roomCode = undefined;
+        send(player, { type: "room_closed", reason: "idle" });
+      }
+      games.delete(roomCode);
+      rooms.delete(roomCode);
+      clearRoomIdleTimer(room);
+    }, Math.max(1, room.lastMessageAt + idleTimeout - Date.now()));
+  }
+
+  function markRoomActive(roomCode) {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    room.lastMessageAt = Date.now();
+    scheduleRoomIdleTimeout(roomCode, room);
+  }
+
   function leaveRoom(socket) {
     const roomCode = socket.roomCode;
     if (!roomCode) return;
@@ -333,12 +378,16 @@ export function createWarServer({
     room.sockets.delete(socket);
     games.delete(roomCode);
     room.started = false;
+    clearRoomIdleTimer(room);
     const username = socket.user?.username;
     for (const player of room.sockets) {
       if (username) send(player, { type: "player_left", username });
     }
     if (room.sockets.size === 0) {
       rooms.delete(roomCode);
+    } else {
+      room.lastMessageAt = Date.now();
+      scheduleRoomIdleTimeout(roomCode, room);
     }
   }
 
@@ -399,7 +448,16 @@ export function createWarServer({
         }
 
         const roomCode = createRoomCode(rooms);
-        rooms.set(roomCode, { game: definition, sockets: new Set([socket]), started: false });
+        const room = {
+          game: definition,
+          sockets: new Set([socket]),
+          started: false,
+          lastMessageAt: Date.now(),
+          reconnectGraceUntil: 0,
+          idleTimer: undefined
+        };
+        rooms.set(roomCode, room);
+        scheduleRoomIdleTimeout(roomCode, room);
         socket.roomCode = roomCode;
         send(socket, {
           type: "room_created",
@@ -447,6 +505,7 @@ export function createWarServer({
 
         room.sockets.add(socket);
         socket.roomCode = roomCode;
+        markRoomActive(roomCode);
         const [host] = room.sockets;
         const players = [...room.sockets].map((player) => player.user.username);
         send(socket, {
@@ -489,6 +548,7 @@ export function createWarServer({
           return;
         }
 
+        markRoomActive(socket.roomCode);
         room.started = true;
         // Room is starting: seats follow join order (the host is seat 0).
         const seated = [...room.sockets];
@@ -521,6 +581,7 @@ export function createWarServer({
           return;
         }
 
+        markRoomActive(socket.roomCode);
         const payload = message.payload;
         const kind = payload?.kind;
         if (kind === "state" || kind === "commentary") {
@@ -596,6 +657,7 @@ export function createWarServer({
   });
 
   httpServer.on("close", () => {
+    for (const room of rooms.values()) clearRoomIdleTimer(room);
     try {
       if (postgres) void db.end(); else db.close();
     } catch {

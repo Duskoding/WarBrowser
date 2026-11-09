@@ -18,6 +18,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** Added `LOG.md`, linked it from `AGENTS.md`, and documented the decision in `decision.md`.
 - **Remaining:** none
 
+## 2026-11-09 — Close idle rooms
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #83
+- **Changed:** Added configurable idle-room cleanup, the `room_closed` protocol event and lobby handling, documentation, and focused server coverage.
+- **Remaining:** none
+
 ## 2026-11-09 — Keep project guidance files tracked
 
 - **Who:** agent (GitHub Copilot)

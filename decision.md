@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Close idle rooms without interrupting reconnect grace (#83)
+
+- **Decision:** Track the last client message for every room and close rooms after `ROOM_IDLE_TIMEOUT_MS`, defaulting to 30 minutes. Send connected players a `room_closed` event with `reason: "idle"` so the client returns to the lobby, and defer cleanup while a room's reconnect grace deadline is active.
+- **Made by:** agent
+- **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
+
 ## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
 
 - **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
