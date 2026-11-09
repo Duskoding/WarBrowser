@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { BattleshipEngine, FLEET, SIZE, randomFleet, type Ship } from "./BattleshipEngine.ts";
 import { battleship } from "./index.ts";
 
-const silent = { commentator: { describe: async () => null }, options: {} };
+const silent = { commentator: { describe: async () => null }, options: {}, players: 2 };
 const players = [{ username: "a" }, { username: "b" }];
 
 // A fixed fleet with one ship per row starting at `firstRow`, each from column 0.

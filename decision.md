@@ -1,9 +1,68 @@
 # Decision log
 
+## 2026-11-09 — Port the remaining games from draft PR #70
+
+- **Decision:** Port Goofspiel (`goofspiel`), Connect Four (`connect4`), Dots and Boxes (`dots`) and Battleship (`battleship`) from draft PR #70 onto the current `GameModule` contract, the same way as Crazy Eights and Go Fish: `players: { min: 2, max: 2 }`, no `rules` field (left for #67), and tests pass `players: 2` in the module context. Rock-Paper-Scissors is not ported: Efrat's own version (#60, PR #89) reached main first and is kept as is. The other issues (#61–#64) stay open for their assignees to review and close.
+- **Made by:** agent
+- **Reason:** With all seven games ported, this branch replaces PR #70, which cannot merge onto the n-player contract. Keeping the port mechanical (no rule changes) leaves rule review to each game's assignee.
+
+## 2026-11-09 — Share one card module between War and future card games
+
+- **Decision:** Add `src/games/shared/cards.ts` with the standard 52-card deck (`Card`, `Suit`, `Rank` types, `createDeck`, `fisherYates`, `parseCard`, `sortHand`, `cardName`). War imports its deck from there; `src/games/war/types.ts` re-exports the types and `WarEngine.ts` re-exports `createDeck`/`fisherYates` so existing imports keep working. Uno keeps its own 108-card deck because its cards differ. Shared view and commentary helpers for 2-player games go in `src/games/shared/view.ts`.
+- **Made by:** agent
+- **Reason:** Crazy Eights and Go Fish both need a standard deck, and duplicating it per game would drift. Uno's deck is not a standard 52-card deck, so forcing it onto the shared module would add complexity for no gain.
+
+## 2026-11-09 — Port Crazy Eights and Go Fish from draft PR #70 instead of merging it
+
+- **Decision:** Take the Crazy Eights (`crazy8`) and Go Fish (`gofish`) code from draft PR #70 (branch `claude/more-games`) by porting it onto the current `GameModule` contract rather than merging the branch. PR #70 stays open for its other five games, which need the same port.
+- **Made by:** agent
+- **Reason:** PR #70 was branched before games could declare a player range (`players: { min, max }`, see the 2026-11-08 entry for #33), so it cannot merge cleanly as-is. Porting the two games in a focused change keeps the shared contracts intact and lets these two land without waiting for the rest of the branch.
+
+## 2026-11-09 — Limit Crazy Eights and Go Fish to two players
+
+- **Decision:** Both games use `players: { min: 2, max: 2 }`. Their engines and screens assume exactly two seats.
+- **Made by:** agent
+- **Reason:** The rules as specified (one opponent's hand to ask, one opponent to pass play to, two-pass end condition in Crazy Eights) are defined for two players. Supporting more seats would need rules decisions (turn order, what a pass means across several players) that were not part of the requested scope. Games with more players can widen `players.max` later with their own rules.
+
+## 2026-11-09 — Leave `rules` out of the ported games until issue #67
+
+- **Decision:** The ported `GameModule` objects for Crazy Eights and Go Fish do not include the `rules` field that PR #70 added. The lobby "How to play" feature is tracked in issue #67, which is assigned to someone else, and will define that field.
+- **Made by:** agent
+- **Reason:** Adding `rules` now would define a contract that issue #67 owns. Leaving it out keeps this change to game rules and screens, and the field can be added to both games when #67 lands.
+## 2026-11-09 — Close idle rooms without interrupting reconnect grace (#83)
+
+- **Decision:** Track the last client message for every room and close rooms after `ROOM_IDLE_TIMEOUT_MS`, defaulting to 30 minutes. Send connected players a `room_closed` event with `reason: "idle"` so the client returns to the lobby, and defer cleanup while a room's reconnect grace deadline is active.
+- **Made by:** agent
+- **Reason:** Rooms otherwise remain in memory indefinitely when players stop interacting. A configurable timeout is testable and operationally safe, while the explicit grace-period check keeps this cleanup compatible with issue #78's reconnect lifecycle.
+
+## 2026-11-09 — Cap AI commentary calls per room and server (#80)
+
+- **Decision:** Route every room's commentary through a shared per-server limiter. Allow at most one call per room every three seconds and 20 calls per game, plus a server-wide sliding-window limit configured by `COMMENTARY_CALLS_PER_MINUTE` with a default of 60. Skipped calls resolve to no commentary and are logged without affecting gameplay.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Commentary is optional and can otherwise create unbounded API spend during long games or across busy rooms. A shared limiter preserves the existing game-module contract, keeps gameplay non-blocking, and makes the server-wide budget explicit while still allowing tests to inject smaller deterministic limits.
+
+## 2026-11-09 — Add Rock-Paper-Scissors game module (#60)
+
+- **Decision:** Implement Rock-Paper-Scissors as a server `GameModule` and client `GuiModule`, with per-seat choice secrecy until both players pick, round wins tracked to a first-to-three match, and ties awarding neither player.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** Reuse the existing War simultaneous-reveal lifecycle while keeping RPS rules, state, and presentation isolated from the game-agnostic server and shared lobby.
+
+## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
+
+- **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `AGENTS.md` contains the contributor and agent conventions, while `decision.md` preserves the project's durable decisions. Both are active project documentation and must remain available to future contributors.
+
+## 2026-11-09 — Add a work session log
+
+- **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `decision.md` explains why project choices were made, but it does not capture the practical state of each session. A separate concise log preserves handoff context without mixing transient progress with durable design decisions.
+
 ## 2026-11-02 — Add agent guidance documentation
 
-- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and require all person- or agent-made project decisions to be recorded in this file.
-- **Made by:** agent (GitHub Copilot)
+- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and the contribution workflow (preparation, focused implementation, safe editing, validation, documentation, diff review, secrets, ambiguity, and commit practices), and require all person- or agent-made project decisions to be recorded in this file.
+- **Made by:** agent (GitHub Copilot), with scope confirmed by Efrat Kreslavskiy
 - **Reason:** The project needs durable, repository-local guidance so future agents can follow its Node.js, TypeScript, server-authoritative game, testing, and security conventions consistently.
 
 ## 2026-11-02 — Host several games, chosen from a lobby
@@ -78,82 +137,78 @@
 - **Made by:** agent
 - **Reason:** Issues #29/#48–#51 (plus TTT) require adopting the #45–#47 contracts uniformly so both games and the server/GUI use one plugin shape before Uno and further shared-core work.
 
-## 2026-11-04 — Add seven two-player games built from War and Tic-Tac-Toe logic (#59)
+## 2026-11-08 — Make `GameModule.players` a range, started by the host (#33)
 
-- **Decision:** Add Rock-Paper-Scissors (#60), Goofspiel (#61), Connect Four (#62), Dots and Boxes (#63), Battleship (#64), Crazy Eights (#65) and Go Fish (#66), each as a `GameEngine` + `GameModule` in `src/games/<id>/` and a `GuiModule` in `gui/src/games/<id>/`, listed in both registries. They are built on the `refactorWarAndTTT` branch and delivered as a draft pull request.
-- **Made by:** user (Yosef Skolnick asked for every game that could be built with the current work, on the refactor branch, as a draft PR); choice of games by agent (Claude)
-- **Reason:** Each game reuses something the site already has: War's both-players-act-then-reveal, Tic-Tac-Toe's turns and move checks, War's deck and shuffle, and per-seat views. Left out on purpose: Uno (#30 already belongs to the team), poker (on `claude/poker-game-requirements-j5u75v`, needs porting to the plugin contract), games for three or more players (match recording assumes two) and real-time games (the server has no clock).
+- **Decision:** Change `GameModule.players` from a fixed `number` to `{ min, max }`. A room now accepts joiners up to `max` and the host (the socket that created the room, or whoever is first in `room.sockets` after earlier departures) explicitly starts the match with a new `start_game` client message once at least `min` players have joined; the server no longer auto-starts a room the moment it hits a fixed count. War and Tic-Tac-Toe both become `{ min: 2, max: 2 }` (no behavior change for players beyond the extra click); Uno is planned as `{ min: 2, max: 8 }`. Replaced the two-player-only `opponent_joined` / `opponent_disconnected` protocol events with roster-based `players_update` (`{ players }`) and `player_left` (`{ username }`), and `room_created` / `room_joined` now carry the full roster, `host`, `min`, and `max` instead of a single `username`/`opponentUsername` pair. Updated `server.js`, the preview's `sim-server.ts`/`sim-connection.ts`, `gui/src/main.ts` (player list, host-only Start button, waiting-room status text), `gui/src/types.ts`, `gui/src/connection.ts`, `test/server.test.js`, `README.md`, and `SPEC_v2.md` accordingly.
+- **Made by:** user (requested the range and host-triggered start) and agent (Claude Code), implementation
+- **Reason:** Issue #33 (Uno's state/types) needs 2–8 players, which a fixed `players: number` and an auto-start-at-N room model can't express. A host-triggered start (rather than auto-starting at `min` or waiting for `max`) lets a room wait for more players without forcing every seat to fill first. This is a prerequisite for #33 but is a shared-contract change, so War and Tic-Tac-Toe adopt the same shape rather than special-casing Uno.
+- **Known gap carried forward:** Postgres match recording (`recordPostgresMatch`) still hardcodes exactly two players (see #71); it is unaffected by this change and remains a blocker for recording results in any Uno match with more than two players.
 
-## 2026-11-04 — Share the deck helpers instead of importing them from War (#69)
+## 2026-11-08 — Design Uno's state/types (#33)
 
-- **Decision:** Move `Suit`, `Rank`, `Card`, `createDeck()` and `fisherYates()` to `src/games/shared/cards.ts`, along with card parsing, sorting and naming helpers. War's `types.ts` and `WarEngine.ts` re-export them, so existing imports keep working. Add `src/games/shared/view.ts` for helpers every two-player view uses (result and actor relative to the viewer, player names, the commentary prompt opening).
-- **Made by:** agent (Claude)
-- **Reason:** Three of the new games use a standard deck, and Uno (#33/#34) will need the same draw/discard handling. Card games shouldn't depend on War's module to get a deck.
+- **Decision:** Add `src/games/uno/types.ts`: `Card` (`color: Color | null`, `rank`), `UnoState` (per-seat `hand`, every seat's `handCounts`, `discardTop` plus a separate `activeColor` for after a wild, `direction`, `currentSeat`/`yourTurn`, pile counts, `round`/`winner`/`over`), `UnoAction` (`play` with optional `chosenColor`, or `draw`), and a `UnoResult` shaped like Tic-Tac-Toe's (Uno resolves each action immediately; it has no War-style multi-player-wait state). Assumed four house-rule simplifications, documented in the file: no stacking Draw Two/Four, draw-one-and-pass (a drawn card is never auto-played), no enforced "Uno" call penalty, no Wild Draw Four challenge, and a player may draw even when holding a legal play.
+- **Made by:** user (confirmed scope: 2+ players, deferred remaining rule calls to the agent) and agent (Claude Code), implementation
+- **Reason:** #34 (`UnoEngine`) and #36 (Uno's GUI) both need these shapes agreed first; the house-rule assumptions are called out explicitly so they're easy to revisit rather than silently baked into the engine.
 
-## 2026-11-04 — Add "How to play" rules to every game (#67)
+## 2026-11-08 — Implement UnoEngine (#34)
 
-- **Decision:** Add an optional `rules: string[]` to `GameModule`, return it from `GET /api/games` (as `[]` when a game has none), and show it on each lobby tile as a **How to play** link that opens the rules in place (`<details>`). Rules are written for all nine games. This is the only change to the lobby shell (`gui/src/main.ts`, `gui/src/style.css`).
-- **Made by:** user (asked for a link in the UI); approach by agent (Claude)
-- **Reason:** With nine games, players need to learn a game before starting a room. Keeping the rules in each `GameModule` means a new game brings its own rules and the lobby needs no game-specific code.
+- **Decision:** Add `src/games/uno/UnoEngine.ts` implementing `GameEngine<UnoState, UnoAction, UnoResult>`, plus `UnoEngine.test.ts`. Constructor takes `(players: number, options?: UnoEngineOptions)` rather than hiding player count inside options, since `GameModule.createEngine(context)` doesn't yet pass a player count — wiring that through `GameModuleContext` is left to #35. 108-card deck built directly in this file (not the shared `src/games/shared/cards.ts` from draft PR #70, which isn't merged). The opening discard is redrawn until it isn't a wild. Turn advance is direction-aware (`seatAfter`/`advanceTurn`); Reverse explicitly special-cases exactly 2 players to act as Skip (mathematically a plain direction flip is a no-op with 2 seats, so the official "Reverse = Skip" rule has to be coded directly, not derived). Draw Two/Wild Draw Four draw into the seat after the current one, then skip that seat.
+- **Made by:** agent (Claude Code)
+- **Reason:** #34 needs the pure rules layer before #35 (server plugin) and #36 (GUI) can be built against it. Deferring the shared cards module avoids depending on unmerged work (see #33's note on PR #70/#69).
 
-## 2026-11-04 — Commentary only for public, notable moments in the new games
-
-- **Decision:** The new games ask for commentary only when something notable and public happens: each resolved round in Rock-Paper-Scissors and Goofspiel; the final move in Connect Four; a closed box in Dots and Boxes; a sunk ship in Battleship; a wild 8 or the winning card in Crazy Eights; a completed book in Go Fish. Prompts only use what both players can already see, and say "Player 1"/"Player 2" rather than usernames.
-- **Made by:** agent (Claude)
-- **Reason:** Commentary is sent to both players, so a prompt that mentioned a hand, a bid or a ship position would leak it. Commenting on every move would also multiply API calls (an earlier review flagged commentary cost).
-
-## 2026-11-04 — Rule choices for the new games
+## 2026-11-08 — Fix two-player-only win recording for games with more than two players; implement Uno's server plugin (#35, #71 partial)
 
 - **Decision:**
-  - Rock-Paper-Scissors: first to 3 round wins; a tied round counts for no one.
-  - Goofspiel: Ace = 1 … King = 13; a tied bid carries the prize to the next round's winner; prizes still carried after round 13 go to no one.
-  - Connect Four: 7 × 6 board.
-  - Dots and Boxes: 4 × 4 boxes; 8–8 is a draw.
-  - Battleship: 10 × 10 with fleet 5, 4, 3, 3, 2. Fleets are placed at random and re-shuffled until the player presses Ready (no drag-and-drop placement). Turns alternate after every shot, hit or miss.
-  - Crazy Eights: 7 cards each; draw one card per turn, then play or pass; the discard pile is reshuffled into the draw pile when it runs out; if nobody can play or draw, two passes in a row end the game and fewer cards wins.
-  - Go Fish: 7 cards each; drawing the rank you asked for lets you go again; an empty hand draws a card at the start of its turn.
-  - In every new game the room's host (seat 0) moves first.
-- **Made by:** agent (Claude)
-- **Reason:** These are common, simple versions of each game. Random placement in Battleship keeps setup to two buttons and leaves no way to send an invalid fleet. The Crazy Eights stalemate rule stops a game that could otherwise never end.
+  - Added `GameModuleContext.players: number` (the room's actual seated count) so a variable-player-count engine like Uno's can be constructed correctly; `server.js`'s `start_game` handler and the preview's `sim-server.ts` now pass it.
+  - **Fixed a real bug, not just Postgres:** the existing SQLite win-recording loop in `server.js` called `recordMatch(winnerId, loserId)` once per loser, incrementing the *winner's* win count once per opponent instead of once per game — harmless at exactly 2 players (1 loser) but wrong at 3+ (caught by this work's own 3-player Uno test, which found the host recorded 2 wins for 1 game). Replaced it with `recordWins(db, winnerId, loserIds)` in `src/auth.ts` (one win, N losses) and `recordPostgresWins` in `src/postgres-auth.ts` for the Postgres path. `recordMatch` is now a thin wrapper over `recordWins` for the 2-id case, kept for the existing test and 2-player call style.
+  - **Postgres match history (option 1 from #71):** for a game with exactly 2 players, `recordPostgresMatch` still inserts an audit row into the 2-column `matches` table as before. For 3+ players, no audit row is inserted (the table can't represent it without a schema migration), but `recordPostgresWins` still updates every player's `wins`/`losses` correctly. A junction-table migration for full N-player match history is deferred as its own follow-up, not done here.
+  - Added `src/games/uno/index.ts` (the `GameModule`: `id: "uno"`, `players: { min: 2, max: 8 }`, `createEngine` wiring the new context field into `UnoEngine`, `handleAction` for `play`/`draw` payloads, `toView` exposing hand/handCounts/discardTop/activeColor/direction/currentSeat/winnerSeat — raw seat numbers rather than War/Tic-Tac-Toe's "you"/"opponent" strings, since those don't generalize past 2 players) and `src/games/uno/prompt.ts` (commentary prompt). Registered `uno` in `src/games/index.ts`.
+- **Made by:** agent (Claude Code); option 1 vs. the full migration for #71 was the user's call (minimal fix now, migration deferred)
+- **Reason:** #35 explicitly includes "win recording," and Uno is the first game that can actually exceed 2 players, so the existing double-counting bug and the Postgres two-player-only schema both had to be addressed here rather than deferred further. `toView` uses seat numbers instead of "you"/"opponent" because Uno's GUI (#36) needs to display more than one opponent.
+## 2026-11-09 — Verify shared auth/session module (#38)
 
-## 2026-11-04 — Views say "you" and "opponent", not seat numbers
-
-- **Decision:** Every new game's `toView` describes owners, results and last actions relative to the viewer (`"you"`, `"opponent"`, `"draw"`), as War and Tic-Tac-Toe already do for results.
-- **Made by:** agent (Claude)
-- **Reason:** Each screen then draws "your" pieces the same way in either seat, and the views never need to explain which seat number the viewer has.
-
-## 2026-11-04 — Keep a work log in LOG.md (#68)
-
-- **Decision:** Add `LOG.md` with one entry per work session (date, who, issues, what changed, how it was checked, what's left), newest first, and require it in `AGENTS.md` next to the `decision.md` rule. Also add an `AGENTS.md` rule that hidden information stays out of other seats' views and commentary prompts, with a test.
-- **Made by:** user (asked for logs alongside the decision structure); format by agent (Claude)
-- **Reason:** `decision.md` records why choices were made but not what each session did or left unfinished. With several people and agents working at once, the next one needs to see both.
-
-## 2026-11-04 — Fix a flaky War commentary test
-
-- **Decision:** Give the server test "sends commentary to both players after a round resolves, not before" a fixed deal (3♠ vs 2♦) through `engineOptions.shuffle`.
-- **Made by:** agent (Claude)
-- **Reason:** With a random deck, about 1 run in 17 started with a tie. The round then went to war instead of resolving, no commentary was sent, and the test waited forever. 25 runs in a row pass with the fixed deal.
-
-## 2026-11-09 — Leave the seven games from PR #70 unchanged after review
-
-- **Decision:** After comparing Rock-Paper-Scissors, Goofspiel, Connect Four, Dots and Boxes, Battleship, Crazy Eights and Go Fish with War and Tic-Tac-Toe, keep their `GameEngine`, `GameModule` and `GuiModule` shapes as they are. Hidden hands, bids, picks and fleets stay in the owning seat's `getState` / `toView`, and commentary prompts stay on public moments.
+- **Decision:** Treat issue #38 as complete on the current architecture: SQLite users, sessions, authentication, and match-record helpers are already centralized in `src/auth.ts`, and the server consumes them through that shared module without game-specific copies.
 - **Made by:** agent
-- **Reason:** Issue #59 asks for an overall check that every new game follows the same contract. The seven games already do. The open gaps were Nim (#77) and player-placed Battleship fleets (#81), which are separate decisions below.
+- **Reason:** Re-moving or duplicating the module would create unnecessary risk and violate the issue's “unchanged” requirement. This verification records the implementation state before continuing with the remaining assigned issues.
 
-## 2026-11-09 — Add Nim as a turn-based game module (#77)
+## 2026-11-09 — Verify generalized server lifecycle (#39)
 
-- **Decision:** Add Nim with three piles of 3, 4 and 5 stones. A turn takes one or more stones from a single pile, the room's host goes first, and the player who takes the last stone wins. Commentary is requested only for that winning take. The screen shows each pile as a stack of stones; tapping a stone takes it and every stone above it.
+- **Decision:** Treat issue #39 as complete on the current architecture: `server.js` owns static serving, API routing, room membership, WebSocket lifecycle, and protocol dispatch, while game-specific actions and views are supplied through `GameModule`.
 - **Made by:** agent
-- **Reason:** Issue #59 includes #77, which asks for a small perfect-information game copied from the Tic-Tac-Toe module. These are the rules written on the issue. Commenting only on the last stone matches the existing rule that new games ask for commentary on a public, notable moment.
+- **Reason:** The server already resolves games through the shared registry and keeps room state independent of any game's message kinds. Replacing this working boundary without a concrete missing behavior would be an unrelated refactor.
 
-## 2026-11-09 — Let players place their own Battleship fleet (#81)
+## 2026-11-09 — Verify generalized test harness (#41)
 
-- **Decision:** During setup a player can send `{ kind: "place", ships }` with the whole fleet. The server accepts it only when every ship is present once, is the right length, sits in a straight contiguous line on the board, and does not overlap another ship. On the existing Battleship screen, the player drags a ship on their grid and presses Rotate next to Shuffle and Ready. Shuffle still places the fleet at random. This replaces the 2026-11-04 choice that Battleship setup would be shuffle-only.
+- **Decision:** Treat issue #41 as complete on the current architecture: `test/server.test.js` provides reusable server startup, HTTP authentication, WebSocket connection/message queuing, room setup, and cleanup helpers shared by all game scenarios.
 - **Made by:** agent
-- **Reason:** Issue #81 asks for drag-and-drop placement with server-side checks, while keeping Shuffle. Checking the whole layout on the server keeps an illegal fleet from ever being locked in with Ready.
+- **Reason:** The harness already exercises multiple game modules and player counts through common helpers. Extracting another layer without a remaining duplicated pattern would add indirection rather than improve coverage or maintainability.
 
-## 2026-11-09 — Add to the existing site, and keep each game's existing screen
+## 2026-11-09 — Normalize PostgreSQL match history for variable player counts (#71)
 
-- **Decision:** New games are modules on the current WarBrowser site: the same server, lobby, and `GameModule` / `GuiModule` registries. Do not start a second server to show them. A game's screen keeps the layout the other games already use (players, status, the shared button row, that game's board, commentary). Battleship placement does not add a separate ship tray.
-- **Made by:** user (Shulamit); approach by agent
-- **Reason:** The work is more games on the site that already exists. A second server, and a new setup widget, would make Battleship look like a different product from the screen already in the lobby.
+- **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
+- **Made by:** agent
+- **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.
+
+## 2026-11-09 — Expose aggregate and per-game player statistics (#72)
+
+- **Decision:** Add per-game `games` statistics to the user API while retaining aggregate `wins` and `losses`. Both SQLite and PostgreSQL update the aggregate and the selected game's counters atomically when a match has a winner; draws create no win/loss increments.
+- **Made by:** user (selected compatibility-preserving API shape) and agent (implementation)
+- **Reason:** Existing clients rely on aggregate fields, while game-specific totals need a stable map keyed by the registered game id. Keeping both avoids a breaking protocol change and supports historical aggregate data that predates per-game tracking.
+
+## 2026-11-09 — Keep `connection.ts` in the shared lobby shell (#40)
+
+- **Decision:** Treat issue #40 as done. Leave `gui/src/connection.ts` where it is. It is already the shared GUI socket client: `gui/src/main.ts` is the only importer, and game screens send through the shell. Do not add a `gui/src/infra/` or `gui/src/shared/` folder for it.
+- **Made by:** agent
+- **Reason:** PR #25 put this boundary in place by moving game screens under `gui/src/games/` and keeping `connection.ts` in the shared lobby shell. Issue #40 was filed after that pull request merged. It is one task under parent issue #27 (extract the shared core), which stays open. Moving the file now would only change import paths and the preview alias.
+
+## 2026-11-09 — Uno GUI module (#36)
+
+- **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
+- **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
+- **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
+
+## 2026-11-09 — Resolve the new games onto current main (#59)
+
+- **Decision:** Keep main's `GameModule` (`players: { min, max }`, no How to play `rules` list), its lobby, and the games already there, including Uno. Add Nim as a two-player module in that shape. Put Battleship fleet placement back on main's Battleship: a `place` action, plus drag and Rotate on the existing setup row. Leave out the preview page main removed, and the older Rock-Paper-Scissors tests that no longer match main's engine.
+- **Made by:** agent
+- **Reason:** Pull request #94 conflicted because main had already landed the other games and a newer module contract. Nim (#77) and player-placed fleets (#81) were the parts still missing.

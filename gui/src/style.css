@@ -106,30 +106,6 @@ header h1 { margin: 0; }
 .game-tile .desc { opacity: 0.9; line-height: 1.4; }
 .game-tile .meta { margin-top: auto; font-size: 0.85rem; opacity: 0.75; }
 .game-tile .go { color: #f5c542; font-weight: 600; font-size: 0.95rem; }
-.game-list li { position: relative; display: flex; flex-direction: column; gap: 0.35rem; }
-/* The rules open as a panel over the tiles below, so the grid doesn't reflow. */
-.how-to { padding: 0 0.4rem; font-size: 0.95rem; }
-.how-to[open] { z-index: 2; }
-.how-to summary {
-  cursor: pointer;
-  color: #f5c542;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  width: fit-content;
-}
-.how-to summary:focus-visible { outline: 3px solid #8fb3f0; outline-offset: 2px; border-radius: 4px; }
-.how-to ol {
-  position: absolute;
-  left: 0;
-  right: 0;
-  margin: 0.4rem 0 0;
-  padding: 0.8rem 1rem 0.8rem 2rem;
-  border-radius: 12px;
-  background: #143f25;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
-  line-height: 1.45;
-}
-.how-to li + li { margin-top: 0.3rem; }
 .lobby-note { margin: 0; opacity: 0.8; text-align: center; }
 .join-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center; }
 .join-row .or { opacity: 0.7; }
@@ -168,6 +144,7 @@ header h1 { margin: 0; }
   user-select: all;
   cursor: text;
 }
+.players { margin: 0; font-size: 0.85rem; opacity: 0.9; text-align: center; }
 
 button {
   font-size: 1.2rem;

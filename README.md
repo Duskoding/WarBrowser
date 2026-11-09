@@ -2,40 +2,24 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now:
-
-| Game | Built from | Hidden information |
-| --- | --- | --- |
-| **War** | the original game | face-down war cards |
-| **Tic-Tac-Toe** | the smallest example of how to add a game | none |
-| **Rock-Paper-Scissors** | War's both-players-act-then-reveal | your pick, until both have picked |
-| **Goofspiel** | War's deck, reveal and tie pot | your bid, until both have bid |
-| **Connect Four** | Tic-Tac-Toe's turns and line checks | none |
-| **Dots and Boxes** | Tic-Tac-Toe's turns, plus "close a box, go again" | none |
-| **Battleship** | Tic-Tac-Toe's grid turns plus War's per-player view | your fleet |
-| **Crazy Eights** | War's deck with Tic-Tac-Toe's turns | your hand and the draw pile |
-| **Go Fish** | War's deck with Tic-Tac-Toe's turns | your hand and the pond |
-| **Nim** | Tic-Tac-Toe's turns | none |
-
-Each game has a **How to play** link on its lobby tile.
+Games available now: **War**, **Uno**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, **Go Fish**, **Rock-Paper-Scissors**, **Goofspiel**, **Connect Four**, **Dots and Boxes**, **Battleship**, and **Nim**.
 
 ## How it works
 
-The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
+The server owns each game. It deals a 52-card deck for War, waits for simultaneous actions where needed, resolves rounds, and sends each player their own view. Browsers only send game actions and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and the big moments in the other games: a ship sunk, a box closed, a wild 8, the last stone in Nim) without blocking gameplay. Prompts only describe what both players can already see. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds and Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
 - A lobby to choose which game to play
 - Username and password accounts (register / log in)
-- Shared game rooms for two logged-in players, joined by room code or invite link
+- Shared game rooms for logged-in players (how many depends on the game), joined by room code or invite link; the host starts the game once enough players are in
 - Player names on the table and a win–loss record on the lobby
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- Nine games, each with How to play rules in the lobby
-- AI-generated commentary (optional, needs an Anthropic API key)
+- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
 
 ## War rules
 
@@ -49,8 +33,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `crazy8/`, `gofish/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
-| `src/games/shared/` | Helpers the games share: the 52-card deck and shuffle (`cards.ts`), and view/commentary helpers (`view.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `crazy8/`, `gofish/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `nim/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
@@ -59,10 +43,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 | `server.js` | HTTP + WebSocket server: accounts, rooms and seats; runs whichever game a room was created for |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `gui/src/games/` | One folder per game with that game's screen and styles, plus the list of games (`index.ts`) |
-| `gui/preview/` | `live-war-preview.html`: the site in two side-by-side windows against a pretend server, openable without installing anything |
 | `test/` | Server tests |
 | `SPEC_v2.md` | The current specification, kept in line with the code |
-| `SPEC_v1.md` | The original sprint specification |
 
 ## Run locally
 
@@ -96,7 +78,8 @@ npm run migrate:users
 Do not commit either connection string. Migrated users can log in once with
 their existing password and are then required to choose a new password. Old
 sessions are invalidated. PostgreSQL stores aggregate stats and a durable
-`matches` record for every completed game, including draws. Existing SQLite
+`matches` record plus per-player `match_players` rows for every completed game,
+including draws. Existing SQLite
 databases contain aggregate totals but no detailed historical match records, so
 those older matches cannot be reconstructed.
 
@@ -109,6 +92,8 @@ export ANTHROPIC_API_KEY=your-key   # PowerShell: $env:ANTHROPIC_API_KEY = "your
 ```
 
 `ANTHROPIC_MODEL` overrides the default model (`claude-haiku-5-5`). Never commit your key; `.env` is gitignored, and tests never call the API.
+
+Commentary is capped at one call per room every three seconds and 20 calls per game. The server-wide calls-per-minute cap defaults to 60; override it with `COMMENTARY_CALLS_PER_MINUTE`. Calls skipped by any limit are logged and do not affect gameplay.
 
 ### Client development
 
@@ -123,23 +108,20 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 | `npm run dev` | Client dev server with hot reload |
 | `npm run typecheck` | Type-checks the engine and the client |
 | `npm test` | Builds the client, then runs engine and server tests |
-| `npm run build:preview` | Rebuilds `gui/preview/live-war-preview.html` after client or game changes |
 
 ## Adding a game
 
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
 1. **Rules:** create `src/games/<id>/` with an engine that implements `GameEngine` (`src/engine/GameEngine.ts`) and a `GameModule` export (see `src/games/GameModule.ts`):
-   - `id`, `name`, `description`, `players` (the game starts when the room has this many players), and `rules`: the lines shown under **How to play** in the lobby.
+   - `id`, `name`, `description`, `players: { min, max }` (the room accepts joiners up to `max`; the host can start once `min` have joined).
    - `createEngine(context)` builds the pure rules engine. `handleAction(engine, seat, payload, context)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle. `toView(engine, seat, players)` returns what that seat may see. For commentary, build a prompt string and call `context.commentator.describe(prompt)`.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
 3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `GuiModule` (see `gui/src/games/GuiModule.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `applyState(view)` + `render()` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
 
    Each game is drawn inside its own shadow root, so its HTML ids and CSS (even broad rules like `button { … }`) only apply inside that game, and the lobby's CSS doesn't change it. Shared defaults come from `gui/src/games/base.css`. To change the page background, call `setBackground(...)`; the lobby resets it when the game closes. Don't style `body` or other elements outside `root`.
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
-5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
-
-Card games can use the deck, shuffle and card helpers in `src/games/shared/cards.ts`, and screens can use `gui/src/games/shared/` for drawing cards and common layout. Connect Four and Go Fish are good examples of a turn-based game and a hidden-hand card game.
+5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`) and run `npm test`.
 
 Win/loss records are shared across all games for now.
 
@@ -155,20 +137,14 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players" }] }`
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" } }] }`
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe. The other games' actions:
-  - Rock-Paper-Scissors: `{ "kind": "pick", "choice": "rock" | "paper" | "scissors" }`
-  - Goofspiel: `{ "kind": "bid", "value": 1–13 }`
-  - Connect Four: `{ "kind": "drop", "column": 0–6 }`
-  - Dots and Boxes: `{ "kind": "line", "dir": "h" | "v", "row", "col" }`
-  - Battleship: `{ "kind": "shuffle" }`, `{ "kind": "place", "ships" }` and `{ "kind": "ready" }` during setup, then `{ "kind": "fire", "cell": 0–99 }`. `ships` is the whole fleet, each `{ "name", "cells" }` with `cells` a straight line of the ship's length
-  - Crazy Eights: `{ "kind": "play", "card": { "rank", "suit" }, "suit"? }` (`suit` names the new suit for an 8), `{ "kind": "draw" }`, `{ "kind": "pass" }`
-  - Go Fish: `{ "kind": "ask", "rank": 2–14 }`
-  - Nim: `{ "kind": "take", "pile": 0–2, "count" }` (`count` is how many stones to take from that one pile)
-- **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary).
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `room_left`, `room_closed` (`reason: "idle"` when the room had no messages for the configured idle timeout), `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.
+Rooms close after 30 minutes without a client message by default. Set `ROOM_IDLE_TIMEOUT_MS` to change the timeout; invalid or non-positive values use the 30-minute default. A reconnect grace period, when active, takes precedence over idle cleanup.
+
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno: your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat. Its screen (`gui/src/games/uno/`) highlights the cards you can play, asks for a color when you play a wild, and shows a built-in line for each move ("bobby played Red 0."), which AI commentary replaces when an API key is set.
 
 ## Deploy to Render
 

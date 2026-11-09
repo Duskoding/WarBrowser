@@ -2,18 +2,16 @@
 
 ## Project overview
 
-WarBrowser is a site for live two-player, server-authoritative browser games: War, Tic-Tac-Toe (the smallest example to copy), Rock-Paper-Scissors, Goofspiel, Connect Four, Dots and Boxes, Battleship, Crazy Eights and Go Fish. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
+WarBrowser is a site for live two-player, server-authoritative browser games: War, plus Tic-Tac-Toe as a second, example game. Players choose a game in the lobby. The repository contains a Node.js server, TypeScript game rules and authentication/commentary modules, and a Vite-built browser client.
 
 - `server.js` owns HTTP/WebSocket routing, room membership, and wiring between clients and whichever game a room was created for.
-- `src/games/` contains one `GameModule` per game (`war/`, `tictactoe/`, `rps/`, `goofspiel/`, `connect4/`, `dots/`, `battleship/`, `crazy8/`, `gofish/`), the shared contract (`GameModule.ts`), and the list of games (`index.ts`).
-- `src/games/shared/` holds helpers shared by games: the deck and shuffle (`cards.ts`) and view/commentary helpers (`view.ts`). `gui/src/games/shared/` does the same for screens.
+- `src/games/` contains one `GameModule` per game (`war/`, `tictactoe/`), the shared contract (`GameModule.ts`), and the list of games (`index.ts`).
 - `src/engine/GameEngine.ts` is the shared pure-engine interface; each game's engine lives inside its game module.
 - `src/auth.ts` contains SQLite-backed users, sessions, and match records.
 - `src/commentator.ts` is shared optional AI commentary (games supply prompt strings).
 - `gui/` contains the Vite + TypeScript client. `gui/src/main.ts` and `gui/src/style.css` are the shell (accounts, lobby, rooms); each game's `GuiModule` screen is in `gui/src/games/<id>/`.
-- `gui/preview/` builds `live-war-preview.html`, a no-install two-window preview that runs the real games from `src/games/`.
 - `test/` contains server-level tests.
-- `SPEC_v2.md` is the current implementation specification; `SPEC_v1.md` is historical context.
+- `SPEC_v2.md` is the current implementation specification.
 
 ## Runtime and commands
 
@@ -24,7 +22,6 @@ WarBrowser is a site for live two-player, server-authoritative browser games: Wa
 - Run `npm test` for the full test suite; it builds the client first.
 - Run `npm start` to serve the built client and WebSocket server.
 - Run `npm run dev` for Vite client development.
-- Run `npm run build:preview` after client or game changes to refresh `gui/preview/live-war-preview.html`.
 
 Do not commit generated output, local databases, environment files, or credentials. The repository ignores `node_modules/`, build output, `.env`, and SQLite data files. Keep `ANTHROPIC_API_KEY` out of source control; commentary must remain optional when the key is absent.
 
@@ -48,10 +45,4 @@ Never commit secrets or weaken authentication, input-size limits, server-side va
 
 Whenever a person or agent makes a project decision, record it in `decision.md`. Each entry must include the decision, the date, and who made it; identify the maker as `agent` when the decision is made by an agent. This applies to implementation, architecture, testing, documentation, and operational decisions.
 
-## Work log requirement
-
-At the end of each work session, add an entry to the top of `LOG.md`: the date, who worked (a person, or `agent`), the issues worked on, what changed, how it was checked, and what's left. `decision.md` says *why* a choice was made; `LOG.md` says *what happened*, so the next person or agent can pick up where the last one stopped.
-
-## Hidden information
-
-Games with hidden information (hands, bids, a fleet) must keep it out of `toView` for the other seat and out of commentary prompts, which are sent to both players. Add a test that checks the other seat's view does not contain it.
+For session handoffs, add a concise entry to `LOG.md` covering who worked, related issues, what changed, and what remains.

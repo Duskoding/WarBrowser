@@ -8,20 +8,21 @@ import { goofspiel } from "./goofspiel/index.ts";
 import { nim } from "./nim/index.ts";
 import { rps } from "./rps/index.ts";
 import { ticTacToe } from "./tictactoe/index.ts";
+import { uno } from "./uno/index.ts";
 import { war } from "./war/index.ts";
 
 // Every game the server can host. To add one, write a GameModule and list it here.
-// The lobby shows them in this order.
 export const games: GameModule[] = [
   war,
   ticTacToe,
+  uno,
+  crazy8,
+  gofish,
   rps,
   goofspiel,
   connect4,
   dots,
   battleship,
-  crazy8,
-  gofish,
   nim,
 ];
 
@@ -33,5 +34,5 @@ export function findGame(id: unknown): GameModule | undefined {
 }
 
 export function gameSummaries(): GameSummary[] {
-  return games.map(({ id, name, description, players, rules }) => ({ id, name, description, players, rules: rules ?? [] }));
+  return games.map(({ id, name, description, players }) => ({ id, name, description, players }));
 }

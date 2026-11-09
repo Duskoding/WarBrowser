@@ -10,7 +10,7 @@ export interface PlayerInfo {
   username: string;
 }
 
-// Kept here so game modules have no Node-only imports and can run in the preview.
+// Kept here so game modules have no Node-only imports and can run in either runtime.
 export interface GameCommentator {
   describe(prompt: string): Promise<string | null>;
 }
@@ -18,6 +18,9 @@ export interface GameCommentator {
 export interface GameModuleContext {
   options: Record<string, unknown>;
   commentator: GameCommentator;
+  // The actual seated player count for this room's match, within the
+  // module's players.min/max range. Fixed-player-count games can ignore it.
+  players: number;
 }
 
 export type GameModuleActionResult =
@@ -38,9 +41,9 @@ export interface GameModule<
   id: string;
   name: string;
   description: string;
-  players: number;
-  // Optional "How to play" lines, shown from the lobby (#67).
-  rules?: string[];
+  // Room needs at least `min` players before the host can start it, and
+  // stops accepting joiners at `max`.
+  players: { min: number; max: number };
 
   createEngine(context: GameModuleContext): GameEngine<TState, TAction, TResult>;
 
@@ -60,4 +63,4 @@ export interface GameModule<
 }
 
 // What GET /api/games returns for each game.
-export type GameSummary = Pick<GameModule, "id" | "name" | "description" | "players" | "rules">;
+export type GameSummary = Pick<GameModule, "id" | "name" | "description" | "players">;

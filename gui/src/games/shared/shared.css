@@ -1,4 +1,4 @@
-/* Shared by the new games: card faces (Goofspiel, Crazy Eights, Go Fish) and common layout. */
+/* Shared by the standard-deck card games' screens (Crazy Eights, Go Fish): card faces and common layout. */
 .pcard {
   display: inline-flex;
   flex-direction: column;

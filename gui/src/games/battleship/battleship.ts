@@ -35,9 +35,9 @@ export const battleship: GuiModule = {
         <p class="players" data-id="players"></p>
         <p class="status" data-id="status"></p>
         <div class="row" data-id="setup">
-          <button class="small-btn ghost-btn" data-id="shuffle" type="button">Shuffle my fleet</button>
-          <button class="small-btn ghost-btn" data-id="rotate" type="button">Rotate</button>
-          <button class="small-btn" data-id="ready" type="button">Ready</button>
+          <button class="small-btn ghost-btn" data-id="shuffle">Shuffle my fleet</button>
+          <button class="small-btn ghost-btn" data-id="rotate">Rotate</button>
+          <button class="small-btn" data-id="ready">Ready</button>
         </div>
         <div class="bs-boards">
           <section class="bs-side">
@@ -148,7 +148,6 @@ export const battleship: GuiModule = {
       $("mine").style.setProperty("--n", String(n));
       enemyCells = Array.from({ length: n * n }, (_, cell) => {
         const button = document.createElement("button");
-        button.type = "button";
         button.className = "bs-cell";
         button.setAttribute("aria-label", `Row ${Math.floor(cell / n) + 1}, column ${(cell % n) + 1}`);
         button.addEventListener("click", () => {
@@ -220,7 +219,8 @@ export const battleship: GuiModule = {
     function sameCells(a: number[], b: number[]) {
       if (a.length !== b.length) return false;
       const left = [...a].sort((x, y) => x - y);
-      return left.every((cell, i) => cell === [...b].sort((x, y) => x - y)[i]);
+      const right = [...b].sort((x, y) => x - y);
+      return left.every((cell, i) => cell === right[i]);
     }
 
     function finishDrag(commit: boolean) {

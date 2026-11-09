@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { DotsEngine, SIZE } from "./DotsEngine.ts";
 import { dots } from "./index.ts";
 
-const silent = { commentator: { describe: async () => null }, options: {} };
+const silent = { commentator: { describe: async () => null }, options: {}, players: 2 };
 
 test("players alternate when no box is closed", () => {
   const game = new DotsEngine();

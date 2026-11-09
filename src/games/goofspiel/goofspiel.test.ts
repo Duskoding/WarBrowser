@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { GoofspielEngine, goofspiel } from "./index.ts";
 
 const inOrder = <T>(items: T[]) => items.slice(); // prizes come up 1, 2, … 13
-const silent = { commentator: { describe: async () => null }, options: { shuffle: inOrder } };
+const silent = { commentator: { describe: async () => null }, options: { shuffle: inOrder }, players: 2 };
 const players = [{ username: "a" }, { username: "b" }];
 
 test("the higher bid takes the prize; bids are used up", () => {

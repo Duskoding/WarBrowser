@@ -65,7 +65,7 @@ test("only the player who fished sees the drawn card", () => {
   const hand0 = [c(5, "S"), c(9, "S"), c(10, "S"), c(11, "S"), c(12, "S"), c(13, "S"), c(14, "S")];
   const hand1 = [c(2, "H"), c(3, "H"), c(4, "H"), c(6, "H"), c(7, "H"), c(8, "H"), c(9, "H")];
   const engine = new GoFishEngine({ shuffle: dealing(hand0, hand1, [c(2, "C")]) });
-  gofish.handleAction(engine, 0, { kind: "ask", rank: 5 }, { commentator: { describe: async () => null }, options: {} });
+  gofish.handleAction(engine, 0, { kind: "ask", rank: 5 }, { commentator: { describe: async () => null }, options: {}, players: 2 });
   const host = gofish.toView(engine, 0, players) as { lastAsk: { drew?: Card } };
   const guest = gofish.toView(engine, 1, players) as { lastAsk: { drew?: Card } };
   assert.deepEqual(host.lastAsk.drew, c(2, "C"));

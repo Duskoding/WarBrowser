@@ -1,47 +1,73 @@
-# Work log
+# Work session log
 
-One entry per work session, newest first. `decision.md` says *why* a choice was made; this file says *what happened*, so the next person or agent can pick up where the last one stopped.
+Add one short entry for each work session so the next person or agent can resume quickly.
 
-Each entry: date · who (a person, or `agent`) · issues · what changed · how it was checked · what's left.
+## Entry format
 
----
+## YYYY-MM-DD — Short description
 
-## 2026-11-09 · agent, for Shulamit · #59, #77, #81
+- **Who:** person or agent
+- **Issues:** issue numbers or `none`
+- **Changed:** files or behavior changed
+- **Remaining:** unfinished work, blockers, or `none`
 
-**Asked for:** Review draft PR #70 against the game-plugin contract, then add whatever issue #59 still requires.
+## 2026-11-09 — Add session log
 
-**What changed:**
-- Reviewed the seven games already on the branch. Each one implements `GameEngine`, `GameModule` and `GuiModule` the same way War and Tic-Tac-Toe do, and hidden information stays in the owning seat's view. No contract fixes came out of that review.
-- Added Nim (#77): engine, tests, module, screen, registry entries, README and the server game list.
-- Added Battleship fleet placement (#81): a `place` action with server checks, drag and rotate on the setup screen, and tests for valid and invalid layouts.
+- **Who:** agent (GitHub Copilot)
+- **Issues:** none
+- **Changed:** Added `LOG.md`, linked it from `AGENTS.md`, and documented the decision in `decision.md`.
+- **Remaining:** none
 
-**How it was checked:** `npm run typecheck` and `npm test` (100 tests). The final Battleship screen was not played in a browser, and the preview page was not rebuilt after that screen change.
+## 2026-11-09 — Add Crazy Eights and Go Fish; shared card module
 
-**What's left:** open the pull request for review. Commentary was not tried with a real API key.
+- **Who:** agent, on behalf of yskolnick (taking over Hannah Lichtman's, GitHub HannahL06, work)
+- **Issues:** #65 (Crazy Eights), #66 (Go Fish), #69 (shared cards)
+- **Changed:** Added `src/games/shared/cards.ts` and `src/games/shared/view.ts`; War now imports its deck from the shared module (types and helpers re-exported so existing imports work). Added `src/games/crazy8/` (`crazy8`) and `src/games/gofish/` (`gofish`), both 2-player, with screens in `gui/src/games/crazy8/` and `gui/src/games/gofish/`, shared card-face styles in `gui/src/games/shared/`, and registrations in `src/games/index.ts` and `gui/src/games/index.ts`. Ported from draft PR #70 (`claude/more-games`) to the `players: { min, max }` contract. Rebuilt the preview; `test/server.test.js` lists the new games. All 97 tests pass.
+- **Remaining:** PR #70 still has its other five games, which need the same port. Close #65, #66 and #69 once this branch is merged.
 
-## 2026-11-04 · agent (Claude), for Yosef Skolnick · #59–#69
+## 2026-11-09 — Port the remaining PR #70 games
 
-**Asked for:** build every game that fits the current game-plugin work, add a log and decision entries, add a link in the UI, and open issues first. Built on `refactorWarAndTTT` (the user's choice) and delivered as a draft pull request.
+- **Who:** agent, on behalf of yskolnick
+- **Issues:** #61, #62, #63, #64 (closed #65, #66, #69 earlier this session)
+- **Changed:** Added `goofspiel`, `connect4`, `dots` and `battleship` modules and screens, ported from draft PR #70 to `players: { min, max }` (kept Efrat's `rps` from PR #89 rather than #70's); registered them in `src/games/index.ts` and `gui/src/games/index.ts`; `test/server.test.js` lists all ten games. All tests pass.
+- **Remaining:** Open a PR for this branch and merge it; then close draft PR #70 without merging. Assignees of #61–#64 should review their game and close the issue. PR #70's lobby "How to play" work belongs to #67.
+## 2026-11-09 — Close idle rooms
 
-**Issues opened:** #59 (parent) and its children: #60 Rock-Paper-Scissors, #61 Goofspiel, #62 Connect Four, #63 Dots and Boxes, #64 Battleship, #65 Crazy Eights, #66 Go Fish, #67 How to play links, #68 this log, #69 shared cards module.
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #83
+- **Changed:** Added configurable idle-room cleanup, the `room_closed` protocol event and lobby handling, documentation, and focused server coverage.
 
-**What changed:**
-- Seven new games, each a `GameEngine` + `GameModule` in `src/games/<id>/` with tests, and a `GuiModule` in `gui/src/games/<id>/`, listed in both registries.
-- `src/games/shared/cards.ts` (deck, shuffle, card helpers) and `src/games/shared/view.ts` (viewer-relative results, names, commentary opening). War now gets its deck from the shared module and re-exports it, so old imports still work.
-- `gui/src/games/shared/` for drawing cards and the common layout pieces the new screens share.
-- `rules` on `GameModule` and `GET /api/games`; a **How to play** link under every lobby tile. Rules written for all nine games.
-- `README.md`, `AGENTS.md` (work log rule, hidden-information rule), `decision.md` (eight entries), and the preview page rebuilt.
-- Fixed a flaky War server test that hung when the first random flip was a tie.
+## 2026-11-09 — Cap AI commentary calls (#80)
 
-**How it was checked:**
-- `npm run typecheck` and `npm test`: 94 tests pass (53 before), including network tests that Rock-Paper-Scissors picks and Battleship fleets never reach the other player.
-- The server test file run 25 times in a row with no failures after the flaky-test fix.
-- Every new game played to the end in two real browser sessions against a local server; wins and losses showed up on the accounts. Lobby and every game checked at phone width (no sideways scrolling).
-- The preview page loads every game with no errors.
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #80
+- **Changed:** Added shared per-room and per-server commentary limits, environment configuration, skip logging, tests, and documentation.
+- **Remaining:** none
 
-**What's left:**
-- Commentary was not tried with a real API key; prompts are covered only by reading them.
-- Win/loss records are still one total across all games (unchanged decision).
-- Battleship has random placement only; drag-and-drop placement would be a new issue.
-- Uno (#30) can reuse `src/games/shared/cards.ts` and Crazy Eights' draw/discard handling.
-- Poker on `claude/poker-game-requirements-j5u75v` still needs porting to the plugin contract.
+## 2026-11-09 — Keep project guidance files tracked
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #54
+- **Changed:** Kept the repository-root `AGENTS.md` and `decision.md` tracked; documented the preservation decision.
+- **Remaining:** none
+
+## 2026-11-09 — Implement Rock-Paper-Scissors
+
+- **Who:** agent (GitHub Copilot)
+- **Issues:** #60
+- **Changed:** Added the RPS engine, tests, server and client module registrations, GUI screen/styles, README coverage, and decision-log entry.
+- **Remaining:** none; typecheck, build, and full test suite pass.
+
+## 2026-11-09 — Uno GUI module
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** #36 (child of #30)
+- **Changed:** Added `gui/src/games/uno/uno.ts` and `uno.css` and registered `uno` in `gui/src/games/index.ts`. Shows other players with card counts and an UNO! marker at one card, the draw and discard piles, the color to match and play direction, your hand sorted by color with playable cards highlighted, a color picker for wilds, and a per-move line in the commentary box. No server, engine or protocol changes. Checked with a full 3-player game in real browsers (winner and stats update, no errors, no sideways scroll at phone width); all 83 tests pass.
+- **Remaining:** No GUI tests exist for any game yet. The Uno engine has no "call UNO" or "play the card you just drew" rules, so the screen has no buttons for them; if the engine owner (#30) adds them, the screen needs matching buttons. Once `gui/src/games/shared/` (cards module, PR #70 work) is on `main`, card drawing could move there. Keyboard/screen-reader pass is tracked in #82.
+
+## 2026-11-09 — Add Nim and Battleship placement onto current main
+
+- **Who:** agent
+- **Issues:** #59, #77, #81
+- **Changed:** Merged current main into the branch. Kept main's module contract and existing games. Added Nim. Restored Battleship drag-and-rotate placement on main's screen.
+- **Remaining:** Play Nim and Battleship setup in the browser. Commentary was not tried with a real API key.

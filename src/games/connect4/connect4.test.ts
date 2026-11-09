@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { COLS, ConnectFourEngine } from "./ConnectFourEngine.ts";
 import { connect4 } from "./index.ts";
 
-const silent = { commentator: { describe: async () => null }, options: {} };
+const silent = { commentator: { describe: async () => null }, options: {}, players: 2 };
 const players = [{ username: "a" }, { username: "b" }];
 
 function play(game: ConnectFourEngine, columns: number[]) {

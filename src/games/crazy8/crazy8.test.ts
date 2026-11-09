@@ -73,7 +73,7 @@ test("playing your last card wins", () => {
 });
 
 test("the opponent's cards never appear in your view", () => {
-  const engine = crazy8.createEngine({ commentator: { describe: async () => null }, options: {} });
+  const engine = crazy8.createEngine({ commentator: { describe: async () => null }, options: {}, players: 2 });
   const guest = crazy8.toView(engine, 1, players) as Record<string, unknown>;
   const hostHand = engine.getState(0).yourHand;
   const guestJson = JSON.stringify({ ...guest, top: null });

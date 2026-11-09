@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { NimEngine, nim } from "./index.ts";
 
-const silent = { commentator: { describe: async () => "nice" }, options: {} };
+const silent = { commentator: { describe: async () => "nice" }, options: {}, players: 2 };
 const players = [{ username: "ada" }, { username: "bea" }];
 
 test("the host moves first and players alternate", () => {

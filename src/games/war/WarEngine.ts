@@ -15,7 +15,7 @@ import type {
 const WAR_BURN = 3;
 const other = (seat: number) => 1 - seat;
 
-// Kept as exports from here so existing imports keep working.
+// Re-exported so existing imports from War keep working.
 export { createDeck, fisherYates };
 
 type InternalStake = { card: Card; faceUp: boolean };

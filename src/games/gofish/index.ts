@@ -2,9 +2,7 @@ import type { GameModule } from "../GameModule.ts";
 import { isRank, rankName, type Rank } from "../shared/cards.ts";
 import { COMMENTARY_INTRO, names, outcomeFor, playerLabel, whoFor } from "../shared/view.ts";
 import {
-  BOOKS,
   GoFishEngine,
-  HAND_SIZE,
   type Ask,
   type GoFishAction,
   type GoFishOptions,
@@ -27,14 +25,7 @@ export const gofish: GameModule<GoFishState, GoFishAction, GoFishResult> = {
   id: "gofish",
   name: "Go Fish",
   description: "Ask for ranks to collect books of four. Most books wins.",
-  players: 2,
-  rules: [
-    `Each player gets ${HAND_SIZE} cards. The rest form the pond. The room's host goes first.`,
-    "On your turn, ask your opponent for a rank you already hold.",
-    "If they have any, they hand them all over and you go again. If not, go fish: draw one card. If it's the rank you asked for, you go again.",
-    "Four of a kind is laid down as a book. If your hand is empty on your turn, you draw a card.",
-    `When all ${BOOKS} books are made, the player with more books wins.`,
-  ],
+  players: { min: 2, max: 2 },
 
   createEngine(context) {
     return new GoFishEngine(context.options as GoFishOptions);

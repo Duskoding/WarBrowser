@@ -28,14 +28,7 @@ export const goofspiel: GameModule<GoofspielState, GoofspielAction, GoofspielRes
   id: "goofspiel",
   name: "Goofspiel",
   description: "Secretly bid a card for each prize. Most prize points after 13 rounds wins.",
-  players: 2,
-  rules: [
-    "Each player holds Ace to King of one suit. The diamonds are shuffled into a prize pile.",
-    "Each round one prize is turned up. Both players secretly bid one card from their hand, then both bids are shown.",
-    "The higher bid takes the prize, worth its value (Ace 1, Jack 11, Queen 12, King 13). Bids are used up.",
-    "If the bids tie, the prize stays on the table and the next round's winner takes it too.",
-    "After 13 rounds, the higher prize total wins.",
-  ],
+  players: { min: 2, max: 2 },
 
   createEngine(context) {
     return new GoofspielEngine(context.options as GoofspielOptions);

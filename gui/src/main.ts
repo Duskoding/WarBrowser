@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame } from "./connection";
+import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -57,6 +57,8 @@ app.innerHTML = `
     </div>
     <p class="invite-link" id="invite-link"></p>
     <p class="status" id="room-status"></p>
+    <p class="players" id="room-players"></p>
+    <button id="start-game" class="small" hidden>Start game</button>
     <div class="game-root" id="game-root"></div>
   </main>
   <div class="toast" id="toast" hidden></div>
@@ -79,7 +81,10 @@ let games: GameSummary[] = [];
 let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
-let opponentHere = false;
+let roomHost: string | null = null;
+let roomPlayers: string[] = [];
+let roomMin = 0;
+let roomMax = 0;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
 
@@ -150,30 +155,16 @@ function renderGameList() {
       tile.innerHTML = `<strong></strong><span class="desc"></span><span class="meta"></span><span class="go"></span>`;
       tile.querySelector("strong")!.textContent = game.name;
       tile.querySelector(".desc")!.textContent = game.description;
-      tile.querySelector(".meta")!.textContent = `${game.players} players`;
+      tile.querySelector(".meta")!.textContent =
+        game.players.min === game.players.max
+          ? `${game.players.min} players`
+          : `${game.players.min}–${game.players.max} players`;
       tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
-      if (game.rules?.length) item.append(howToPlay(game));
       return item;
     })
   );
-}
-
-// A "How to play" link under a game's tile that opens its rules.
-function howToPlay(game: GameSummary) {
-  const details = document.createElement("details");
-  details.className = "how-to";
-  details.innerHTML = `<summary>How to play</summary><ol></ol>`;
-  details.querySelector("summary")!.setAttribute("aria-label", `How to play ${game.name}`);
-  details.querySelector("ol")!.append(
-    ...game.rules!.map((rule) => {
-      const li = document.createElement("li");
-      li.textContent = rule;
-      return li;
-    })
-  );
-  return details;
 }
 
 async function loadGames() {
@@ -281,13 +272,20 @@ function render() {
   $("room-game").textContent = gameName(roomGameId);
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
-  // Invite URL is only useful while waiting for someone to join.
-  $("invite-link").hidden = opponentHere;
+  // Invite URL and player count are only useful before the game starts.
+  $("invite-link").hidden = screen !== null;
+  $("room-players").hidden = screen !== null;
+  $("room-players").textContent = `${roomPlayers.join(", ")} (${roomPlayers.length}/${roomMin}–${roomMax})`;
+
+  const isHost = me !== null && roomHost === me.username;
+  const canStart = isHost && !screen && roomPlayers.length >= roomMin;
+  $<HTMLButtonElement>("start-game").hidden = !canStart;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
-  else if (!opponentHere) status = "Waiting for opponent — share the invite link";
-  else if (!screen) status = "Starting…";
+  else if (!screen && roomPlayers.length < roomMin) status = "Waiting for players — share the invite link";
+  else if (!screen && !isHost) status = "Waiting for the host to start the game";
+  else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
 }
@@ -297,15 +295,29 @@ function resetRoom() {
   $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
-  opponentHere = false;
+  roomHost = null;
+  roomPlayers = [];
+  roomMin = 0;
+  roomMax = 0;
   const params = new URLSearchParams(location.search);
   params.delete("room");
   history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
 }
 
-function enterRoom(code: string, gameId: string) {
+function enterRoom(
+  code: string,
+  gameId: string,
+  host: string,
+  players: string[],
+  min: number,
+  max: number
+) {
   roomCode = code;
   roomGameId = gameId;
+  roomHost = host;
+  roomPlayers = players;
+  roomMin = min;
+  roomMax = max;
   const params = new URLSearchParams(location.search);
   params.set("room", code);
   history.replaceState(null, "", `${location.pathname}?${params}`);
@@ -354,22 +366,25 @@ onEvent((e) => {
       if (me) setConnected(false);
       break;
     case "room_created":
-      enterRoom(e.roomCode, e.gameId);
+      enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
     case "room_joined":
-      enterRoom(e.roomCode, e.gameId);
-      opponentHere = true;
+      enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
-    case "opponent_joined":
-      opponentHere = true;
+    case "players_update":
+      roomPlayers = e.players;
       break;
-    case "opponent_disconnected":
-      opponentHere = false;
+    case "player_left":
+      roomPlayers = roomPlayers.filter((username) => username !== e.username);
       unmountGame();
-      showToast("Your opponent disconnected.");
+      showToast(`${e.username} left the room.`);
       break;
     case "room_left":
       resetRoom();
+      break;
+    case "room_closed":
+      resetRoom();
+      showToast("This room was closed after being idle too long.");
       break;
     case "game_message":
       handleGamePayload(e.payload);
@@ -390,6 +405,7 @@ $("join-form").addEventListener("submit", (ev) => {
   if (code) joinRoom(code);
 });
 $("leave-room").addEventListener("click", leaveRoom);
+$("start-game").addEventListener("click", startGame);
 function selectInviteLink() {
   const el = $("invite-link");
   const range = document.createRange();
@@ -470,9 +486,10 @@ $("auth-form").addEventListener("submit", async (ev) => {
       username: String(result.body.username ?? usernameInput.value.trim()),
       wins: Number(result.body.wins ?? 0),
       losses: Number(result.body.losses ?? 0),
-      mustResetPassword: Boolean(result.body.mustResetPassword)
+      mustResetPassword: Boolean(result.body.mustResetPassword),
+      games: result.body.games ?? {}
     };
-    if (me.mustResetPassword) {
+    if (me?.mustResetPassword) {
       resetting = true;
       setAuthError("You must set a new password before playing.");
       updateAuthMode();

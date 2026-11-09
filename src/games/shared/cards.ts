@@ -1,5 +1,5 @@
-// A standard 52-card deck, shared by every card game (War, Goofspiel, Crazy
-// Eights, Go Fish). Ace is high (14) unless a game says otherwise.
+// A standard 52-card deck, shared by the standard-deck card games (War, Crazy
+// Eights, Go Fish). Ace is high (14). Uno has its own deck in src/games/uno/.
 
 export type Suit = "S" | "H" | "D" | "C";
 export type Rank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;

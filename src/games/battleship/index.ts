@@ -23,13 +23,7 @@ export const battleship: GameModule<BattleshipState, BattleshipAction, Battleshi
   id: "battleship",
   name: "Battleship",
   description: "Hide your fleet, then take turns firing. Sink every enemy ship to win.",
-  players: 2,
-  rules: [
-    `Each player has a ${SIZE} × ${SIZE} grid and a fleet: ${FLEET.map((s) => `${s.name} (${s.size})`).join(", ")}.`,
-    "Drag a ship on your grid to move it, and press Rotate to turn the selected ship. Or press Shuffle to place the fleet at random. Then press Ready. Your opponent never sees your ships.",
-    "Once both players are ready, take turns firing one shot at the opponent's grid; the room's host fires first.",
-    "A shot is a hit or a miss. A ship sinks when every square of it is hit. Sink the whole fleet to win.",
-  ],
+  players: { min: 2, max: 2 },
 
   createEngine(context) {
     return new BattleshipEngine(context.options as BattleshipOptions);

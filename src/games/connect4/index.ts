@@ -18,12 +18,7 @@ export const connect4: GameModule<ConnectFourState, ConnectFourAction, ConnectFo
   id: "connect4",
   name: "Connect Four",
   description: "Drop discs into columns. Four in a row across, down or diagonally wins.",
-  players: 2,
-  rules: [
-    `The board has ${COLS} columns and ${ROWS} rows. Players take turns; the room's host goes first.`,
-    "On your turn, drop one disc into a column. It falls to the lowest empty space.",
-    "The first player with four discs in a row (across, down or diagonally) wins. A full board is a draw.",
-  ],
+  players: { min: 2, max: 2 },
 
   createEngine() {
     return new ConnectFourEngine();
