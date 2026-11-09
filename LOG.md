@@ -18,6 +18,19 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** Added `LOG.md`, linked it from `AGENTS.md`, and documented the decision in `decision.md`.
 - **Remaining:** none
 
+## 2026-11-09 — Add Crazy Eights and Go Fish; shared card module
+
+- **Who:** agent, on behalf of yskolnick (taking over Hannah Lichtman's, GitHub HannahL06, work)
+- **Issues:** #65 (Crazy Eights), #66 (Go Fish), #69 (shared cards)
+- **Changed:** Added `src/games/shared/cards.ts` and `src/games/shared/view.ts`; War now imports its deck from the shared module (types and helpers re-exported so existing imports work). Added `src/games/crazy8/` (`crazy8`) and `src/games/gofish/` (`gofish`), both 2-player, with screens in `gui/src/games/crazy8/` and `gui/src/games/gofish/`, shared card-face styles in `gui/src/games/shared/`, and registrations in `src/games/index.ts` and `gui/src/games/index.ts`. Ported from draft PR #70 (`claude/more-games`) to the `players: { min, max }` contract. Rebuilt the preview; `test/server.test.js` lists the new games. All 97 tests pass.
+- **Remaining:** PR #70 still has its other five games, which need the same port. Close #65, #66 and #69 once this branch is merged.
+
+## 2026-11-09 — Port the remaining PR #70 games
+
+- **Who:** agent, on behalf of yskolnick
+- **Issues:** #61, #62, #63, #64 (closed #65, #66, #69 earlier this session)
+- **Changed:** Added `goofspiel`, `connect4`, `dots` and `battleship` modules and screens, ported from draft PR #70 to `players: { min, max }` (kept Efrat's `rps` from PR #89 rather than #70's); registered them in `src/games/index.ts` and `gui/src/games/index.ts`; `test/server.test.js` lists all ten games. All tests pass.
+- **Remaining:** Open a PR for this branch and merge it; then close draft PR #70 without merging. Assignees of #61–#64 should review their game and close the issue. PR #70's lobby "How to play" work belongs to #67.
 ## 2026-11-09 — Close idle rooms
 
 - **Who:** agent (GitHub Copilot)
