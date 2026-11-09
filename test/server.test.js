@@ -573,6 +573,34 @@ test("plays a chosen game: Tic-Tac-Toe to a win, recorded on both accounts", asy
   guest.close();
 });
 
+test("restarts a finished game in the same room", async () => {
+  const { host, guest, hostState, guestState } = await startRoom(silentCommentator, {}, "tictactoe");
+  assert.equal(hostState.view.board.filter(Boolean).length, 0);
+  assert.equal(guestState.view.board.filter(Boolean).length, 0);
+
+  for (const [player, cell] of [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]]) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+
+  post(guest, { type: "restart_game" });
+  const restartedHost = (await host.next()).payload.view;
+  const restartedGuest = (await guest.next()).payload.view;
+  assert.deepEqual(restartedHost.board, Array(9).fill(null));
+  assert.deepEqual(restartedGuest.board, Array(9).fill(null));
+  assert.equal(restartedHost.yourTurn, true);
+  assert.equal(restartedGuest.yourTurn, false);
+
+  post(host, { type: "restart_game" });
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "Finish the current game before playing again."
+  });
+  host.close();
+  guest.close();
+});
+
 test("plays a chosen game: Uno to a win, recorded on both accounts", async () => {
   const identity = (items) => items.slice();
   const { httpUrl, host, guest, hostAuth, guestAuth } = await startRoom(

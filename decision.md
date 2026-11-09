@@ -9,6 +9,12 @@
 - **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
 - **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
 
+## 2026-11-09 — Replay finished games in the same room
+
+- **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.
+- **Made by:** agent
+- **Reason:** Players should be able to start another match without copying a new invite or rebuilding the room. Keeping the room and seats preserves the existing lifecycle and win/loss behavior, while replacing the engine prevents stale game state from leaking into the replay.
+
 ## 2026-11-09 — Port the remaining games from draft PR #70
 
 - **Decision:** Port Goofspiel (`goofspiel`), Connect Four (`connect4`), Dots and Boxes (`dots`) and Battleship (`battleship`) from draft PR #70 onto the current `GameModule` contract, the same way as Crazy Eights and Go Fish: `players: { min: 2, max: 2 }`, no `rules` field (left for #67), and tests pass `players: 2` in the module context. Rock-Paper-Scissors is not ported: Efrat's own version (#60, PR #89) reached main first and is kept as is. The other issues (#61–#64) stay open for their assignees to review and close.
@@ -215,3 +221,27 @@
 - **Decision:** Build Uno's screen as a self-contained `GuiModule` in `gui/src/games/uno/` against the view `main` already sends, with no server or protocol changes. The client works out which cards are playable (same rule as `UnoEngine.canPlay`) only to highlight them; the server still validates every move. Cards are shown sorted by color but sent by their server hand index. Each move gets a built-in line in the commentary box, worked out by comparing consecutive views, and AI commentary for the same `round` replaces it. Card styles stay in `uno.css` for now rather than the unmerged `gui/src/games/shared/` card module from the Crazy Eights branch.
 - **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
 - **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
+
+## 2026-11-09 — Shell UI redesign: clean "game night" look with share and result moments
+
+- **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
+- **Made by:** user (asked for an "explosive and viral" UI and rejected the neon pass) and agent (design and implementation)
+- **Reason:** Sharing a room and celebrating a win are the moments that spread a two-player game; doing them in the shell gives every game the same treatment without touching game modules, the server or the room protocol. Motion is limited and honours `prefers-reduced-motion`.
+
+## 2026-11-09 — Keep the green felt as the site color
+
+- **Decision:** Use a felt green as the shell background (first the original `#1f6b3a`; lightened to `#2f8f52` after the user found it too dark, with per-game link colors brightened to stay readable), with darker felt surfaces and the original gold (`#f5c542`) for buttons and highlights, in place of the dark-and-coral palette from the redesign. Layout and features from the redesign stay.
+- **Made by:** user (asked to keep the green) and agent (gold accent, surface shades)
+- **Reason:** The team likes the green; gold was the site's original button color and reads well on felt, where coral clashed.
+
+## 2026-11-09 — Center a partly filled last row of lobby games
+
+- **Decision:** Lay out the lobby game list with wrapping flex rows (4/3/2/1 columns by width) and center them, so a last row with fewer games sits in the middle instead of at the left.
+- **Made by:** user
+- **Reason:** With ten games, the last two looked stranded on the left.
+
+## 2026-11-09 — Rematch from the result screen
+
+- **Decision:** After merging the "Play again" replay from `main` (#96), the win/lose screen also offers a rematch that sends the same `restart_game` message. It is the main button after a loss ("Run it back"), a secondary one after a win, and any new unfinished game state closes the result screen for everyone.
+- **Made by:** agent
+- **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.

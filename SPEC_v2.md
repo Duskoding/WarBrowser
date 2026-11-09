@@ -40,6 +40,7 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
 | `join_room` | `{ roomCode }` | player joins an existing room, up to the game's `max` player count (the invite link `?room=CODE` joins automatically) |
 | `start_game` | `{}` | host-only; starts the room's game once at least `min` players have joined |
+| `restart_game` | `{}` | starts a fresh game in the same room after the previous game has finished |
 | `leave_room` | `{}` | player leaves their room |
 | `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 

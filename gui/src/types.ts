@@ -4,6 +4,7 @@ export type ClientMessage =
   | { type: "create_room"; gameId: string }
   | { type: "join_room"; roomCode: string }
   | { type: "start_game" }
+  | { type: "restart_game" }
   | { type: "game_message"; payload: GameAction }
   | { type: "leave_room" };
 

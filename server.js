@@ -372,6 +372,25 @@ export function createWarServer({
     scheduleRoomIdleTimeout(roomCode, room);
   }
 
+  function createGame(roomCode, room) {
+    const seated = [...room.sockets];
+    const context = {
+      commentator: commentaryLimiter.forRoom(roomCode),
+      options: engineOptions,
+      players: seated.length
+    };
+    const game = {
+      module: room.game,
+      engine: room.game.createEngine(context),
+      context,
+      seats: new Map(seated.map((player, seat) => [player, seat])),
+      players: seated.map((player) => player.user),
+      recorded: false
+    };
+    games.set(roomCode, game);
+    return game;
+  }
+
   function leaveRoom(socket) {
     const roomCode = socket.roomCode;
     if (!roomCode) return;
@@ -556,22 +575,24 @@ export function createWarServer({
         markRoomActive(socket.roomCode);
         room.started = true;
         // Room is starting: seats follow join order (the host is seat 0).
-        const seated = [...room.sockets];
-        const context = {
-          commentator: commentaryLimiter.forRoom(socket.roomCode),
-          options: engineOptions,
-          players: seated.length
-        };
-        const game = {
-          module: room.game,
-          engine: room.game.createEngine(context),
-          context,
-          seats: new Map(seated.map((player, seat) => [player, seat])),
-          players: seated.map((player) => player.user),
-          recorded: false
-        };
-        games.set(socket.roomCode, game);
+        const game = createGame(socket.roomCode, room);
         sendStates(game);
+        return;
+      }
+
+      if (message.type === "restart_game") {
+        const room = rooms.get(socket.roomCode);
+        const game = games.get(socket.roomCode);
+        if (!room || !game) {
+          send(socket, { type: "error", message: "There is no finished game to replay." });
+          return;
+        }
+        if (!game.recorded) {
+          send(socket, { type: "error", message: "Finish the current game before playing again." });
+          return;
+        }
+        markRoomActive(socket.roomCode);
+        sendStates(createGame(socket.roomCode, room));
         return;
       }
 
