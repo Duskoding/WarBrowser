@@ -30,6 +30,60 @@ test("random fleets have every ship, in bounds, with no overlaps", () => {
   }
 });
 
+test("players can place a straight fleet, and bad layouts are rejected", () => {
+  const game = new BattleshipEngine();
+  const layout = fleetFrom(0).map((ship) =>
+    ship.name === "Destroyer" ? { name: ship.name, cells: [9, 19] } : ship,
+  );
+  assert.equal(game.apply(0, { kind: "place", ships: layout }).ok, true);
+  assert.deepEqual(
+    game.getState(0).yourShips.find((ship) => ship.name === "Destroyer")?.cells,
+    [9, 19],
+  );
+
+  const overlap = fleetFrom(0).map((ship) =>
+    ship.name === "Battleship" ? { name: ship.name, cells: fleetFrom(0)[0].cells.slice(0, ship.cells.length) } : ship,
+  );
+  assert.deepEqual(game.apply(0, { kind: "place", ships: overlap }), { ok: false, error: "Ships can't overlap." });
+  assert.deepEqual(
+    game.apply(0, {
+      kind: "place",
+      ships: fleetFrom(0).map((ship) => (ship.name === "Carrier" ? { name: ship.name, cells: [0, 1, 2, 4, 5] } : ship)),
+    }),
+    { ok: false, error: "Keep each ship in a straight line." },
+  );
+  assert.deepEqual(
+    game.apply(0, {
+      kind: "place",
+      ships: fleetFrom(0).map((ship) => (ship.name === "Destroyer" ? { name: ship.name, cells: [8, 19] } : ship)),
+    }),
+    { ok: false, error: "Keep each ship in a straight line." },
+  );
+  assert.deepEqual(
+    game.apply(0, {
+      kind: "place",
+      ships: fleetFrom(0).map((ship) => (ship.name === "Destroyer" ? { name: ship.name, cells: [99, 100] } : ship)),
+    }),
+    { ok: false, error: "Keep each ship the right size and on the board." },
+  );
+  assert.equal(game.apply(0, { kind: "place", ships: fleetFrom(0).slice(1) }).ok, false);
+  game.apply(0, { kind: "ready" });
+  assert.equal(game.apply(0, { kind: "place", ships: layout }).ok, false);
+});
+
+test("a placed fleet is hidden from the other seat", () => {
+  const engine = battleship.createEngine(silent);
+  const layout = fleetFrom(1);
+  const placed = battleship.handleAction(engine, 0, { kind: "place", ships: layout }, silent);
+  assert.equal(placed?.ok, true);
+  const guest = battleship.toView(engine, 1, players) as { yourShips: Ship[]; sunkEnemyShips: Ship[] };
+  const guestCells = new Set(guest.yourShips.flatMap((ship) => ship.cells));
+  assert.ok(layout.flatMap((ship) => ship.cells).some((cell) => !guestCells.has(cell)));
+  assert.deepEqual(guest.sunkEnemyShips, []);
+  const rejected = battleship.handleAction(engine, 0, { kind: "place", ships: [{ name: "Carrier", cells: [0, 1] }] }, silent);
+  assert.equal(rejected?.ok, false);
+});
+
 test("no firing until both players are ready; no shuffling after", () => {
   const game = new BattleshipEngine();
   assert.equal(game.apply(0, { kind: "fire", cell: 0 }).ok, false);

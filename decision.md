@@ -1,5 +1,20 @@
 # Decision log
 
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
+
+- **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
+- **Decision:** Use the shared deck already in `src/games/shared/cards.ts` on `main`. Poker imports it and does not replace that file or move Uno onto it.
+- **Decision:** Add an optional `rules?: string[]` on `GameModule`, include it in `GET /api/games` when a game sets it, and show those lines as a lobby **How to play** disclosure next to the game tile (a sibling of the button, so opening it does not cover the tile). The disclosure is generic lobby behavior, not poker code in `gui/src/main.ts` or `server.js`. Poker is `{ min: 2, max: 2 }` and is the only game that fills `rules` here.
+- **Decision:** Hole cards are visible to the other seat only after a showdown, which `SPEC_POKER.md` already requires. They stay hidden for the whole hand on a fold. Commentary is included, per Shulamit's request, but only from a `PublicMoment` that has no hole cards: the action, board, pot, stacks, and (at showdown) the hand name.
+- **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
+- **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
+
+## 2026-11-09 — Remount game screens when replay starts
+
+- **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
+- **Made by:** agent
+- **Reason:** Game screens keep transient state such as commentary round counters and animation timers. Reusing the finished screen lets replay state inherit stale values, so a fresh screen lifecycle is required for reliable replay behavior across all games.
+
 ## 2026-11-09 — Replay finished games in the same room
 
 - **Decision:** Add a `restart_game` WebSocket message that either seated player may send after a match is recorded as finished. The server recreates the same game module and engine for the existing roster, while the client shell shows a shared **Play again** button on game-over state.
@@ -213,6 +228,12 @@
 - **Made by:** user (Ariella, GUI owner for #36) asked for it; design choices by agent
 - **Reason:** Keeps Uno's GUI independent of the Uno engine owner's work and of unmerged branches, and gives a readable game without an API key. Moving card drawing into the shared module can follow once that module is on `main`.
 
+## 2026-11-09 — Resolve the new games onto current main (#59)
+
+- **Decision:** Keep main's `GameModule` (`players: { min, max }`, no How to play `rules` list), its lobby, and the games already there, including Uno. Add Nim as a two-player module in that shape. Put Battleship fleet placement back on main's Battleship: a `place` action, plus drag and Rotate on the existing setup row. Leave out the preview page main removed, and the older Rock-Paper-Scissors tests that no longer match main's engine.
+- **Made by:** agent
+- **Reason:** Pull request #94 conflicted because main had already landed the other games and a newer module contract. Nim (#77) and player-placed fleets (#81) were the parts still missing.
+
 ## 2026-11-09 — Shell UI redesign: clean "game night" look with share and result moments
 
 - **Decision:** Redesign the shell (`gui/src/main.ts`, `gui/src/style.css`) and the shared in-game defaults (`gui/src/games/base.css`, `shared/shared.css`) around flat dark surfaces, one coral accent and Bricolage Grotesque headings: a top bar, a sign-in hero with fanned CSS playing cards, game tiles with a per-game tinted icon and optional badge (`gui/src/flair.ts`), a waiting card with the room code in large tiles and player chips, a "Share invite" button (native share sheet on touch devices, clipboard elsewhere), and a win/lose splash with confetti and a "Brag about it" share (`gui/src/fx.ts`). The outcome is read from the player's win/loss record before and after the match is stored, so no game view or protocol changes are needed. A first neon/synthwave pass was dropped after the user found it odd-looking.
@@ -237,9 +258,20 @@
 - **Made by:** agent
 - **Reason:** A rematch is the obvious next step from the result screen; reusing the existing replay message needs no protocol change.
 
+## 2026-11-09 — Keep both decision logs when main moves again (#59)
+
+- **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
+- **Made by:** agent
+- **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
 ## 2026-11-09 — Keep a dropped connection in the room (#78)
 
 - **Decision:** Any socket close while a player is in a room, including before the match starts, keeps that player's seat for 60 seconds instead of deleting the game. Moves are rejected until they return or the time runs out. Pressing Leave still ends the match immediately. After the grace period, the match is discarded the way a leave works today, and someone else can join for a new game. On the current roster protocol this is `player_reconnecting` / `player_reconnected`, and `player_left` when the grace period runs out or someone leaves on purpose. The open page retries the socket and rejoins; a second connection is still rejected while the first socket is open. `main` had already deleted the old preview client, so that copy is not brought back.
 - **Made by:** user (grace period and pausing play); agent (how rejoin works, and fitting it onto the roster protocol while resolving the merge with `main`)
 - **Reason:** A phone lock or a short network blip was ending the game for both players. The branch had to be merged with a `main` that starts games explicitly and no longer uses `opponent_disconnected`.
 
+## 2026-11-09 — Keep Hold'em and commentary limits while merging reconnect grace (#78)
+
+- **Decision:** The test helper accepts both commentary limits and `reconnectGraceMs`. The protocol list names Hold'em actions and the reconnect messages together.
+- **Made by:** agent
+- **Reason:** Main gained Hold'em while this branch was being merged. Both have to stay.

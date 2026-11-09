@@ -21,6 +21,7 @@ export type ShotResult = "miss" | "hit" | "sunk";
 
 export type BattleshipAction =
   | { kind: "shuffle" } // setup: place my fleet again at random
+  | { kind: "place"; ships: Ship[] } // setup: the player's own layout
   | { kind: "ready" } // setup: lock in my fleet
   | { kind: "fire"; cell: number };
 
@@ -51,6 +52,40 @@ export interface BattleshipState {
 
 export interface BattleshipOptions {
   random?: () => number;
+}
+
+// Why a layout is illegal, or null when every ship is the right size, in a
+// straight line, on the board and not overlapping.
+export function fleetPlacementError(ships: Ship[]): string | null {
+  if (!Array.isArray(ships) || ships.length !== FLEET.length) return "Place every ship.";
+  const expected = new Map(FLEET.map((ship) => [ship.name, ship.size]));
+  const seen = new Set<string>();
+  const taken = new Set<number>();
+  for (const ship of ships) {
+    if (!ship || typeof ship.name !== "string" || !expected.has(ship.name) || seen.has(ship.name)) {
+      return "Place every ship.";
+    }
+    seen.add(ship.name);
+    const size = expected.get(ship.name)!;
+    const cells = ship.cells;
+    if (!Array.isArray(cells) || cells.length !== size || !cells.every((cell) => Number.isInteger(cell) && cell >= 0 && cell < SIZE * SIZE)) {
+      return "Keep each ship the right size and on the board.";
+    }
+    if (!isStraight(cells)) return "Keep each ship in a straight line.";
+    if (cells.some((cell) => taken.has(cell))) return "Ships can't overlap.";
+    cells.forEach((cell) => taken.add(cell));
+  }
+  return null;
+}
+
+function isStraight(cells: number[]): boolean {
+  const rows = cells.map((cell) => Math.floor(cell / SIZE));
+  const cols = cells.map((cell) => cell % SIZE);
+  const sameRow = rows.every((row) => row === rows[0]);
+  const sameCol = cols.every((col) => col === cols[0]);
+  if (sameRow === sameCol) return false;
+  const line = [...(sameRow ? cols : rows)].sort((a, b) => a - b);
+  return line.every((value, index) => index === 0 || value === line[index - 1] + 1);
 }
 
 // Places every ship in FLEET at random, horizontally or vertically, without overlaps.
@@ -88,11 +123,15 @@ export class BattleshipEngine implements GameEngine<BattleshipState, BattleshipA
   apply(seat: number, action: BattleshipAction): BattleshipResult {
     if (this.phase === "over") return { ok: false, error: "The game is over." };
 
-    if (action.kind === "shuffle" || action.kind === "ready") {
+    if (action.kind === "shuffle" || action.kind === "ready" || action.kind === "place") {
       if (this.phase !== "setup") return { ok: false, error: "The battle has already started." };
       if (this.ready[seat]) return { ok: false, error: "You're already ready." };
       if (action.kind === "shuffle") {
         this.fleets[seat] = randomFleet(this.random);
+      } else if (action.kind === "place") {
+        const error = fleetPlacementError(action.ships);
+        if (error) return { ok: false, error };
+        this.fleets[seat] = action.ships.map((ship) => ({ name: ship.name, cells: ship.cells.slice() }));
       } else {
         this.ready[seat] = true;
         if (this.ready[0] && this.ready[1]) this.phase = "playing";
