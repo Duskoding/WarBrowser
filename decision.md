@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
+
+- **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `AGENTS.md` contains the contributor and agent conventions, while `decision.md` preserves the project's durable decisions. Both are active project documentation and must remain available to future contributors.
+
 ## 2026-11-09 — Add a work session log
 
 - **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
