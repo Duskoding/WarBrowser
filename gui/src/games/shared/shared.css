@@ -40,13 +40,14 @@ button.pcard.playable { outline: 3px solid #f5c542; outline-offset: 1px; }
 .label { margin: 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
 .row { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; align-items: center; }
 .small-btn { font-size: 1rem; padding: 0.45rem 1.4rem; }
-.ghost-btn { background: rgb(255 255 255 / 0.14); color: var(--text, #f4f4f4); }
+.ghost-btn { background: rgb(255 255 255 / 0.14); color: var(--text, #f4f4f4); box-shadow: none; }
 .commentary {
   max-width: 32rem;
   margin: 0;
-  padding: 0.6rem 1rem;
-  border-radius: 10px;
-  background: rgb(0 0 0 / 0.22);
+  padding: 0.7rem 1.1rem;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.12);
   font-style: italic;
   text-align: center;
   opacity: 0.9;
