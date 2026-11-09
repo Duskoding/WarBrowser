@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Complete the lobby game records
+
+- **Who:** agent (Codex)
+- **Issues:** #73
+- **Changed:** Show a record on every lobby tile and update the tiles when the overall record refreshes. Save the result before sending the final view.
+- **Remaining:** Review and merge.
+
 ## 2026-11-09 — Replay completed games
 
 - **Who:** agent (GitHub Copilot)

@@ -444,7 +444,7 @@ export function createWarServer({
   });
 
   websocketServer.on("connection", (socket) => {
-    socket.on("message", (rawMessage) => {
+    socket.on("message", async (rawMessage) => {
       let message;
       try {
         message = JSON.parse(rawMessage.toString());
@@ -630,19 +630,21 @@ export function createWarServer({
             send(socket, { type: "error", message: result.error });
             return;
           }
-          sendStates(game);
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
             if (postgres) {
+              const roomCode = socket.roomCode;
               const playerIds = game.players.map((player) => player.id);
-              void recordPostgresMatch(
+              // The final view triggers the client's stats fetch.
+              await recordPostgresMatch(
                 db,
-                socket.roomCode,
+                roomCode,
                 playerIds,
                 winner === null ? null : playerIds[winner],
                 game.module.id
               ).catch((error) => console.error("Failed to record match:", error));
+              if (games.get(roomCode) !== game) return;
             } else if (winner !== null) {
               const winnerId = game.players[winner].id;
               const loserIds = game.players
@@ -651,6 +653,7 @@ export function createWarServer({
               recordWins(db, winnerId, loserIds, game.module.id);
             }
           }
+          sendStates(game);
           if (result.commentary) {
             const { round } = result.commentary;
             const roomCode = socket.roomCode;
