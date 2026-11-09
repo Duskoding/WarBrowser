@@ -117,3 +117,9 @@
 - **Decision:** Treat issue #38 as complete on the current architecture: SQLite users, sessions, authentication, and match-record helpers are already centralized in `src/auth.ts`, and the server consumes them through that shared module without game-specific copies.
 - **Made by:** agent
 - **Reason:** Re-moving or duplicating the module would create unnecessary risk and violate the issue's “unchanged” requirement. This verification records the implementation state before continuing with the remaining assigned issues.
+
+## 2026-11-09 — Verify generalized server lifecycle (#39)
+
+- **Decision:** Treat issue #39 as complete on the current architecture: `server.js` owns static serving, API routing, room membership, WebSocket lifecycle, and protocol dispatch, while game-specific actions and views are supplied through `GameModule`.
+- **Made by:** agent
+- **Reason:** The server already resolves games through the shared registry and keeps room state independent of any game's message kinds. Replacing this working boundary without a concrete missing behavior would be an unrelated refactor.
