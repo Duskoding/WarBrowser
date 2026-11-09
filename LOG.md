@@ -69,5 +69,5 @@ Add one short entry for each work session so the next person or agent can resume
 
 - **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
 - **Issues:** #67
-- **Changed:** `rules?: string[]` on `GameModule` and in `GET /api/games` (`src/games/GameModule.ts`, `src/games/index.ts`); rules for War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors in each game's `index.ts`; the **How to play** link in `gui/src/main.ts` and `gui/src/style.css`; `GameSummary.rules` in `gui/src/types.ts`; the games-list server test now checks every game has rules; README and SPEC_v2. Checked in a browser at desktop and phone width, by mouse and keyboard. 94 tests pass.
+- **Changed:** `rules?: string[]` on `GameModule` and in `GET /api/games` (`src/games/GameModule.ts`, `src/games/index.ts`); rules for all ten games in each game's `index.ts`; the **How to play** link in `gui/src/main.ts` and `gui/src/style.css`; `GameSummary.rules` in `gui/src/types.ts`; the games-list server test now checks every game has rules; README and SPEC_v2. Checked in a browser at desktop and phone width, by mouse and keyboard. 94 tests pass.
 - **Remaining:** New games should add `rules` when they're built (Battleship #64, and the games in PR #70 already have them). If a game's rules change in its engine, update its `rules` text too.

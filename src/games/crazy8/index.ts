@@ -3,6 +3,7 @@ import { cardName, isSuit, parseCard, suitName, type Suit } from "../shared/card
 import { COMMENTARY_INTRO, names, outcomeFor, playerLabel, whoFor } from "../shared/view.ts";
 import {
   CrazyEightsEngine,
+  HAND_SIZE,
   type CrazyEightsAction,
   type CrazyEightsOptions,
   type CrazyEightsResult,
@@ -22,6 +23,14 @@ export const crazy8: GameModule<CrazyEightsState, CrazyEightsAction, CrazyEights
   name: "Crazy Eights",
   description: "Match the suit or rank. Eights are wild. First to empty their hand wins.",
   players: { min: 2, max: 2 },
+  rules: [
+    `Each player gets ${HAND_SIZE} cards. One card starts the discard pile. The room's host goes first.`,
+    "On your turn, play a card that matches the top card's suit or rank.",
+    "An 8 is wild: play it on anything and name the suit the next player must match.",
+    "If you can't play (or don't want to), draw one card. Then play a matching card or pass.",
+    "When the draw pile runs out, the discard pile (except its top card) is shuffled back in.",
+    "The first player to get rid of every card wins.",
+  ],
 
   createEngine(context) {
     return new CrazyEightsEngine(context.options as CrazyEightsOptions);
