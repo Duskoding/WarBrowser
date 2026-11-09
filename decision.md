@@ -135,3 +135,9 @@
 - **Decision:** Treat issue #41 as complete on the current architecture: `test/server.test.js` provides reusable server startup, HTTP authentication, WebSocket connection/message queuing, room setup, and cleanup helpers shared by all game scenarios.
 - **Made by:** agent
 - **Reason:** The harness already exercises multiple game modules and player counts through common helpers. Extracting another layer without a remaining duplicated pattern would add indirection rather than improve coverage or maintainability.
+
+## 2026-11-09 — Normalize PostgreSQL match history for variable player counts (#71)
+
+- **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
+- **Made by:** agent
+- **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.

@@ -77,7 +77,8 @@ npm run migrate:users
 Do not commit either connection string. Migrated users can log in once with
 their existing password and are then required to choose a new password. Old
 sessions are invalidated. PostgreSQL stores aggregate stats and a durable
-`matches` record for every completed game, including draws. Existing SQLite
+`matches` record plus per-player `match_players` rows for every completed game,
+including draws. Existing SQLite
 databases contain aggregate totals but no detailed historical match records, so
 those older matches cannot be reconstructed.
 
