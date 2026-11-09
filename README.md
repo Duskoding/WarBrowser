@@ -15,6 +15,7 @@ Games available now:
 | **Battleship** | Tic-Tac-Toe's grid turns plus War's per-player view | your fleet |
 | **Crazy Eights** | War's deck with Tic-Tac-Toe's turns | your hand and the draw pile |
 | **Go Fish** | War's deck with Tic-Tac-Toe's turns | your hand and the pond |
+| **Nim** | Tic-Tac-Toe's turns | none |
 
 Each game has a **How to play** link on its lobby tile.
 
@@ -22,7 +23,7 @@ Each game has a **How to play** link on its lobby tile.
 
 The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and the big moments in the other games: a ship sunk, a box closed, a wild 8) without blocking gameplay. Prompts only describe what both players can already see. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, and the big moments in the other games: a ship sunk, a box closed, a wild 8, the last stone in Nim) without blocking gameplay. Prompts only describe what both players can already see. Each game builds its own prompt; commentary is skipped when no API key is set.
 
 ## Features
 
@@ -161,9 +162,10 @@ WebSocket messages are JSON at `/ws`. The browser sends the session cookie on co
   - Goofspiel: `{ "kind": "bid", "value": 1–13 }`
   - Connect Four: `{ "kind": "drop", "column": 0–6 }`
   - Dots and Boxes: `{ "kind": "line", "dir": "h" | "v", "row", "col" }`
-  - Battleship: `{ "kind": "shuffle" }` and `{ "kind": "ready" }` during setup, then `{ "kind": "fire", "cell": 0–99 }`
+  - Battleship: `{ "kind": "shuffle" }`, `{ "kind": "place", "ships" }` and `{ "kind": "ready" }` during setup, then `{ "kind": "fire", "cell": 0–99 }`. `ships` is the whole fleet, each `{ "name", "cells" }` with `cells` a straight line of the ship's length
   - Crazy Eights: `{ "kind": "play", "card": { "rank", "suit" }, "suit"? }` (`suit` names the new suit for an 8), `{ "kind": "draw" }`, `{ "kind": "pass" }`
   - Go Fish: `{ "kind": "ask", "rank": 2–14 }`
+  - Nim: `{ "kind": "take", "pile": 0–2, "count" }` (`count` is how many stones to take from that one pile)
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`), `opponent_joined` (includes `username`), `opponent_disconnected`, `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary).
 
 The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line.

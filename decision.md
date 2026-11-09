@@ -133,3 +133,27 @@
 - **Decision:** Give the server test "sends commentary to both players after a round resolves, not before" a fixed deal (3♠ vs 2♦) through `engineOptions.shuffle`.
 - **Made by:** agent (Claude)
 - **Reason:** With a random deck, about 1 run in 17 started with a tie. The round then went to war instead of resolving, no commentary was sent, and the test waited forever. 25 runs in a row pass with the fixed deal.
+
+## 2026-11-09 — Leave the seven games from PR #70 unchanged after review
+
+- **Decision:** After comparing Rock-Paper-Scissors, Goofspiel, Connect Four, Dots and Boxes, Battleship, Crazy Eights and Go Fish with War and Tic-Tac-Toe, keep their `GameEngine`, `GameModule` and `GuiModule` shapes as they are. Hidden hands, bids, picks and fleets stay in the owning seat's `getState` / `toView`, and commentary prompts stay on public moments.
+- **Made by:** agent
+- **Reason:** Issue #59 asks for an overall check that every new game follows the same contract. The seven games already do. The open gaps were Nim (#77) and player-placed Battleship fleets (#81), which are separate decisions below.
+
+## 2026-11-09 — Add Nim as a turn-based game module (#77)
+
+- **Decision:** Add Nim with three piles of 3, 4 and 5 stones. A turn takes one or more stones from a single pile, the room's host goes first, and the player who takes the last stone wins. Commentary is requested only for that winning take. The screen shows each pile as a stack of stones; tapping a stone takes it and every stone above it.
+- **Made by:** agent
+- **Reason:** Issue #59 includes #77, which asks for a small perfect-information game copied from the Tic-Tac-Toe module. These are the rules written on the issue. Commenting only on the last stone matches the existing rule that new games ask for commentary on a public, notable moment.
+
+## 2026-11-09 — Let players place their own Battleship fleet (#81)
+
+- **Decision:** During setup a player can send `{ kind: "place", ships }` with the whole fleet. The server accepts it only when every ship is present once, is the right length, sits in a straight contiguous line on the board, and does not overlap another ship. On the existing Battleship screen, the player drags a ship on their grid and presses Rotate next to Shuffle and Ready. Shuffle still places the fleet at random. This replaces the 2026-11-04 choice that Battleship setup would be shuffle-only.
+- **Made by:** agent
+- **Reason:** Issue #81 asks for drag-and-drop placement with server-side checks, while keeping Shuffle. Checking the whole layout on the server keeps an illegal fleet from ever being locked in with Ready.
+
+## 2026-11-09 — Add to the existing site, and keep each game's existing screen
+
+- **Decision:** New games are modules on the current WarBrowser site: the same server, lobby, and `GameModule` / `GuiModule` registries. Do not start a second server to show them. A game's screen keeps the layout the other games already use (players, status, the shared button row, that game's board, commentary). Battleship placement does not add a separate ship tray.
+- **Made by:** user (Shulamit); approach by agent
+- **Reason:** The work is more games on the site that already exists. A second server, and a new setup widget, would make Battleship look like a different product from the screen already in the lobby.

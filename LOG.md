@@ -6,6 +6,19 @@ Each entry: date · who (a person, or `agent`) · issues · what changed · how 
 
 ---
 
+## 2026-11-09 · agent, for Shulamit · #59, #77, #81
+
+**Asked for:** Review draft PR #70 against the game-plugin contract, then add whatever issue #59 still requires.
+
+**What changed:**
+- Reviewed the seven games already on the branch. Each one implements `GameEngine`, `GameModule` and `GuiModule` the same way War and Tic-Tac-Toe do, and hidden information stays in the owning seat's view. No contract fixes came out of that review.
+- Added Nim (#77): engine, tests, module, screen, registry entries, README and the server game list.
+- Added Battleship fleet placement (#81): a `place` action with server checks, drag and rotate on the setup screen, and tests for valid and invalid layouts.
+
+**How it was checked:** `npm run typecheck` and `npm test` (100 tests). The final Battleship screen was not played in a browser, and the preview page was not rebuilt after that screen change.
+
+**What's left:** open the pull request for review. Commentary was not tried with a real API key.
+
 ## 2026-11-04 · agent (Claude), for Yosef Skolnick · #59–#69
 
 **Asked for:** build every game that fits the current game-plugin work, add a log and decision entries, add a link in the UI, and open issues first. Built on `refactorWarAndTTT` (the user's choice) and delivered as a draft pull request.

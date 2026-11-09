@@ -5,6 +5,7 @@ import { crazy8 } from "./crazy8/index.ts";
 import { dots } from "./dots/index.ts";
 import { gofish } from "./gofish/index.ts";
 import { goofspiel } from "./goofspiel/index.ts";
+import { nim } from "./nim/index.ts";
 import { rps } from "./rps/index.ts";
 import { ticTacToe } from "./tictactoe/index.ts";
 import { war } from "./war/index.ts";
@@ -21,6 +22,7 @@ export const games: GameModule[] = [
   battleship,
   crazy8,
   gofish,
+  nim,
 ];
 
 // Used when a client sends create_room without a gameId.
