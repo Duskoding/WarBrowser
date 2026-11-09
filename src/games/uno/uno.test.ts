@@ -93,3 +93,15 @@ test("the registry lists uno with a 2-8 player range", () => {
     ids,
   );
 });
+
+test("uno and catch actions reach the engine and show in the view", () => {
+  const context = silent(2);
+  const engine = uno.createEngine(context);
+  const result = uno.handleAction(engine, 1, { kind: "catch" }, context);
+  assert.deepEqual(result, { ok: false, error: "Nobody to catch right now." });
+  const tooSoon = uno.handleAction(engine, 0, { kind: "uno" }, context);
+  assert.equal(tooSoon?.ok, false);
+  const view = uno.toView(engine, 0, names(2)) as Record<string, unknown>;
+  assert.deepEqual(view.calledUno, [false, false]);
+  assert.equal(view.catchable, null);
+});

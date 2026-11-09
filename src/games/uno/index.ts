@@ -17,6 +17,9 @@ function toView(state: UnoState, seat: number, players: PlayerInfo[]) {
     currentSeat: state.currentSeat,
     yourTurn: state.yourTurn,
     drawPileCount: state.drawPileCount,
+    calledUno: state.calledUno,
+    catchable: state.catchable,
+    pendingDraw: state.pendingDraw,
     round: state.round,
     over: state.over,
     winnerSeat: state.winner,
@@ -31,8 +34,10 @@ export const uno: GameModule<UnoState, UnoAction, UnoResult> = {
   rules: [
     "Everyone gets 7 cards and the host goes first. One card starts the discard pile.",
     "On your turn, play a card that matches the top card's color or its number or symbol. Wild cards can always be played, and you choose the next color.",
-    "Skip makes the next player miss a turn. Reverse changes direction (with two players it works like Skip). Draw Two and Wild Draw Four make the next player draw 2 or 4 cards and miss their turn.",
+    "Skip makes the next player miss a turn. Reverse changes direction (with two players it works like Skip).",
+    "Draw Two (+2) and Wild Draw Four (+4) stack: the next player can add a +2 on a +2, or a +4 on either, to pass the total on. A +2 can't go on a +4. Whoever can't or won't stack draws the whole total and misses their turn.",
     "If you can't or don't want to play, draw one card and your turn ends.",
+    "When you're down to two cards, press UNO! before playing one. If you play down to one card without calling it, anyone can catch you before the next move, and you draw 2.",
     "The first player to get rid of all their cards wins.",
   ],
 
@@ -42,8 +47,8 @@ export const uno: GameModule<UnoState, UnoAction, UnoResult> = {
 
   handleAction(engine, seat, payload, context) {
     let action: UnoAction;
-    if (payload.kind === "draw") {
-      action = { kind: "draw" };
+    if (payload.kind === "draw" || payload.kind === "uno" || payload.kind === "catch") {
+      action = { kind: payload.kind };
     } else if (payload.kind === "play") {
       if (!Number.isInteger(payload.cardIndex)) {
         return { ok: false, error: "Pick a card from your hand." };
@@ -76,6 +81,8 @@ export const uno: GameModule<UnoState, UnoAction, UnoResult> = {
           buildUnoPrompt({
             seat,
             action: action.kind,
+            caught: action.kind === "catch" ? (before.catchable ?? undefined) : undefined,
+            drew: action.kind === "draw" ? Math.max(1, before.pendingDraw) : undefined,
             card,
             over: after.over,
             winner: after.winner,
