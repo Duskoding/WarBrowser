@@ -2,7 +2,7 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now: **War**, **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one), **Crazy Eights**, and **Go Fish**.
 
 ## How it works
 
@@ -33,7 +33,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `crazy8/`, `gofish/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/shared/` | Helpers shared by card and 2-player games: the standard 52-card deck (`cards.ts`) and view/commentary helpers (`view.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |

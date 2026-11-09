@@ -1,5 +1,29 @@
 # Decision log
 
+## 2026-11-09 — Share one card module between War and future card games
+
+- **Decision:** Add `src/games/shared/cards.ts` with the standard 52-card deck (`Card`, `Suit`, `Rank` types, `createDeck`, `fisherYates`, `parseCard`, `sortHand`, `cardName`). War imports its deck from there; `src/games/war/types.ts` re-exports the types and `WarEngine.ts` re-exports `createDeck`/`fisherYates` so existing imports keep working. Uno keeps its own 108-card deck because its cards differ. Shared view and commentary helpers for 2-player games go in `src/games/shared/view.ts`.
+- **Made by:** agent
+- **Reason:** Crazy Eights and Go Fish both need a standard deck, and duplicating it per game would drift. Uno's deck is not a standard 52-card deck, so forcing it onto the shared module would add complexity for no gain.
+
+## 2026-11-09 — Port Crazy Eights and Go Fish from draft PR #70 instead of merging it
+
+- **Decision:** Take the Crazy Eights (`crazy8`) and Go Fish (`gofish`) code from draft PR #70 (branch `claude/more-games`) by porting it onto the current `GameModule` contract rather than merging the branch. PR #70 stays open for its other five games, which need the same port.
+- **Made by:** agent
+- **Reason:** PR #70 was branched before games could declare a player range (`players: { min, max }`, see the 2026-11-08 entry for #33), so it cannot merge cleanly as-is. Porting the two games in a focused change keeps the shared contracts intact and lets these two land without waiting for the rest of the branch.
+
+## 2026-11-09 — Limit Crazy Eights and Go Fish to two players
+
+- **Decision:** Both games use `players: { min: 2, max: 2 }`. Their engines and screens assume exactly two seats.
+- **Made by:** agent
+- **Reason:** The rules as specified (one opponent's hand to ask, one opponent to pass play to, two-pass end condition in Crazy Eights) are defined for two players. Supporting more seats would need rules decisions (turn order, what a pass means across several players) that were not part of the requested scope. Games with more players can widen `players.max` later with their own rules.
+
+## 2026-11-09 — Leave `rules` out of the ported games until issue #67
+
+- **Decision:** The ported `GameModule` objects for Crazy Eights and Go Fish do not include the `rules` field that PR #70 added. The lobby "How to play" feature is tracked in issue #67, which is assigned to someone else, and will define that field.
+- **Made by:** agent
+- **Reason:** Adding `rules` now would define a contract that issue #67 owns. Leaving it out keeps this change to game rules and screens, and the field can be added to both games when #67 lands.
+
 ## 2026-11-09 — Add a work session log
 
 - **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
