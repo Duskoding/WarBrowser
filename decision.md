@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Align README and specification with the current game architecture (#43)
+
+- **Decision:** Replace the stale single-game and `GameDefinition`/`ClientGame` descriptions with the current server-authoritative multi-game architecture. Document the live game registry from merged PR #70 and subsequent additions, and describe `GameEngine`, `GameModule`, and `GuiModule` as the extension contracts.
+- **Made by:** agent
+- **Reason:** README and `SPEC_v2.md` must describe the code that contributors and users actually run, including the lobby, room lifecycle, per-seat views, and the complete current game list.
+
 ## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
 
 - **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
@@ -275,3 +281,9 @@
 - **Decision:** The test helper accepts both commentary limits and `reconnectGraceMs`. The protocol list names Hold'em actions and the reconnect messages together.
 - **Made by:** agent
 - **Reason:** Main gained Hold'em while this branch was being merged. Both have to stay.
+
+## 2026-11-09 — Keep main's rewritten SPEC_v2 and the reconnect rows (#78)
+
+- **Decision:** When `SPEC_v2.md` conflicted with main's rewritten protocol tables, keep main's wording and add the reconnect rows: optional `roomCode` on `leave_room`, `player_reconnecting` / `player_reconnected`, and `player_left` only for an explicit leave or an expired grace period.
+- **Made by:** agent
+- **Reason:** Main had just rewritten the spec. The grace-period behavior still has to be in that document.
