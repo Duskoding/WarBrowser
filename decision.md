@@ -29,6 +29,11 @@
 - **Decision:** The ported `GameModule` objects for Crazy Eights and Go Fish do not include the `rules` field that PR #70 added. The lobby "How to play" feature is tracked in issue #67, which is assigned to someone else, and will define that field.
 - **Made by:** agent
 - **Reason:** Adding `rules` now would define a contract that issue #67 owns. Leaving it out keeps this change to game rules and screens, and the field can be added to both games when #67 lands.
+## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
+
+- **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `AGENTS.md` contains the contributor and agent conventions, while `decision.md` preserves the project's durable decisions. Both are active project documentation and must remain available to future contributors.
 
 ## 2026-11-09 — Add a work session log
 
@@ -38,8 +43,8 @@
 
 ## 2026-11-02 — Add agent guidance documentation
 
-- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and require all person- or agent-made project decisions to be recorded in this file.
-- **Made by:** agent (GitHub Copilot)
+- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and the contribution workflow (preparation, focused implementation, safe editing, validation, documentation, diff review, secrets, ambiguity, and commit practices), and require all person- or agent-made project decisions to be recorded in this file.
+- **Made by:** agent (GitHub Copilot), with scope confirmed by Efrat Kreslavskiy
 - **Reason:** The project needs durable, repository-local guidance so future agents can follow its Node.js, TypeScript, server-authoritative game, testing, and security conventions consistently.
 
 ## 2026-11-02 — Host several games, chosen from a lobby
@@ -142,3 +147,32 @@
   - Added `src/games/uno/index.ts` (the `GameModule`: `id: "uno"`, `players: { min: 2, max: 8 }`, `createEngine` wiring the new context field into `UnoEngine`, `handleAction` for `play`/`draw` payloads, `toView` exposing hand/handCounts/discardTop/activeColor/direction/currentSeat/winnerSeat — raw seat numbers rather than War/Tic-Tac-Toe's "you"/"opponent" strings, since those don't generalize past 2 players) and `src/games/uno/prompt.ts` (commentary prompt). Registered `uno` in `src/games/index.ts`.
 - **Made by:** agent (Claude Code); option 1 vs. the full migration for #71 was the user's call (minimal fix now, migration deferred)
 - **Reason:** #35 explicitly includes "win recording," and Uno is the first game that can actually exceed 2 players, so the existing double-counting bug and the Postgres two-player-only schema both had to be addressed here rather than deferred further. `toView` uses seat numbers instead of "you"/"opponent" because Uno's GUI (#36) needs to display more than one opponent.
+## 2026-11-09 — Verify shared auth/session module (#38)
+
+- **Decision:** Treat issue #38 as complete on the current architecture: SQLite users, sessions, authentication, and match-record helpers are already centralized in `src/auth.ts`, and the server consumes them through that shared module without game-specific copies.
+- **Made by:** agent
+- **Reason:** Re-moving or duplicating the module would create unnecessary risk and violate the issue's “unchanged” requirement. This verification records the implementation state before continuing with the remaining assigned issues.
+
+## 2026-11-09 — Verify generalized server lifecycle (#39)
+
+- **Decision:** Treat issue #39 as complete on the current architecture: `server.js` owns static serving, API routing, room membership, WebSocket lifecycle, and protocol dispatch, while game-specific actions and views are supplied through `GameModule`.
+- **Made by:** agent
+- **Reason:** The server already resolves games through the shared registry and keeps room state independent of any game's message kinds. Replacing this working boundary without a concrete missing behavior would be an unrelated refactor.
+
+## 2026-11-09 — Verify generalized test harness (#41)
+
+- **Decision:** Treat issue #41 as complete on the current architecture: `test/server.test.js` provides reusable server startup, HTTP authentication, WebSocket connection/message queuing, room setup, and cleanup helpers shared by all game scenarios.
+- **Made by:** agent
+- **Reason:** The harness already exercises multiple game modules and player counts through common helpers. Extracting another layer without a remaining duplicated pattern would add indirection rather than improve coverage or maintainability.
+
+## 2026-11-09 — Normalize PostgreSQL match history for variable player counts (#71)
+
+- **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
+- **Made by:** agent
+- **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.
+
+## 2026-11-09 — Expose aggregate and per-game player statistics (#72)
+
+- **Decision:** Add per-game `games` statistics to the user API while retaining aggregate `wins` and `losses`. Both SQLite and PostgreSQL update the aggregate and the selected game's counters atomically when a match has a winner; draws create no win/loss increments.
+- **Made by:** user (selected compatibility-preserving API shape) and agent (implementation)
+- **Reason:** Existing clients rely on aggregate fields, while game-specific totals need a stable map keyed by the registered game id. Keeping both avoids a breaking protocol change and supports historical aggregate data that predates per-game tracking.

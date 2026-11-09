@@ -13,8 +13,7 @@
     "pretest": "npm run build",
     "test": "node --test",
     "typecheck": "tsc -p tsconfig.json && tsc -p gui/tsconfig.json",
-    "migrate:users": "node scripts/migrate-users.mjs",
-    "build:preview": "vite build --config gui/preview/vite.config.ts && node gui/preview/make.mjs"
+    "migrate:users": "node scripts/migrate-users.mjs"
   },
   "dependencies": {
     "pg": "^8.23.1",

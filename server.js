@@ -26,7 +26,6 @@ import {
   findPostgresUser,
   loginPostgres,
   recordPostgresMatch,
-  recordPostgresWins,
   registerPostgres,
   resetPostgresPassword,
   userFromPostgresSession
@@ -117,7 +116,8 @@ function publicFields(user, includeReset = false) {
   const fields = {
     username: user.username,
     wins: user.wins,
-    losses: user.losses
+    losses: user.losses,
+    games: user.games
   };
   if (includeReset) fields.mustResetPassword = Boolean(user.mustResetPassword);
   return fields;
@@ -543,31 +543,21 @@ export function createWarServer({
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
-            if (postgres && game.players.length === 2) {
-              const [playerA, playerB] = game.players;
+            if (postgres) {
+              const playerIds = game.players.map((player) => player.id);
               void recordPostgresMatch(
                 db,
                 socket.roomCode,
-                playerA.id,
-                playerB.id,
-                winner === null ? null : game.players[winner].id
+                playerIds,
+                winner === null ? null : playerIds[winner],
+                game.module.id
               ).catch((error) => console.error("Failed to record match:", error));
-            } else if (postgres) {
-              if (winner !== null) {
-                const winnerId = game.players[winner].id;
-                const loserIds = game.players
-                  .filter((_, seat) => seat !== winner)
-                  .map((player) => player.id);
-                void recordPostgresWins(db, winnerId, loserIds).catch((error) =>
-                  console.error("Failed to record match:", error)
-                );
-              }
             } else if (winner !== null) {
               const winnerId = game.players[winner].id;
               const loserIds = game.players
                 .filter((_, seat) => seat !== winner)
                 .map((player) => player.id);
-              recordWins(db, winnerId, loserIds);
+              recordWins(db, winnerId, loserIds, game.module.id);
             }
           }
           if (result.commentary) {

@@ -12,19 +12,35 @@ export type PostgresUser = {
   wins: number;
   losses: number;
   mustResetPassword: boolean;
+  games: Record<string, { wins: number; losses: number }>;
 };
 
 type Failure = { error: string; status: number };
 type Db = Pool;
 
-function publicUser(row: Record<string, unknown>): PostgresUser {
+function publicUser(
+  row: Record<string, unknown>,
+  games: Record<string, { wins: number; losses: number }> = {}
+): PostgresUser {
   return {
     id: String(row.id),
     username: String(row.username),
     wins: Number(row.wins),
     losses: Number(row.losses),
-    mustResetPassword: Boolean(row.must_reset_password)
+    mustResetPassword: Boolean(row.must_reset_password),
+    games
   };
+}
+
+async function loadGameStats(db: Db, userId: string): Promise<Record<string, { wins: number; losses: number }>> {
+  const result = await db.query(
+    "SELECT game_id, wins, losses FROM game_stats WHERE user_id = $1",
+    [userId]
+  );
+  return Object.fromEntries(result.rows.map((row) => [
+    String(row.game_id),
+    { wins: Number(row.wins), losses: Number(row.losses) }
+  ]));
 }
 
 function validate(username: unknown, password: unknown): string | Failure {
@@ -79,7 +95,7 @@ export async function loginPostgres(db: Db, username: unknown, password: unknown
   if (!row || !(await verifyPassword(password as string, row.password_hash))) {
     return { error: "Username or password is incorrect.", status: 401 };
   }
-  return publicUser(row);
+  return publicUser(row, await loadGameStats(db, String(row.id)));
 }
 
 export async function createPostgresSession(db: Db, userId: string): Promise<string> {
@@ -103,7 +119,7 @@ export async function userFromPostgresSession(db: Db, token?: string): Promise<P
     await db.query("DELETE FROM sessions WHERE token = $1", [token]);
     return null;
   }
-  return publicUser(row);
+  return publicUser(row, await loadGameStats(db, String(row.id)));
 }
 
 export async function deletePostgresSession(db: Db, token?: string): Promise<void> {
@@ -114,7 +130,9 @@ export async function findPostgresUser(db: Db, id: string): Promise<PostgresUser
   const result = await db.query(
     "SELECT id, username, wins, losses, must_reset_password FROM users WHERE id = $1", [id]
   );
-  return result.rows[0] ? publicUser(result.rows[0]) : null;
+  return result.rows[0]
+    ? publicUser(result.rows[0], await loadGameStats(db, String(result.rows[0].id)))
+    : null;
 }
 
 export async function resetPostgresPassword(db: Db, userId: string, password: unknown): Promise<Failure | null> {
@@ -128,19 +146,43 @@ export async function resetPostgresPassword(db: Db, userId: string, password: un
 }
 
 export async function recordPostgresMatch(
-  db: Db, roomCode: string, playerAId: string, playerBId: string, winnerId: string | null
+  db: Db, roomCode: string, playerIds: string[], winnerId: string | null, gameId: string
 ): Promise<void> {
+  if (playerIds.length < 2) throw new Error("A match requires at least two players.");
   const client: PoolClient = await db.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      "INSERT INTO matches (room_code, player_a_id, player_b_id, winner_id) VALUES ($1, $2, $3, $4)",
+    const playerAId = playerIds.length === 2 ? playerIds[0] : null;
+    const playerBId = playerIds.length === 2 ? playerIds[1] : null;
+    const match = await client.query(
+      `INSERT INTO matches (room_code, player_a_id, player_b_id, winner_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [roomCode, playerAId, playerBId, winnerId]
     );
+    for (const [seat, playerId] of playerIds.entries()) {
+      await client.query(
+        `INSERT INTO match_players (match_id, player_id, seat, is_winner)
+         VALUES ($1, $2, $3, $4)`,
+        [match.rows[0].id, playerId, seat, playerId === winnerId]
+      );
+    }
     if (winnerId) {
-      const loserId = winnerId === playerAId ? playerBId : playerAId;
       await client.query("UPDATE users SET wins = wins + 1 WHERE id = $1", [winnerId]);
-      await client.query("UPDATE users SET losses = losses + 1 WHERE id = $1", [loserId]);
+      await client.query(
+        `INSERT INTO game_stats (user_id, game_id, wins) VALUES ($1, $2, 1)
+         ON CONFLICT (user_id, game_id) DO UPDATE SET wins = game_stats.wins + 1`,
+        [winnerId, gameId]
+      );
+      for (const playerId of playerIds) {
+        if (playerId !== winnerId) {
+          await client.query("UPDATE users SET losses = losses + 1 WHERE id = $1", [playerId]);
+          await client.query(
+            `INSERT INTO game_stats (user_id, game_id, losses) VALUES ($1, $2, 1)
+             ON CONFLICT (user_id, game_id) DO UPDATE SET losses = game_stats.losses + 1`,
+            [playerId, gameId]
+          );
+        }
+      }
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -151,10 +193,6 @@ export async function recordPostgresMatch(
   }
 }
 
-// For a match with more than two players: the `matches` table only has room
-// for two player columns, so there's no per-match audit row here (see #71 for
-// the schema change that would add one); this still updates every player's
-// wins/losses correctly.
 export async function recordPostgresWins(db: Db, winnerId: string, loserIds: string[]): Promise<void> {
   const client: PoolClient = await db.connect();
   try {

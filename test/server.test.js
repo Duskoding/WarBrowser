@@ -119,14 +119,15 @@ test("registers, logs in, and returns the current user", async () => {
   const { httpUrl } = await startServer();
   const created = await register(httpUrl, "Ada");
   assert.equal(created.status, 201);
-  assert.deepEqual(created.body, { username: "Ada", wins: 0, losses: 0 });
+  assert.deepEqual(created.body, { username: "Ada", wins: 0, losses: 0, games: {} });
   assert.match(created.cookie, /^session=/);
 
   assert.equal((await me(httpUrl, created.cookie)).status, 200);
   assert.deepEqual((await me(httpUrl, created.cookie)).body, {
     username: "Ada",
     wins: 0,
-    losses: 0
+    losses: 0,
+    games: {}
   });
 
   const duplicate = await register(httpUrl, "ada");
@@ -482,11 +483,11 @@ test("records a win and a loss when a short game ends", async () => {
   const wins = hostMe.body.wins + guestMe.body.wins;
   const losses = hostMe.body.losses + guestMe.body.losses;
   if (view.winner === "you") {
-    assert.deepEqual(hostMe.body, { username: "host", wins: 1, losses: 0 });
-    assert.deepEqual(guestMe.body, { username: "guest", wins: 0, losses: 1 });
+    assert.deepEqual(hostMe.body, { username: "host", wins: 1, losses: 0, games: { war: { wins: 1, losses: 0 } } });
+    assert.deepEqual(guestMe.body, { username: "guest", wins: 0, losses: 1, games: { war: { wins: 0, losses: 1 } } });
   } else if (view.winner === "opponent") {
-    assert.deepEqual(hostMe.body, { username: "host", wins: 0, losses: 1 });
-    assert.deepEqual(guestMe.body, { username: "guest", wins: 1, losses: 0 });
+    assert.deepEqual(hostMe.body, { username: "host", wins: 0, losses: 1, games: { war: { wins: 0, losses: 1 } } });
+    assert.deepEqual(guestMe.body, { username: "guest", wins: 1, losses: 0, games: { war: { wins: 1, losses: 0 } } });
   } else {
     assert.equal(wins, 0);
     assert.equal(losses, 0);
@@ -546,8 +547,8 @@ test("plays a chosen game: Tic-Tac-Toe to a win, recorded on both accounts", asy
   assert.equal(last[1].result, "opponent");
   assert.deepEqual(last[0].line, [0, 1, 2]);
 
-  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0 });
-  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1 });
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { tictactoe: { wins: 0, losses: 1 } } });
   host.close();
   guest.close();
 });
@@ -577,8 +578,8 @@ test("plays a chosen game: Uno to a win, recorded on both accounts", async () =>
   assert.equal(view.over, true);
   assert.equal(view.winnerSeat, 0);
 
-  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0 });
-  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1 });
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { uno: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
   host.close();
   guest.close();
 });
@@ -625,9 +626,9 @@ test("records wins and losses for every player in a 3-player Uno game", async ()
   const hostMe = await me(httpUrl, hostAuth.cookie);
   const guestMe = await me(httpUrl, guestAuth.cookie);
   const guest2Me = await me(httpUrl, guest2Auth.cookie);
-  assert.deepEqual(hostMe.body, { username: "host3", wins: 1, losses: 0 });
-  assert.deepEqual(guestMe.body, { username: "guest3a", wins: 0, losses: 1 });
-  assert.deepEqual(guest2Me.body, { username: "guest3b", wins: 0, losses: 1 });
+  assert.deepEqual(hostMe.body, { username: "host3", wins: 1, losses: 0, games: { uno: { wins: 1, losses: 0 } } });
+  assert.deepEqual(guestMe.body, { username: "guest3a", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
+  assert.deepEqual(guest2Me.body, { username: "guest3b", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
 
   host.close();
   guest.close();
