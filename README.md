@@ -42,10 +42,8 @@ An AI commentator can add a short description after game events (War rounds, Tic
 | `server.js` | HTTP + WebSocket server: accounts, rooms and seats; runs whichever game a room was created for |
 | `gui/` | The browser client (Vite + TypeScript), built into `gui/dist` and served by the server |
 | `gui/src/games/` | One folder per game with that game's screen and styles, plus the list of games (`index.ts`) |
-| `gui/preview/` | `live-war-preview.html`: the site in two side-by-side windows against a pretend server, openable without installing anything |
 | `test/` | Server tests |
 | `SPEC_v2.md` | The current specification, kept in line with the code |
-| `SPEC_v1.md` | The original sprint specification |
 
 ## Run locally
 
@@ -106,7 +104,6 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 | `npm run dev` | Client dev server with hot reload |
 | `npm run typecheck` | Type-checks the engine and the client |
 | `npm test` | Builds the client, then runs engine and server tests |
-| `npm run build:preview` | Rebuilds `gui/preview/live-war-preview.html` after client or game changes |
 
 ## Adding a game
 
@@ -120,7 +117,7 @@ A game is two pieces with the same id: the rules on the server and the screen in
 
    Each game is drawn inside its own shadow root, so its HTML ids and CSS (even broad rules like `button { … }`) only apply inside that game, and the lobby's CSS doesn't change it. Shared defaults come from `gui/src/games/base.css`. To change the page background, call `setBackground(...)`; the lobby resets it when the game closes. Don't style `body` or other elements outside `root`.
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
-5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`), run `npm test`, then `npm run build:preview` and try it in the preview.
+5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`) and run `npm test`.
 
 Win/loss records are shared across all games for now.
 

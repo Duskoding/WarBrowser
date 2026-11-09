@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
+
+- **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `AGENTS.md` contains the contributor and agent conventions, while `decision.md` preserves the project's durable decisions. Both are active project documentation and must remain available to future contributors.
+
 ## 2026-11-09 — Add a work session log
 
 - **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
@@ -8,8 +14,8 @@
 
 ## 2026-11-02 — Add agent guidance documentation
 
-- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and require all person- or agent-made project decisions to be recorded in this file.
-- **Made by:** agent (GitHub Copilot)
+- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and the contribution workflow (preparation, focused implementation, safe editing, validation, documentation, diff review, secrets, ambiguity, and commit practices), and require all person- or agent-made project decisions to be recorded in this file.
+- **Made by:** agent (GitHub Copilot), with scope confirmed by Efrat Kreslavskiy
 - **Reason:** The project needs durable, repository-local guidance so future agents can follow its Node.js, TypeScript, server-authoritative game, testing, and security conventions consistently.
 
 ## 2026-11-02 — Host several games, chosen from a lobby
