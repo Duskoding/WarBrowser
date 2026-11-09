@@ -2,13 +2,13 @@
 
 WarBrowser is a site for live two-player browser games, starting with the card game War. Players create an account, choose a game, share a room link, and play from separate browsers, with game updates appearing in real time.
 
-Games available now: **War** and **Tic-Tac-Toe** (a small second game that also serves as an example of how to add one).
+Games available now: **War**, **Tic-Tac-Toe** (a small example of how to add a game), **Uno** (server rules; no browser screen yet), and **heads-up Hold'em**.
 
 ## How it works
 
 The server owns the game. It deals a 52-card deck, waits for both players to flip, resolves the round, and sends each player their own view of the table. Browsers only send "flip" and render what they receive, so neither player can cheat.
 
-An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set.
+An AI commentator can add a short description after game events (War rounds, Tic-Tac-Toe moves, public Hold'em moments) without blocking gameplay. Each game builds its own prompt; commentary is skipped when no API key is set. Hold'em prompts leave out hole cards.
 
 ## Features
 
@@ -19,7 +19,7 @@ An AI commentator can add a short description after game events (War rounds, Tic
 - Live updates through WebSockets
 - Server-controlled game state
 - Standard War gameplay, including chained wars and the all-in case
-- AI-generated commentary for War and Tic-Tac-Toe (optional, needs an Anthropic API key)
+- AI-generated commentary for War, Tic-Tac-Toe, and Hold'em (optional, needs an Anthropic API key). Hold'em commentary uses public facts only.
 
 ## War rules
 
@@ -33,7 +33,7 @@ An AI commentator can add a short description after game events (War rounds, Tic
 
 | Path | What it is |
 | --- | --- |
-| `src/games/` | One module per game (`war/`, `tictactoe/`), the shared `GameModule` contract, and the list of games (`index.ts`) |
+| `src/games/` | One module per game (`war/`, `tictactoe/`, `uno/`, `poker/`), the shared `GameModule` contract, `shared/cards.ts`, and the list of games (`index.ts`) |
 | `src/engine/GameEngine.ts` | Shared pure-engine interface; each game's engine lives in its game module |
 | `src/auth.ts` | Local SQLite authentication used by tests and local fallback |
 | `src/postgres-auth.ts` | PostgreSQL authentication, password resets, stats, and match records |
@@ -111,7 +111,7 @@ For client development, run `npm start` in one terminal and `npm run dev` in ano
 A game is two pieces with the same id: the rules on the server and the screen in the browser. The server takes care of accounts, rooms, invite links, seats and win/loss records. Tic-Tac-Toe is the smallest complete example to copy.
 
 1. **Rules:** create `src/games/<id>/` with an engine that implements `GameEngine` (`src/engine/GameEngine.ts`) and a `GameModule` export (see `src/games/GameModule.ts`):
-   - `id`, `name`, `description`, `players: { min, max }` (the room accepts joiners up to `max`; the host can start once `min` have joined).
+   - `id`, `name`, `description`, `players: { min, max }` (the room accepts joiners up to `max`; the host can start once `min` have joined). Optional `rules` (a list of short lines) is returned by `GET /api/games` and shown as **How to play** under that lobby tile.
    - `createEngine(context)` builds the pure rules engine. `handleAction(engine, seat, payload, context)` applies a player's action and returns `{ ok: false, error }`, or `{ ok: true }` with `finished: { winner }` on the action that ends the game (`winner` is a seat index, or `null` for a draw). Return `null` for a payload the game doesn't handle. `toView(engine, seat, players)` returns what that seat may see. For commentary, build a prompt string and call `context.commentator.describe(prompt)`.
 2. **List it** in `games` in `src/games/index.ts`. It then appears in `GET /api/games` and the lobby.
 3. **Screen:** create `gui/src/games/<id>/<id>.ts` exporting a `GuiModule` (see `gui/src/games/GuiModule.ts`): `mount(root, { send, setBackground })` draws the game into `root` and returns `applyState(view)` + `render()` (and optionally `commentary()` and `destroy()`); `isFinished(view)` tells the lobby to refresh win/loss stats. Send actions with `send({ kind: "...", ... })`. Put styles in `<id>.css` next to it and pass them as `styles` (`import styles from "./<id>.css?inline"`).
@@ -134,12 +134,12 @@ HTTP JSON endpoints (cookie session after register/login):
 
 WebSocket messages are JSON at `/ws`. The browser sends the session cookie on connect. Creating or joining a room requires a valid login.
 
-- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" } }] }`
+- `GET /api/games` → `{ "games": [{ "id", "name", "description", "players": { "min", "max" }, "rules"? }] }`
 
-- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe.
+- **Client → server:** `create_room` (`gameId`, default `"war"`), `join_room` (`roomCode`), `start_game` (host only, once `min` players have joined), `leave_room`, and `game_message` with a payload holding one of the game's actions: `{ "kind": "flip" }` in War, `{ "kind": "move", "cell": 0–8 }` in Tic-Tac-Toe, `{ "kind": "fold" | "check" | "call" | "raise" | "next_hand" }` in Hold'em (`raise` includes `to`).
 - **Server → client:** `room_created` and `room_joined` (both include `gameId`, `host`, `players` — the current roster of usernames in join order — and `min`/`max`), `players_update` (`players`, sent when the roster changes before the game starts), `player_left` (`username`, sent on any disconnect or leave; a running game is discarded), `room_left`, `error`, and `game_message` with a payload of `{ "kind": "state", "view": ... }` (plus `{ "kind": "commentary", "text", "round" }` when a game supplies commentary). The game itself only starts, and `state` messages only begin, once the host sends `start_game`.
 
-The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno (server rules and protocol only for now — no browser screen yet, see "Adding a game"): your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat.
+The state view is specific to each player and its shape belongs to the game. In War: your card, the opponent's card (shown as soon as they flip), the middle pile size, both card counts, both usernames, the phase (`waiting`, `flipped`, `war`, `roundOver`, `gameOver`), whether a war is on with the tied cards so far, how the last round ended, and the winner. In Tic-Tac-Toe: the board, your mark, whether it's your turn, the result and the winning line. In Uno (server rules and protocol only for now — no browser screen yet, see "Adding a game"): your hand, every seat's hand size, the discard pile's top card and active color, play direction, whose turn it is, the draw/discard pile sizes, and the winning seat. In Hold'em: your hole cards, the board, both stacks and bets, whose turn it is, and the legal actions. The opponent's hole cards are omitted until showdown. A fold ends the hand with those cards still hidden. The match (and the win/loss record) ends only when one player has every chip.
 
 ## Deploy to Render
 

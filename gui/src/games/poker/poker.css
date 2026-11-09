@@ -1,0 +1,132 @@
+/* Heads-up Hold'em table. Applied only inside this screen's shadow root. */
+:host {
+  --felt: #165a32;
+  --card-bg: #faf8f5;
+  --card-back: #1a3360;
+  --text: #f2f6f3;
+  --red: #b71c1c;
+  --card-w: min(4.2rem, 16vw);
+  --card-h: min(6rem, 23vw);
+  font: 400 16px/1.45 "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+}
+
+.poker {
+  width: min(36rem, 100%);
+  margin: 0.5rem auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.05rem;
+}
+
+.stack, .dealer {
+  background: rgb(0 0 0 / 0.28);
+  border-radius: 999px;
+}
+
+.stack { padding: 0.1rem 0.7rem; }
+
+.dealer {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.hand { display: flex; gap: 0.4rem; justify-content: center; }
+
+.card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  perspective: 600px;
+}
+
+.card .face,
+.card .back {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  backface-visibility: hidden;
+  transition: transform 0.45s;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+
+.card .back {
+  background: repeating-linear-gradient(45deg, var(--card-back) 0 8px, #2f5299 8px 16px);
+  border: 3px solid #fff;
+}
+
+.card .face {
+  background: var(--card-bg);
+  color: #111;
+  display: grid;
+  place-items: center;
+  font-size: clamp(1rem, 4vw, 1.4rem);
+  font-weight: 700;
+  transform: rotateY(180deg);
+}
+
+.card .face.red { color: var(--red); }
+.card.flipped .face { transform: rotateY(0deg); }
+.card.flipped .back { transform: rotateY(-180deg); }
+.card.slot { border: 2px dashed rgb(255 255 255 / 0.35); border-radius: 8px; box-shadow: none; }
+.card.slot .back, .card.slot .face { visibility: hidden; }
+
+.bet, .pot, .status, .last-action { margin: 0; text-align: center; }
+.pot { font-size: 1.25rem; font-weight: 700; }
+.bet, .last-action { min-height: 1.2em; opacity: 0.9; }
+.status { font-size: 1.3rem; font-weight: 700; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.controls button { font-size: 1rem; padding: 0.5rem 1rem; }
+
+.raise {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.raise input {
+  width: 6rem;
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: none;
+}
+
+.hint {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  min-height: 1.2em;
+}
+
+.commentary {
+  width: min(32rem, 100%);
+  margin: 0.4rem 0 0;
+  text-align: center;
+  opacity: 0.9;
+}
