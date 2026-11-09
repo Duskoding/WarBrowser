@@ -1,5 +1,11 @@
 # Decision log
 
+## 2026-11-09 — Port the remaining five games from draft PR #70
+
+- **Decision:** Port Rock-Paper-Scissors (`rps`), Goofspiel (`goofspiel`), Connect Four (`connect4`), Dots and Boxes (`dots`) and Battleship (`battleship`) from draft PR #70 onto the current `GameModule` contract, the same way as Crazy Eights and Go Fish: `players: { min: 2, max: 2 }`, no `rules` field (left for #67), and tests pass `players: 2` in the module context. Their issues (#60–#64) stay open for their assignees to review and close.
+- **Made by:** agent
+- **Reason:** With all seven games ported, this branch replaces PR #70, which cannot merge onto the n-player contract. Keeping the port mechanical (no rule changes) leaves rule review to each game's assignee.
+
 ## 2026-11-09 — Share one card module between War and future card games
 
 - **Decision:** Add `src/games/shared/cards.ts` with the standard 52-card deck (`Card`, `Suit`, `Rank` types, `createDeck`, `fisherYates`, `parseCard`, `sortHand`, `cardName`). War imports its deck from there; `src/games/war/types.ts` re-exports the types and `WarEngine.ts` re-exports `createDeck`/`fisherYates` so existing imports keep working. Uno keeps its own 108-card deck because its cards differ. Shared view and commentary helpers for 2-player games go in `src/games/shared/view.ts`.
