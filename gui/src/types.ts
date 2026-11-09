@@ -7,7 +7,7 @@ export type ClientMessage =
   | { type: "restart_game" }
   | { type: "game_message"; payload: GameAction }
   | { type: "rematch" }
-  | { type: "leave_room" };
+  | { type: "leave_room"; roomCode?: string };
 
 export type ServerEvent =
   | { type: "connected" } // local: socket opened
@@ -15,7 +15,9 @@ export type ServerEvent =
   | { type: "room_created"; roomCode: string; gameId: string; host: string; players: string[]; min: number; max: number }
   | { type: "room_joined"; roomCode: string; gameId: string; host: string; players: string[]; min: number; max: number }
   | { type: "players_update"; players: string[] } // roster changed while the room waits for the host to start
-  | { type: "player_left"; username: string } // someone left or disconnected; any running game was discarded
+  | { type: "player_reconnecting"; username: string }
+  | { type: "player_reconnected"; username: string }
+  | { type: "player_left"; username: string } // someone left, or a reconnect grace period ran out; any running game was discarded
   | { type: "rematch_requested"; username: string } // someone seated wants a new game; waiting on the others
   | { type: "room_left" }
   | { type: "room_closed"; reason: "idle" }

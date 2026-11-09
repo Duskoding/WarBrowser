@@ -300,6 +300,24 @@
 - **Made by:** agent
 - **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
 
+## 2026-11-09 — Keep a dropped connection in the room (#78)
+
+- **Decision:** Any socket close while a player is in a room, including before the match starts, keeps that player's seat for 60 seconds instead of deleting the game. Moves are rejected until they return or the time runs out. Pressing Leave still ends the match immediately. After the grace period, the match is discarded the way a leave works today, and someone else can join for a new game. On the current roster protocol this is `player_reconnecting` / `player_reconnected`, and `player_left` when the grace period runs out or someone leaves on purpose. The open page retries the socket and rejoins; a second connection is still rejected while the first socket is open. `main` had already deleted the old preview client, so that copy is not brought back.
+- **Made by:** user (grace period and pausing play); agent (how rejoin works, and fitting it onto the roster protocol while resolving the merge with `main`)
+- **Reason:** A phone lock or a short network blip was ending the game for both players. The branch had to be merged with a `main` that starts games explicitly and no longer uses `opponent_disconnected`.
+
+## 2026-11-09 — Keep Hold'em and commentary limits while merging reconnect grace (#78)
+
+- **Decision:** The test helper accepts both commentary limits and `reconnectGraceMs`. The protocol list names Hold'em actions and the reconnect messages together.
+- **Made by:** agent
+- **Reason:** Main gained Hold'em while this branch was being merged. Both have to stay.
+
+## 2026-11-09 — Keep main's rewritten SPEC_v2 and the reconnect rows (#78)
+
+- **Decision:** When `SPEC_v2.md` conflicted with main's rewritten protocol tables, keep main's wording and add the reconnect rows: optional `roomCode` on `leave_room`, `player_reconnecting` / `player_reconnected`, and `player_left` only for an explicit leave or an expired grace period.
+- **Made by:** agent
+- **Reason:** Main had just rewritten the spec. The grace-period behavior still has to be in that document.
+
 ## 2026-11-09 — "How to play" rules in the lobby (#67)
 
 - **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors are new; Crazy Eights, Go Fish, Goofspiel, Connect Four, Dots and Boxes and Battleship reuse the text from draft PR #70, checked against the engines merged in PR #88. All of them match each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.
@@ -320,3 +338,15 @@
 - **Decision:** PR #98 (poker) added its own `rules` field and a plain `.how-to-play` dropdown in the lobby, which overlapped issue #67's version. When merging `main` into the #67 branch, keep the #67 lobby link (`howToPlay()` and the `.how-to` styles: keyboard focus style, one open at a time, panel layout on wide screens), remove the `.how-to-play` markup and styles, and keep poker's rules text, which now shows through the same link. `gameSummaries()` keeps #98's version, which leaves `rules` out when a game has none.
 - **Made by:** agent, resolving merge conflicts at the user's request (Ariella)
 - **Reason:** Two implementations would show two How to play links on the poker tile. #98's own decision entry notes that the rules contract belongs to #67.
+
+## 2026-11-09 — Keep How to play and reconnect grace in the same spec (#78)
+
+- **Decision:** Main's How to play rewrite of `SPEC_v2.md` stays, including the lobby rules note, and the reconnect rows stay with it.
+- **Made by:** agent
+- **Reason:** The spec conflict was main's rewrite against the grace-period rows. Both describe current behavior.
+
+## 2026-11-09 — Keep Play again and reconnect grace (#78)
+
+- **Decision:** Merging Play again (`rematch`, which waits for every seated player) keeps the 60-second reconnect grace period. Play again is rejected with "A player is reconnecting." while a seat is reserved, and the button can be pressed again after that error. `leave_room` can still include `roomCode`.
+- **Made by:** agent
+- **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
