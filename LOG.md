@@ -11,6 +11,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Changed:** files or behavior changed
 - **Remaining:** unfinished work, blockers, or `none`
 
+## 2026-11-09 — Update game architecture documentation
+
+- **Who:** agent
+- **Issues:** #43
+- **Changed:** Rewrote `SPEC_v2.md` around the current `GameEngine` / `GameModule` / `GuiModule` contracts and updated `README.md` to describe the browser platform, room lifecycle, optional commentary, and the complete current game registry.
+- **Remaining:** none
+
 ## 2026-11-09 — Port heads-up Hold'em onto the game plugin
 
 - **Who:** agent
