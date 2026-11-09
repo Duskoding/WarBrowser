@@ -38,8 +38,8 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | type | payload | meaning |
 | --- | --- | --- |
 | `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
-| `join_room` | `{ roomCode }` | player joins an existing room (max 2 players, or 4 in Uno; the invite link `?room=CODE` joins automatically) |
-| `start_game` | `{}` | host only, Uno: starts the game once at least 2 players are in, or a new game after one ends |
+| `join_room` | `{ roomCode }` | player joins an existing room, up to the game's `max` player count (the invite link `?room=CODE` joins automatically) |
+| `start_game` | `{}` | host-only; starts the room's game once at least `min` players have joined |
 | `leave_room` | `{}` | player leaves their room |
 | `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 
@@ -47,10 +47,10 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 
 | type | payload | meaning |
 | --- | --- | --- |
-| `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
-| `opponent_joined` / `opponent_disconnected` / `room_left` | `{}` | room membership events; a new game is dealt when the room is full, and the game is discarded when anyone leaves |
-| `room_players` | `{ players, minPlayers, maxPlayers }` | Uno rooms only: who is in the room (host first), sent whenever someone joins or leaves |
-| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, round, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
+| `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | confirms the player is in a room, which game it is for, the current roster (join order), and who the host is |
+| `players_update` | `{ players }` | roster changed while waiting for the host to start |
+| `player_left` / `room_left` | `{ username }` / `{}` | a player disconnected or left; any running game is discarded, and the room stays open for a replacement to join |
+| `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |
 
@@ -101,4 +101,4 @@ What changed from the original spec, and why:
 - **Game end:** a draw (both players out of cards) is possible and has no winner.
 - **Team:** the game engine was built by one person, so the two engine roles became one and the build order refers to 5 roles.
 - **Repo:** the client and server share one root `package.json` (one install, one build), and `render.yaml` defines the Render service.
-- **Multiple games:** v1 deliberately built only War, with no abstraction for future games. The site now hosts several games: a lobby to choose one, a `GameDefinition` interface on the server and a `ClientGame` interface in the browser, with War moved onto them unchanged and Tic-Tac-Toe added as a second game. `create_room` takes a `gameId`, room messages report it, and `GET /api/games` lists the games. Win/loss records are shared across games. **Uno** (2–4 players) has since been added as the main game, first in the lobby: games can set `minPlayers` below `players`, and the host then starts the game with `start_game`. War and Tic-Tac-Toe rooms and messages are unchanged.
+- **Multiple games:** v1 deliberately built only War, with no abstraction for future games. The site now hosts several games: a lobby to choose one, a `GameDefinition` interface on the server and a `ClientGame` interface in the browser, with War moved onto them unchanged and Tic-Tac-Toe added as a second game. `create_room` takes a `gameId`, room messages report it, and `GET /api/games` lists the games. Win/loss records are shared across games.

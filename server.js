@@ -6,7 +6,7 @@ import { dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import { ClaudeCommentator } from "./src/commentator.ts";
-import { DEFAULT_GAME_ID, findGame, gameSummaries, hasFlexibleSeats } from "./src/games/index.ts";
+import { DEFAULT_GAME_ID, findGame, gameSummaries } from "./src/games/index.ts";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
@@ -15,7 +15,7 @@ import {
   deleteSession,
   findUserById,
   openAuthDatabase,
-  recordMatch,
+  recordWins,
   registerUser,
   userFromSession
 } from "./src/auth.ts";
@@ -150,7 +150,7 @@ function sendStates(game) {
   for (const [socket, seat] of game.seats) {
     send(socket, {
       type: "game_message",
-      payload: { kind: "state", view: game.session.view(seat, players) }
+      payload: { kind: "state", view: game.module.toView(game.engine, seat, players) }
     });
   }
 }
@@ -169,9 +169,9 @@ export function createWarServer({
 } = {}) {
   const postgres = database === "postgres" || database === process.env.DATABASE_URL;
   const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
-  // roomCode -> { game: GameDefinition, sockets: Set<WebSocket> }
+  // roomCode -> { game: GameModule, sockets: Set<WebSocket> }
   const rooms = new Map();
-  // roomCode -> the game being played once the room is full
+  // roomCode -> the running match once the room is full
   const games = new Map();
 
   async function handleApi(request, response, pathname) {
@@ -331,59 +331,13 @@ export function createWarServer({
 
     room.sockets.delete(socket);
     games.delete(roomCode);
+    room.started = false;
+    const username = socket.user?.username;
     for (const player of room.sockets) {
-      send(player, { type: "opponent_disconnected" });
+      if (username) send(player, { type: "player_left", username });
     }
     if (room.sockets.size === 0) {
       rooms.delete(roomCode);
-      return;
-    }
-    sendRoomPlayers(room);
-  }
-
-  // Rooms that can start before they're full (Uno) also get the player list,
-  // so everyone sees who's in and the host knows when they can start.
-  // Fixed-size games (War, Tic-Tac-Toe) keep the original two-player events only.
-  function sendRoomPlayers(room) {
-    if (!hasFlexibleSeats(room.game)) return;
-    const event = {
-      type: "room_players",
-      players: [...room.sockets].map((player) => player.user.username),
-      minPlayers: room.game.minPlayers,
-      maxPlayers: room.game.players
-    };
-    for (const player of room.sockets) send(player, event);
-  }
-
-  // Seats follow join order (the host is seat 0).
-  function startGame(room, roomCode) {
-    const seated = [...room.sockets];
-    const game = {
-      session: room.game.create({ commentator, options: engineOptions }, seated.length),
-      seats: new Map(seated.map((player, seat) => [player, seat])),
-      players: seated.map((player) => player.user),
-      recorded: false
-    };
-    games.set(roomCode, game);
-    sendStates(game);
-  }
-
-  function recordResult(game, roomCode, winner) {
-    if (postgres) {
-      // A match row holds two players, so a game of three or more is stored
-      // as the winner beating each other player, as SQLite stats do below.
-      const [playerA, playerB] = game.players;
-      const pairs = game.players.length === 2 || winner === null
-        ? [[playerA, playerB]]
-        : game.players.filter((_, seat) => seat !== winner).map((loser) => [game.players[winner], loser]);
-      for (const [a, b] of pairs) {
-        void recordPostgresMatch(db, roomCode, a.id, b.id, winner === null ? null : game.players[winner].id)
-          .catch((error) => console.error("Failed to record match:", error));
-      }
-    } else if (winner !== null) {
-      for (const [seat, user] of game.players.entries()) {
-        if (seat !== winner) recordMatch(db, game.players[winner].id, user.id);
-      }
     }
   }
 
@@ -444,15 +398,17 @@ export function createWarServer({
         }
 
         const roomCode = createRoomCode(rooms);
-        rooms.set(roomCode, { game: definition, sockets: new Set([socket]) });
+        rooms.set(roomCode, { game: definition, sockets: new Set([socket]), started: false });
         socket.roomCode = roomCode;
         send(socket, {
           type: "room_created",
           roomCode,
-          username: socket.user.username,
-          gameId: definition.id
+          gameId: definition.id,
+          host: socket.user.username,
+          players: [socket.user.username],
+          min: definition.players.min,
+          max: definition.players.max
         });
-        sendRoomPlayers(rooms.get(roomCode));
         return;
       }
 
@@ -473,11 +429,11 @@ export function createWarServer({
           send(socket, { type: "error", message: "Room not found." });
           return;
         }
-        if (room.sockets.size >= room.game.players) {
+        if (room.sockets.size >= room.game.players.max) {
           send(socket, { type: "error", message: "That room is full." });
           return;
         }
-        if (games.has(roomCode) && !games.get(roomCode).recorded) {
+        if (room.started) {
           send(socket, { type: "error", message: "That game has already started." });
           return;
         }
@@ -491,22 +447,21 @@ export function createWarServer({
         room.sockets.add(socket);
         socket.roomCode = roomCode;
         const [host] = room.sockets;
+        const players = [...room.sockets].map((player) => player.user.username);
         send(socket, {
           type: "room_joined",
           roomCode,
-          username: socket.user.username,
-          opponentUsername: host.user.username,
-          gameId: room.game.id
+          gameId: room.game.id,
+          host: host.user.username,
+          players,
+          min: room.game.players.min,
+          max: room.game.players.max
         });
         for (const player of room.sockets) {
           if (player !== socket) {
-            send(player, { type: "opponent_joined", username: socket.user.username });
+            send(player, { type: "players_update", players });
           }
         }
-
-        sendRoomPlayers(room);
-        if (room.sockets.size < room.game.players) return;
-        startGame(room, roomCode);
         return;
       }
 
@@ -516,21 +471,37 @@ export function createWarServer({
           send(socket, { type: "error", message: "Join a room first." });
           return;
         }
-        if ([...room.sockets][0] !== socket) {
+        const [host] = room.sockets;
+        if (host !== socket) {
           send(socket, { type: "error", message: "Only the host can start the game." });
           return;
         }
-        // A finished game can be replaced by a new one (a rematch).
-        if (games.has(socket.roomCode) && !games.get(socket.roomCode).recorded) {
-          send(socket, { type: "error", message: "The game has already started." });
+        if (room.started) {
+          send(socket, { type: "error", message: "That game has already started." });
           return;
         }
-        const minPlayers = room.game.minPlayers ?? room.game.players;
-        if (room.sockets.size < minPlayers) {
-          send(socket, { type: "error", message: `Wait for at least ${minPlayers} players.` });
+        if (room.sockets.size < room.game.players.min) {
+          send(socket, {
+            type: "error",
+            message: `This game needs at least ${room.game.players.min} players.`
+          });
           return;
         }
-        startGame(room, socket.roomCode);
+
+        room.started = true;
+        // Room is starting: seats follow join order (the host is seat 0).
+        const seated = [...room.sockets];
+        const context = { commentator, options: engineOptions, players: seated.length };
+        const game = {
+          module: room.game,
+          engine: room.game.createEngine(context),
+          context,
+          seats: new Map(seated.map((player, seat) => [player, seat])),
+          players: seated.map((player) => player.user),
+          recorded: false
+        };
+        games.set(socket.roomCode, game);
+        sendStates(game);
         return;
       }
 
@@ -542,10 +513,6 @@ export function createWarServer({
             type: "error",
             message: "Wait for another player to join before playing."
           });
-          return;
-        }
-        if (!game.seats.has(socket)) {
-          send(socket, { type: "error", message: "Wait for the next game to start." });
           return;
         }
         if (!Object.hasOwn(message, "payload")) {
@@ -560,10 +527,12 @@ export function createWarServer({
           return;
         }
 
-        // The game handles its own actions; anything it doesn't recognise
+        // The game module handles its own actions; anything it doesn't recognise
         // (result null) is relayed to the other players below.
         const isObject = payload !== null && typeof payload === "object" && !Array.isArray(payload);
-        const result = isObject ? game.session.act(game.seats.get(socket), payload) : null;
+        const result = isObject
+          ? game.module.handleAction(game.engine, game.seats.get(socket), payload, game.context)
+          : null;
         if (result) {
           if (!result.ok) {
             send(socket, { type: "error", message: result.error });
@@ -572,7 +541,22 @@ export function createWarServer({
           sendStates(game);
           if (result.finished && !game.recorded) {
             game.recorded = true;
-            recordResult(game, socket.roomCode, result.finished.winner);
+            const { winner } = result.finished;
+            if (postgres) {
+              const playerIds = game.players.map((player) => player.id);
+              void recordPostgresMatch(
+                db,
+                socket.roomCode,
+                playerIds,
+                winner === null ? null : playerIds[winner]
+              ).catch((error) => console.error("Failed to record match:", error));
+            } else if (winner !== null) {
+              const winnerId = game.players[winner].id;
+              const loserIds = game.players
+                .filter((_, seat) => seat !== winner)
+                .map((player) => player.id);
+              recordWins(db, winnerId, loserIds);
+            }
           }
           if (result.commentary) {
             const { round } = result.commentary;

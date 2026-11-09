@@ -128,18 +128,49 @@ export async function resetPostgresPassword(db: Db, userId: string, password: un
 }
 
 export async function recordPostgresMatch(
-  db: Db, roomCode: string, playerAId: string, playerBId: string, winnerId: string | null
+  db: Db, roomCode: string, playerIds: string[], winnerId: string | null
 ): Promise<void> {
+  if (playerIds.length < 2) throw new Error("A match requires at least two players.");
   const client: PoolClient = await db.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      "INSERT INTO matches (room_code, player_a_id, player_b_id, winner_id) VALUES ($1, $2, $3, $4)",
+    const playerAId = playerIds.length === 2 ? playerIds[0] : null;
+    const playerBId = playerIds.length === 2 ? playerIds[1] : null;
+    const match = await client.query(
+      `INSERT INTO matches (room_code, player_a_id, player_b_id, winner_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [roomCode, playerAId, playerBId, winnerId]
     );
+    for (const [seat, playerId] of playerIds.entries()) {
+      await client.query(
+        `INSERT INTO match_players (match_id, player_id, seat, is_winner)
+         VALUES ($1, $2, $3, $4)`,
+        [match.rows[0].id, playerId, seat, playerId === winnerId]
+      );
+    }
     if (winnerId) {
-      const loserId = winnerId === playerAId ? playerBId : playerAId;
       await client.query("UPDATE users SET wins = wins + 1 WHERE id = $1", [winnerId]);
+      for (const playerId of playerIds) {
+        if (playerId !== winnerId) {
+          await client.query("UPDATE users SET losses = losses + 1 WHERE id = $1", [playerId]);
+        }
+      }
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function recordPostgresWins(db: Db, winnerId: string, loserIds: string[]): Promise<void> {
+  const client: PoolClient = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE users SET wins = wins + 1 WHERE id = $1", [winnerId]);
+    for (const loserId of loserIds) {
       await client.query("UPDATE users SET losses = losses + 1 WHERE id = $1", [loserId]);
     }
     await client.query("COMMIT");

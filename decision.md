@@ -1,9 +1,21 @@
 # Decision log
 
+## 2026-11-09 — Keep repository guidance and decision logs tracked (#54)
+
+- **Decision:** Keep the repository-root `AGENTS.md` and `decision.md` files as tracked project files. Do not rename or remove either file during repository cleanup.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `AGENTS.md` contains the contributor and agent conventions, while `decision.md` preserves the project's durable decisions. Both are active project documentation and must remain available to future contributors.
+
+## 2026-11-09 — Add a work session log
+
+- **Decision:** Add a repository-root `LOG.md` with a short entry format covering who worked, related issues, changes, and remaining work. Add one entry for each work session so the next person or agent can resume from the latest handoff.
+- **Made by:** agent (GitHub Copilot)
+- **Reason:** `decision.md` explains why project choices were made, but it does not capture the practical state of each session. A separate concise log preserves handoff context without mixing transient progress with durable design decisions.
+
 ## 2026-11-02 — Add agent guidance documentation
 
-- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and require all person- or agent-made project decisions to be recorded in this file.
-- **Made by:** agent (GitHub Copilot)
+- **Decision:** Add a repository-root `AGENTS.md` documenting project conventions and the contribution workflow (preparation, focused implementation, safe editing, validation, documentation, diff review, secrets, ambiguity, and commit practices), and require all person- or agent-made project decisions to be recorded in this file.
+- **Made by:** agent (GitHub Copilot), with scope confirmed by Efrat Kreslavskiy
 - **Reason:** The project needs durable, repository-local guidance so future agents can follow its Node.js, TypeScript, server-authoritative game, testing, and security conventions consistently.
 
 ## 2026-11-02 — Host several games, chosen from a lobby
@@ -54,38 +66,78 @@
 - **Made by:** agent (Claude Code), resolving merge conflicts at the user's request
 - **Reason:** The multi-game server no longer has War-specific code, so PostgreSQL recording has to live in the shared game-over handling to work for every game. Verified against a local PostgreSQL 16 database: War and Tic-Tac-Toe games each recorded one match and the winner's and loser's stats.
 
-## 2026-11-04 — Add Uno as the main game, alongside War
+## 2026-11-04 — Specify a common pure-engine interface (#45)
 
-- **Decision:** Add Uno (2–4 players) to the existing site as its main game, first and featured in the lobby, while keeping War, Tic-Tac-Toe and the War commentator as they are. `create_room` without a `gameId` still means War.
-- **Made by:** the user (Uno as the focus, keep the other games and the commentator, 2–4 players, minimal changes to War); implemented by agent (Claude Code)
-- **Reason:** The team wants a more organised Uno version built on the same skeleton, without losing the ability to play War.
+- **Decision:** Add a shared `GameEngine<TState, TAction, TResult>` contract in `src/engine/GameEngine.ts` with `apply(seat, action)` returning an `EngineResult` union (`{ ok: false; error }` | `{ ok: true; finished? }`) and per-seat `getState(seat)`. Seats are numeric (`0 .. n-1`). This change is specify-only: WarEngine and Tic-Tac-Toe are not refactored to implement it yet; adoption happens in later issues (#29/#48 for War, #34 for Uno). The server continues to talk to `GameDefinition` / `GameSession` (#46).
+- **Made by:** agent
+- **Reason:** Issue #28/#45 needs a pure rules layer below the server game-module shape so War and future games (Uno) share one action/result/state pattern without networking concerns.
 
-## 2026-11-04 — Rooms with a player range, started by the host
+## 2026-11-04 — Specify a common server game-module shape (#46)
 
-- **Decision:** `GameDefinition` gets an optional `minPlayers` and `create()` receives the seated player count. For games where `minPlayers` is below `players`, the server sends `room_players` on every join and leave, and the host (first player in the room) starts the game with `start_game`, or a rematch after a game ends. Fixed-size games keep the original behaviour and messages exactly, so War and Tic-Tac-Toe clients and tests are unchanged. Anyone leaving still ends the current game.
+- **Decision:** Add a shared `GameModule` contract in `src/games/GameModule.ts` with named `createEngine`, `handleAction`, and `toView`, typed against `GameEngine` (#45), plus win/record via `finished` on the action result (no separate `onFinished` callback). This is specify-only: live `GameDefinition` / `GameSession`, War, Tic-Tac-Toe, and `server.js` stay unchanged until later adoption issues (engines still need to implement `GameEngine` then).
+- **Made by:** agent
+- **Reason:** Issue #28/#46 needs an explicit server plugin boundary above `GameEngine` so games expose factory, action handling, per-seat views, and end-of-game signaling in one shape without folding those jobs into opaque session closures.
+
+## 2026-11-04 — Specify a common GUI module shape (#47)
+
+- **Decision:** Add a shared `GuiModule` contract in `gui/src/games/GuiModule.ts` with named entry point (`mount`), session/state (`applyState`), and `render` on the mounted screen, plus optional `commentary` / `destroy` and `isFinished`. This is specify-only: live `ClientGame` / `GameScreen`, War, Tic-Tac-Toe, and `main.ts` stay unchanged until later adoption issues.
+- **Made by:** agent
+- **Reason:** Issue #28/#47 needs an explicit client plugin boundary so each game's screen separates mount, state apply, and paint the same way the server module separates factory, actions, and views.
+
+## 2026-11-04 — Refactor War and Tic-Tac-Toe onto the game-plugin contracts (#29)
+
+- **Decision:** Full cutover from `GameDefinition`/`ClientGame` to `GameEngine` + `GameModule` + `GuiModule` for War and Tic-Tac-Toe. Move War engine/types/tests into `src/games/war/` and TTT into `src/games/tictactoe/`. Keep the lobby shell (`gui/src/main.ts`, etc.) shared. Promote commentary to shared: `Commentator.describe(prompt: string)`; each game builds its own prompt. `handleAction` takes `GameModuleContext` so modules can request commentary.
+- **Made by:** agent
+- **Reason:** Issues #29/#48–#51 (plus TTT) require adopting the #45–#47 contracts uniformly so both games and the server/GUI use one plugin shape before Uno and further shared-core work.
+
+## 2026-11-08 — Make `GameModule.players` a range, started by the host (#33)
+
+- **Decision:** Change `GameModule.players` from a fixed `number` to `{ min, max }`. A room now accepts joiners up to `max` and the host (the socket that created the room, or whoever is first in `room.sockets` after earlier departures) explicitly starts the match with a new `start_game` client message once at least `min` players have joined; the server no longer auto-starts a room the moment it hits a fixed count. War and Tic-Tac-Toe both become `{ min: 2, max: 2 }` (no behavior change for players beyond the extra click); Uno is planned as `{ min: 2, max: 8 }`. Replaced the two-player-only `opponent_joined` / `opponent_disconnected` protocol events with roster-based `players_update` (`{ players }`) and `player_left` (`{ username }`), and `room_created` / `room_joined` now carry the full roster, `host`, `min`, and `max` instead of a single `username`/`opponentUsername` pair. Updated `server.js`, the preview's `sim-server.ts`/`sim-connection.ts`, `gui/src/main.ts` (player list, host-only Start button, waiting-room status text), `gui/src/types.ts`, `gui/src/connection.ts`, `test/server.test.js`, `README.md`, and `SPEC_v2.md` accordingly.
+- **Made by:** user (requested the range and host-triggered start) and agent (Claude Code), implementation
+- **Reason:** Issue #33 (Uno's state/types) needs 2–8 players, which a fixed `players: number` and an auto-start-at-N room model can't express. A host-triggered start (rather than auto-starting at `min` or waiting for `max`) lets a room wait for more players without forcing every seat to fill first. This is a prerequisite for #33 but is a shared-contract change, so War and Tic-Tac-Toe adopt the same shape rather than special-casing Uno.
+- **Known gap carried forward:** Postgres match recording (`recordPostgresMatch`) still hardcodes exactly two players (see #71); it is unaffected by this change and remains a blocker for recording results in any Uno match with more than two players.
+
+## 2026-11-08 — Design Uno's state/types (#33)
+
+- **Decision:** Add `src/games/uno/types.ts`: `Card` (`color: Color | null`, `rank`), `UnoState` (per-seat `hand`, every seat's `handCounts`, `discardTop` plus a separate `activeColor` for after a wild, `direction`, `currentSeat`/`yourTurn`, pile counts, `round`/`winner`/`over`), `UnoAction` (`play` with optional `chosenColor`, or `draw`), and a `UnoResult` shaped like Tic-Tac-Toe's (Uno resolves each action immediately; it has no War-style multi-player-wait state). Assumed four house-rule simplifications, documented in the file: no stacking Draw Two/Four, draw-one-and-pass (a drawn card is never auto-played), no enforced "Uno" call penalty, no Wild Draw Four challenge, and a player may draw even when holding a legal play.
+- **Made by:** user (confirmed scope: 2+ players, deferred remaining rule calls to the agent) and agent (Claude Code), implementation
+- **Reason:** #34 (`UnoEngine`) and #36 (Uno's GUI) both need these shapes agreed first; the house-rule assumptions are called out explicitly so they're easy to revisit rather than silently baked into the engine.
+
+## 2026-11-08 — Implement UnoEngine (#34)
+
+- **Decision:** Add `src/games/uno/UnoEngine.ts` implementing `GameEngine<UnoState, UnoAction, UnoResult>`, plus `UnoEngine.test.ts`. Constructor takes `(players: number, options?: UnoEngineOptions)` rather than hiding player count inside options, since `GameModule.createEngine(context)` doesn't yet pass a player count — wiring that through `GameModuleContext` is left to #35. 108-card deck built directly in this file (not the shared `src/games/shared/cards.ts` from draft PR #70, which isn't merged). The opening discard is redrawn until it isn't a wild. Turn advance is direction-aware (`seatAfter`/`advanceTurn`); Reverse explicitly special-cases exactly 2 players to act as Skip (mathematically a plain direction flip is a no-op with 2 seats, so the official "Reverse = Skip" rule has to be coded directly, not derived). Draw Two/Wild Draw Four draw into the seat after the current one, then skip that seat.
 - **Made by:** agent (Claude Code)
-- **Reason:** Uno needs 2–4 players, so "start when full" no longer works on its own; limiting the new events to such games avoids touching War's protocol.
+- **Reason:** #34 needs the pure rules layer before #35 (server plugin) and #36 (GUI) can be built against it. Deferring the shared cards module avoids depending on unmerged work (see #33's note on PR #70/#69).
 
-## 2026-11-04 — Uno house rules
+## 2026-11-08 — Fix two-player-only win recording for games with more than two players; implement Uno's server plugin (#35, #71 partial)
 
-- **Decision:** One hand per game (no points). The starting card is always a number card; Wild Draw Four can always be played, with no challenge; Draw Two/Four don't stack; drawing is one card, which may be played straight away if it matches. Forgetting to call Uno can be caught by any other player (+2 cards) until the next card is played or drawn.
-- **Made by:** agent (Claude Code)
-- **Reason:** These are the common rules with the fewest extra prompts for players; each can be changed in `src/games/uno.ts` without touching the server.
+- **Decision:**
+  - Added `GameModuleContext.players: number` (the room's actual seated count) so a variable-player-count engine like Uno's can be constructed correctly; `server.js`'s `start_game` handler and the preview's `sim-server.ts` now pass it.
+  - **Fixed a real bug, not just Postgres:** the existing SQLite win-recording loop in `server.js` called `recordMatch(winnerId, loserId)` once per loser, incrementing the *winner's* win count once per opponent instead of once per game — harmless at exactly 2 players (1 loser) but wrong at 3+ (caught by this work's own 3-player Uno test, which found the host recorded 2 wins for 1 game). Replaced it with `recordWins(db, winnerId, loserIds)` in `src/auth.ts` (one win, N losses) and `recordPostgresWins` in `src/postgres-auth.ts` for the Postgres path. `recordMatch` is now a thin wrapper over `recordWins` for the 2-id case, kept for the existing test and 2-player call style.
+  - **Postgres match history (option 1 from #71):** for a game with exactly 2 players, `recordPostgresMatch` still inserts an audit row into the 2-column `matches` table as before. For 3+ players, no audit row is inserted (the table can't represent it without a schema migration), but `recordPostgresWins` still updates every player's `wins`/`losses` correctly. A junction-table migration for full N-player match history is deferred as its own follow-up, not done here.
+  - Added `src/games/uno/index.ts` (the `GameModule`: `id: "uno"`, `players: { min: 2, max: 8 }`, `createEngine` wiring the new context field into `UnoEngine`, `handleAction` for `play`/`draw` payloads, `toView` exposing hand/handCounts/discardTop/activeColor/direction/currentSeat/winnerSeat — raw seat numbers rather than War/Tic-Tac-Toe's "you"/"opponent" strings, since those don't generalize past 2 players) and `src/games/uno/prompt.ts` (commentary prompt). Registered `uno` in `src/games/index.ts`.
+- **Made by:** agent (Claude Code); option 1 vs. the full migration for #71 was the user's call (minimal fix now, migration deferred)
+- **Reason:** #35 explicitly includes "win recording," and Uno is the first game that can actually exceed 2 players, so the existing double-counting bug and the Postgres two-player-only schema both had to be addressed here rather than deferred further. `toView` uses seat numbers instead of "you"/"opponent" because Uno's GUI (#36) needs to display more than one opponent.
+## 2026-11-09 — Verify shared auth/session module (#38)
 
-## 2026-11-04 — Record games of three or more as one result per opponent
+- **Decision:** Treat issue #38 as complete on the current architecture: SQLite users, sessions, authentication, and match-record helpers are already centralized in `src/auth.ts`, and the server consumes them through that shared module without game-specific copies.
+- **Made by:** agent
+- **Reason:** Re-moving or duplicating the module would create unnecessary risk and violate the issue's “unchanged” requirement. This verification records the implementation state before continuing with the remaining assigned issues.
 
-- **Decision:** When a game with more than two players ends, the winner is recorded as beating each other player: one win and one loss per opponent, in both SQLite stats and PostgreSQL `matches` rows. Two-player games are recorded exactly as before.
-- **Made by:** agent (Claude Code)
-- **Reason:** The existing match table and stats hold a winner and a loser per match; this fits Uno into them without a schema change. A dedicated multi-player match table can replace it later if the team wants placements.
+## 2026-11-09 — Verify generalized server lifecycle (#39)
 
-## 2026-11-04 — Uno commentary not added yet
+- **Decision:** Treat issue #39 as complete on the current architecture: `server.js` owns static serving, API routing, room membership, WebSocket lifecycle, and protocol dispatch, while game-specific actions and views are supplied through `GameModule`.
+- **Made by:** agent
+- **Reason:** The server already resolves games through the shared registry and keeps room state independent of any game's message kinds. Replacing this working boundary without a concrete missing behavior would be an unrelated refactor.
 
-- **Decision:** The AI commentator stays War-only for now; Uno games have no commentary.
-- **Made by:** agent (Claude Code)
-- **Reason:** The commentator's prompt and input are written for War rounds. Adding Uno commentary means a new prompt and summary shape, best done as its own change.
+## 2026-11-09 — Verify generalized test harness (#41)
 
-## 2026-11-04 — Built-in play-by-play for War
+- **Decision:** Treat issue #41 as complete on the current architecture: `test/server.test.js` provides reusable server startup, HTTP authentication, WebSocket connection/message queuing, room setup, and cleanup helpers shared by all game scenarios.
+- **Made by:** agent
+- **Reason:** The harness already exercises multiple game modules and player counts through common helpers. Extracting another layer without a remaining duplicated pattern would add indirection rather than improve coverage or maintainability.
 
-- **Decision:** After each War round, the commentary box shows a built-in line (for example "Round 12: K♠ vs 7♥. You take 2 cards."), like Uno's play-by-play. When AI commentary arrives for that round it replaces the line. War's view gains a `round` field (rounds resolved so far, taken from the engine) so the client never lets an older line overwrite a newer one; War's rules are unchanged.
-- **Made by:** the user (asked for Uno-style commentary in War); implemented by agent (Claude Code)
-- **Reason:** Without an `ANTHROPIC_API_KEY` the commentary box never changed from its placeholder text. The built-in line works with no key and costs nothing.
+## 2026-11-09 — Normalize PostgreSQL match history for variable player counts (#71)
+
+- **Decision:** Keep the existing `matches` table as the match header, make its legacy two-player columns nullable for multi-player rows, and add `match_players` as the authoritative per-match player/seat/result table. Record every completed PostgreSQL game through one transaction, including draws and all player counts.
+- **Made by:** agent
+- **Reason:** A fixed pair of player columns cannot represent Uno or future games with more than two players. The junction table preserves existing two-player history compatibility while providing complete audit data for variable-sized matches.

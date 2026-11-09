@@ -188,11 +188,18 @@ export function findUserById(db: DatabaseSync, id: number): PublicUser | null {
 }
 
 export function recordMatch(db: DatabaseSync, winnerId: number, loserId: number): void {
-  if (winnerId === loserId) return;
+  recordWins(db, winnerId, [loserId]);
+}
+
+// winnerId gets exactly one win regardless of how many losers there are.
+export function recordWins(db: DatabaseSync, winnerId: number, loserIds: number[]): void {
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("UPDATE users SET wins = wins + 1 WHERE id = ?").run(winnerId);
-    db.prepare("UPDATE users SET losses = losses + 1 WHERE id = ?").run(loserId);
+    for (const loserId of loserIds) {
+      if (loserId === winnerId) continue;
+      db.prepare("UPDATE users SET losses = losses + 1 WHERE id = ?").run(loserId);
+    }
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

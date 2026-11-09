@@ -1,7 +1,7 @@
 import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
-import type { GameScreen } from "./games/types";
+import type { GuiModuleScreen } from "./games/GuiModule";
 import { fetchGames, fetchMe, login, logout, register, resetPassword, type Me } from "./session";
 import type { GameSummary, ServerPayload } from "./types";
 
@@ -57,10 +57,8 @@ app.innerHTML = `
     </div>
     <p class="invite-link" id="invite-link"></p>
     <p class="status" id="room-status"></p>
-    <div class="waiting-room" id="waiting-room" hidden>
-      <ul class="seat-list" id="seat-list"></ul>
-      <button id="start-game" hidden>Start game</button>
-    </div>
+    <p class="players" id="room-players"></p>
+    <button id="start-game" class="small" hidden>Start game</button>
     <div class="game-root" id="game-root"></div>
   </main>
   <div class="toast" id="toast" hidden></div>
@@ -83,11 +81,12 @@ let games: GameSummary[] = [];
 let resetting = false;
 let roomCode: string | null = null;
 let roomGameId: string | null = null;
-let opponentHere = false;
-// For games with a player range (Uno): who's in the room, host first.
-let roomPlayers: { names: string[]; min: number; max: number } | null = null;
-let screen: GameScreen | null = null;
-let gameOver = false; // the game on screen has finished (stats refreshed once)
+let roomHost: string | null = null;
+let roomPlayers: string[] = [];
+let roomMin = 0;
+let roomMax = 0;
+let screen: GuiModuleScreen | null = null;
+let statsRefreshed = false;
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -143,9 +142,6 @@ async function refreshMe() {
 // ---- Game list ----
 const gameName = (id: string | null) => games.find((g) => g.id === id)?.name ?? "Game";
 
-const playerCount = (game: GameSummary) =>
-  (game.minPlayers ?? game.players) < game.players ? `${game.minPlayers}–${game.players} players` : `${game.players} players`;
-
 function renderGameList() {
   const list = $("game-list");
   list.replaceChildren(
@@ -154,12 +150,15 @@ function renderGameList() {
       const item = document.createElement("li");
       const tile = document.createElement("button");
       tile.type = "button";
-      tile.className = game === games[0] ? "game-tile featured" : "game-tile";
+      tile.className = "game-tile";
       tile.disabled = !connected || !playable;
       tile.innerHTML = `<strong></strong><span class="desc"></span><span class="meta"></span><span class="go"></span>`;
       tile.querySelector("strong")!.textContent = game.name;
       tile.querySelector(".desc")!.textContent = game.description;
-      tile.querySelector(".meta")!.textContent = playerCount(game);
+      tile.querySelector(".meta")!.textContent =
+        game.players.min === game.players.max
+          ? `${game.players.min} players`
+          : `${game.players.min}–${game.players.max} players`;
       tile.querySelector(".go")!.textContent = playable ? "Create a room →" : "Not available in this version";
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
@@ -233,7 +232,7 @@ function unmountGame() {
   if (current?.destroy) guarded(() => current.destroy!());
   $("game-root").replaceChildren();
   setBackground(null);
-  gameOver = false;
+  statsRefreshed = false;
 }
 
 function handleGamePayload(payload: unknown) {
@@ -241,18 +240,19 @@ function handleGamePayload(payload: unknown) {
   if (!p || typeof p !== "object") return;
   if (p.kind === "state") {
     mountGame();
-    guarded(() => screen?.update(p.view));
+    guarded(() => {
+      screen?.applyState(p.view);
+      screen?.render();
+    });
     const client = roomGameId ? clientGames[roomGameId] : undefined;
     let finished = false;
     guarded(() => {
       finished = client?.isFinished(p.view) ?? false;
     });
-    if (finished && !gameOver) {
-      gameOver = true;
+    if (finished && !statsRefreshed) {
+      statsRefreshed = true;
       void refreshMe();
     }
-    // A rematch (Uno's "Play again") reuses the same screen.
-    if (!finished) gameOver = false;
   } else if (p.kind === "commentary") {
     guarded(() => screen?.commentary?.(p.text, p.round));
   }
@@ -272,47 +272,22 @@ function render() {
   $("room-game").textContent = gameName(roomGameId);
   $("room-id").textContent = roomCode;
   $("invite-link").textContent = location.href;
-  // Invite URL is only useful while waiting for someone to join.
-  const roomFull = roomPlayers ? roomPlayers.names.length >= roomPlayers.max : opponentHere;
-  $("invite-link").hidden = roomFull || screen !== null;
+  // Invite URL and player count are only useful before the game starts.
+  $("invite-link").hidden = screen !== null;
+  $("room-players").hidden = screen !== null;
+  $("room-players").textContent = `${roomPlayers.join(", ")} (${roomPlayers.length}/${roomMin}–${roomMax})`;
+
+  const isHost = me !== null && roomHost === me.username;
+  const canStart = isHost && !screen && roomPlayers.length >= roomMin;
+  $<HTMLButtonElement>("start-game").hidden = !canStart;
 
   let status = "";
   if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
-  else if (roomPlayers && (!screen || gameOver)) status = waitingRoomStatus(roomPlayers);
-  else if (!opponentHere) status = "Waiting for opponent — share the invite link";
-  else if (!screen) status = "Starting…";
+  else if (!screen && roomPlayers.length < roomMin) status = "Waiting for players — share the invite link";
+  else if (!screen && !isHost) status = "Waiting for the host to start the game";
+  else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
-  renderWaitingRoom();
-}
-
-const isHost = () => roomPlayers !== null && roomPlayers.names[0] === me?.username;
-
-function waitingRoomStatus({ names, min, max }: NonNullable<typeof roomPlayers>) {
-  const count = `${names.length} of ${max} players`;
-  if (names.length < min) return `Waiting for players (${count}) — share the invite link`;
-  if (isHost()) return gameOver ? "Play again with the same table?" : `${count} here. Start when everyone's in.`;
-  return `${count} here. Waiting for ${names[0]} to start${gameOver ? " another game" : ""}…`;
-}
-
-// The list of players and the host's Start button, shown before a game and after one ends.
-function renderWaitingRoom() {
-  const show = roomPlayers !== null && (screen === null || gameOver) && roomGameId !== null && roomGameId in clientGames;
-  $("waiting-room").hidden = !show;
-  if (!show || !roomPlayers) return;
-  $("seat-list").replaceChildren(
-    ...roomPlayers.names.map((name, seat) => {
-      const item = document.createElement("li");
-      item.textContent = name;
-      if (seat === 0) item.dataset.host = "";
-      if (name === me?.username) item.classList.add("you");
-      return item;
-    })
-  );
-  const start = $<HTMLButtonElement>("start-game");
-  start.hidden = !isHost();
-  start.disabled = roomPlayers.names.length < roomPlayers.min;
-  start.textContent = gameOver ? "Play again" : "Start game";
 }
 
 function resetRoom() {
@@ -320,16 +295,29 @@ function resetRoom() {
   $("invite-link").hidden = false;
   roomCode = null;
   roomGameId = null;
-  opponentHere = false;
-  roomPlayers = null;
+  roomHost = null;
+  roomPlayers = [];
+  roomMin = 0;
+  roomMax = 0;
   const params = new URLSearchParams(location.search);
   params.delete("room");
   history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
 }
 
-function enterRoom(code: string, gameId: string) {
+function enterRoom(
+  code: string,
+  gameId: string,
+  host: string,
+  players: string[],
+  min: number,
+  max: number
+) {
   roomCode = code;
   roomGameId = gameId;
+  roomHost = host;
+  roomPlayers = players;
+  roomMin = min;
+  roomMax = max;
   const params = new URLSearchParams(location.search);
   params.set("room", code);
   history.replaceState(null, "", `${location.pathname}?${params}`);
@@ -378,23 +366,18 @@ onEvent((e) => {
       if (me) setConnected(false);
       break;
     case "room_created":
-      enterRoom(e.roomCode, e.gameId);
+      enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
     case "room_joined":
-      enterRoom(e.roomCode, e.gameId);
-      opponentHere = true;
+      enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
-    case "opponent_joined":
-      opponentHere = true;
+    case "players_update":
+      roomPlayers = e.players;
       break;
-    case "opponent_disconnected":
-      opponentHere = false;
+    case "player_left":
+      roomPlayers = roomPlayers.filter((username) => username !== e.username);
       unmountGame();
-      showToast(roomPlayers ? "A player left the room." : "Your opponent disconnected.");
-      break;
-    case "room_players":
-      roomPlayers = { names: e.players, min: e.minPlayers, max: e.maxPlayers };
-      opponentHere = e.players.length > 1;
+      showToast(`${e.username} left the room.`);
       break;
     case "room_left":
       resetRoom();

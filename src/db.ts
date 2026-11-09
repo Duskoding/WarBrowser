@@ -30,6 +30,17 @@ export async function initializePostgres(database = pool): Promise<void> {
       winner_id BIGINT REFERENCES users(id),
       played_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE matches ALTER COLUMN player_a_id DROP NOT NULL;
+    ALTER TABLE matches ALTER COLUMN player_b_id DROP NOT NULL;
+    CREATE TABLE IF NOT EXISTS match_players (
+      match_id BIGINT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      player_id BIGINT NOT NULL REFERENCES users(id),
+      seat INTEGER NOT NULL,
+      is_winner BOOLEAN NOT NULL DEFAULT FALSE,
+      PRIMARY KEY (match_id, player_id),
+      UNIQUE (match_id, seat)
+    );
+    CREATE INDEX IF NOT EXISTS match_players_player_id ON match_players(player_id);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS must_reset_password BOOLEAN NOT NULL DEFAULT FALSE;
   `);
 }
