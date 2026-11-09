@@ -1,0 +1,16 @@
+/* Crazy Eights: opponent's backs, draw pile + discard, your hand. */
+.c8 { color: #f7eef8; }
+.hand.opp { gap: 0; }
+.hand.opp .pcard { width: 2.2rem; height: 3.2rem; margin-left: -0.9rem; }
+.hand.opp .pcard:first-child { margin-left: 0; }
+.c8-table { display: flex; gap: 1.25rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+.c8-stock { padding: 0; background: transparent; border-radius: 8px; }
+.c8-stock:not(:disabled):hover .pcard { transform: translateY(-4px); }
+.c8-stock .pcard { transition: transform 0.12s; }
+.c8-stock:disabled { opacity: 0.6; }
+.c8-table .pcard { width: 4.2rem; height: 6rem; }
+.c8-suit { margin: 0; font-size: 1.05rem; }
+.c8-suit .red { color: #ff8a8f; }
+.c8-picker { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.c8-pick { font-size: 1.8rem; padding: 0.2rem 1rem; background: #fdfdf8; color: #1d1d1d; }
+.c8-pick.red { color: #c0262d; }

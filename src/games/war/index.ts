@@ -55,7 +55,7 @@ export const war: GameModule<WarState, WarAction, WarResult> = {
   id: "war",
   name: "War",
   description: "Flip your top card; the higher card takes both. Ties go to war.",
-  players: 2,
+  players: { min: 2, max: 2 },
 
   createEngine(context) {
     return new WarEngine(context.options as WarEngineOptions);

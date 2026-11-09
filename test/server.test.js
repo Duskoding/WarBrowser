@@ -94,7 +94,8 @@ async function startRoom(commentator = silentCommentator, engineOptions = {}, ga
   const { roomCode } = await host.next();
   post(guest, { type: "join_room", roomCode });
   assert.equal((await guest.next()).type, "room_joined");
-  assert.equal((await host.next()).type, "opponent_joined");
+  assert.equal((await host.next()).type, "players_update");
+  post(host, { type: "start_game" });
   const hostState = (await host.next()).payload;
   const guestState = (await guest.next()).payload;
   return { wsUrl, httpUrl, host, guest, roomCode, hostState, guestState, hostAuth, guestAuth };
@@ -118,14 +119,15 @@ test("registers, logs in, and returns the current user", async () => {
   const { httpUrl } = await startServer();
   const created = await register(httpUrl, "Ada");
   assert.equal(created.status, 201);
-  assert.deepEqual(created.body, { username: "Ada", wins: 0, losses: 0 });
+  assert.deepEqual(created.body, { username: "Ada", wins: 0, losses: 0, games: {} });
   assert.match(created.cookie, /^session=/);
 
   assert.equal((await me(httpUrl, created.cookie)).status, 200);
   assert.deepEqual((await me(httpUrl, created.cookie)).body, {
     username: "Ada",
     wins: 0,
-    losses: 0
+    losses: 0,
+    games: {}
   });
 
   const duplicate = await register(httpUrl, "ada");
@@ -168,11 +170,32 @@ test("creates a room and joins a second player", async () => {
   assert.deepEqual(await guest.next(), {
     type: "room_joined",
     roomCode: created.roomCode,
-    username: "guest",
-    opponentUsername: "host",
-    gameId: "war"
+    gameId: "war",
+    host: "host",
+    players: ["host", "guest"],
+    min: 2,
+    max: 2
   });
-  assert.deepEqual(await host.next(), { type: "opponent_joined", username: "guest" });
+  assert.deepEqual(await host.next(), { type: "players_update", players: ["host", "guest"] });
+
+  host.close();
+  guest.close();
+});
+
+test("closes an idle room and returns connected players to the lobby", { timeout: 2000 }, async () => {
+  const { wsUrl, httpUrl } = await startServer({ roomIdleTimeoutMs: 25 });
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+
+  post(host, { type: "create_room" });
+  const { roomCode } = await host.next();
+  post(guest, { type: "join_room", roomCode });
+  assert.equal((await guest.next()).type, "room_joined");
+  assert.equal((await host.next()).type, "players_update");
+
+  const [hostClosed, guestClosed] = await Promise.all([host.next(), guest.next()]);
+  assert.deepEqual(hostClosed, { type: "room_closed", reason: "idle" });
+  assert.deepEqual(guestClosed, { type: "room_closed", reason: "idle" });
 
   host.close();
   guest.close();
@@ -383,14 +406,15 @@ test("a new game is dealt when a player rejoins after the grace period", async (
   await guest.next();
 
   guest.close();
-  assert.deepEqual(await host.next(), { type: "opponent_reconnecting" });
-  assert.deepEqual(await host.next(), { type: "opponent_disconnected" });
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
+  assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
 
   const newGuestAuth = await register(httpUrl, "guest2");
   const newGuest = await connect(wsUrl, newGuestAuth.cookie);
   post(newGuest, { type: "join_room", roomCode });
   assert.equal((await newGuest.next()).type, "room_joined");
-  assert.deepEqual(await host.next(), { type: "opponent_joined", username: "guest2" });
+  assert.deepEqual(await host.next(), { type: "players_update", players: ["host", "guest2"] });
+  post(host, { type: "start_game" });
   const fresh = (await host.next()).payload.view;
   assert.equal(fresh.phase, "waiting");
   assert.equal(fresh.yourCount, 26);
@@ -407,12 +431,9 @@ test("keeps the game when a player drops and reconnects", async () => {
   const before = (await guest.next()).payload.view;
 
   guest.close();
-  assert.deepEqual(await host.next(), { type: "opponent_reconnecting" });
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
   post(host, { type: "game_message", payload: { kind: "flip" } });
-  assert.deepEqual(await host.next(), {
-    type: "error",
-    message: "Your opponent is reconnecting."
-  });
+  assert.deepEqual(await host.next(), { type: "error", message: "A player is reconnecting." });
 
   const stranger = await connect(wsUrl, (await register(httpUrl, "stranger")).cookie);
   post(stranger, { type: "join_room", roomCode });
@@ -426,8 +447,7 @@ test("keeps the game when a player drops and reconnects", async () => {
   assert.equal(after.yourCount, before.yourCount);
   assert.deepEqual(after.yourCard, before.yourCard);
   assert.deepEqual(after.opponentCard, before.opponentCard);
-
-  assert.deepEqual(await host.next(), { type: "opponent_reconnected" });
+  assert.deepEqual(await host.next(), { type: "player_reconnected", username: "guest" });
   assert.equal((await host.next()).type, "game_message");
 
   post(returning, { type: "game_message", payload: { kind: "flip" } });
@@ -442,19 +462,19 @@ test("leaving on purpose ends the game immediately", async () => {
   const { host, guest } = await startRoom();
   post(guest, { type: "leave_room" });
   assert.deepEqual(await guest.next(), { type: "room_left" });
-  assert.deepEqual(await host.next(), { type: "opponent_disconnected" });
+  assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
   host.close();
 });
 
 test("a dropped player can leave without rejoining the game", async () => {
   const { wsUrl, host, guest, roomCode, guestAuth } = await startRoom();
   guest.close();
-  assert.deepEqual(await host.next(), { type: "opponent_reconnecting" });
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
 
   const returning = await connect(wsUrl, guestAuth.cookie);
   post(returning, { type: "leave_room", roomCode });
   assert.deepEqual(await returning.next(), { type: "room_left" });
-  assert.deepEqual(await host.next(), { type: "opponent_disconnected" });
+  assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
 
   host.close();
   returning.close();
@@ -473,14 +493,16 @@ test("a dropped host keeps the room until they return, and the game waits", asyn
   post(guest, { type: "join_room", roomCode });
   const joined = await guest.next();
   assert.equal(joined.type, "room_joined");
-  assert.equal(joined.opponentUsername, "host");
-  assert.deepEqual(await guest.next(), { type: "opponent_reconnecting" });
+  assert.equal(joined.host, "host");
+  assert.deepEqual(joined.players, ["host", "guest"]);
+  assert.deepEqual(await guest.next(), { type: "player_reconnecting", username: "host" });
 
   const returning = await connect(wsUrl, hostAuth.cookie);
   post(returning, { type: "join_room", roomCode });
   assert.equal((await returning.next()).type, "room_joined");
+  assert.deepEqual(await guest.next(), { type: "player_reconnected", username: "host" });
+  post(returning, { type: "start_game" });
   assert.equal((await returning.next()).payload.kind, "state");
-  assert.deepEqual(await guest.next(), { type: "opponent_reconnected" });
   assert.equal((await guest.next()).payload.kind, "state");
 
   returning.close();
@@ -550,6 +572,7 @@ test("records a win and a loss when a short game ends", async () => {
   post(guest, { type: "join_room", roomCode });
   await guest.next();
   await host.next();
+  post(host, { type: "start_game" });
   await host.next();
   await guest.next();
 
@@ -570,11 +593,11 @@ test("records a win and a loss when a short game ends", async () => {
   const wins = hostMe.body.wins + guestMe.body.wins;
   const losses = hostMe.body.losses + guestMe.body.losses;
   if (view.winner === "you") {
-    assert.deepEqual(hostMe.body, { username: "host", wins: 1, losses: 0 });
-    assert.deepEqual(guestMe.body, { username: "guest", wins: 0, losses: 1 });
+    assert.deepEqual(hostMe.body, { username: "host", wins: 1, losses: 0, games: { war: { wins: 1, losses: 0 } } });
+    assert.deepEqual(guestMe.body, { username: "guest", wins: 0, losses: 1, games: { war: { wins: 0, losses: 1 } } });
   } else if (view.winner === "opponent") {
-    assert.deepEqual(hostMe.body, { username: "host", wins: 0, losses: 1 });
-    assert.deepEqual(guestMe.body, { username: "guest", wins: 1, losses: 0 });
+    assert.deepEqual(hostMe.body, { username: "host", wins: 0, losses: 1, games: { war: { wins: 0, losses: 1 } } });
+    assert.deepEqual(guestMe.body, { username: "guest", wins: 1, losses: 0, games: { war: { wins: 1, losses: 0 } } });
   } else {
     assert.equal(wins, 0);
     assert.equal(losses, 0);
@@ -591,13 +614,15 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
     assert.equal(typeof game.description, "string");
-    assert.equal(game.players, 2);
+    assert.equal(typeof game.players.min, "number");
+    assert.equal(typeof game.players.max, "number");
   }
+  assert.deepEqual(games.find((g) => g.id === "uno").players, { min: 2, max: 8 });
 });
 
 test("rejects a room for a game that doesn't exist", async () => {
@@ -632,10 +657,175 @@ test("plays a chosen game: Tic-Tac-Toe to a win, recorded on both accounts", asy
   assert.equal(last[1].result, "opponent");
   assert.deepEqual(last[0].line, [0, 1, 2]);
 
-  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0 });
-  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1 });
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { tictactoe: { wins: 0, losses: 1 } } });
   host.close();
   guest.close();
+});
+
+test("restarts a finished game in the same room", async () => {
+  const { host, guest, hostState, guestState } = await startRoom(silentCommentator, {}, "tictactoe");
+  assert.equal(hostState.view.board.filter(Boolean).length, 0);
+  assert.equal(guestState.view.board.filter(Boolean).length, 0);
+
+  for (const [player, cell] of [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]]) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+
+  post(guest, { type: "restart_game" });
+  const restartedHost = (await host.next()).payload.view;
+  const restartedGuest = (await guest.next()).payload.view;
+  assert.deepEqual(restartedHost.board, Array(9).fill(null));
+  assert.deepEqual(restartedGuest.board, Array(9).fill(null));
+  assert.equal(restartedHost.yourTurn, true);
+  assert.equal(restartedGuest.yourTurn, false);
+
+  post(host, { type: "restart_game" });
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "Finish the current game before playing again."
+  });
+  host.close();
+  guest.close();
+});
+
+test("plays a chosen game: Uno to a win, recorded on both accounts", async () => {
+  const identity = (items) => items.slice();
+  const { httpUrl, host, guest, hostAuth, guestAuth } = await startRoom(
+    silentCommentator,
+    { shuffle: identity },
+    "uno"
+  );
+
+  // With an unshuffled deck and 2 players, the host's dealt hand is seven
+  // same-color number cards; always playing index 0 is legal every turn, and
+  // the host (seat 0, 7 cards) empties first after 13 total plays.
+  let seat = 0;
+  let view;
+  for (let i = 0; i < 13; i++) {
+    const actor = seat === 0 ? host : guest;
+    const other = seat === 0 ? guest : host;
+    post(actor, { type: "game_message", payload: { kind: "play", cardIndex: 0 } });
+    const a = (await actor.next()).payload.view;
+    const b = (await other.next()).payload.view;
+    view = seat === 0 ? a : b;
+    seat = 1 - seat;
+  }
+  assert.equal(view.over, true);
+  assert.equal(view.winnerSeat, 0);
+
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { uno: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
+  host.close();
+  guest.close();
+});
+
+test("records wins and losses for every player in a 3-player Uno game", async () => {
+  const identity = (items) => items.slice();
+  const { wsUrl, httpUrl } = await startServer({ engineOptions: { shuffle: identity } });
+  const hostAuth = await register(httpUrl, "host3");
+  const guestAuth = await register(httpUrl, "guest3a");
+  const guest2Auth = await register(httpUrl, "guest3b");
+  const host = await connect(wsUrl, hostAuth.cookie);
+  const guest = await connect(wsUrl, guestAuth.cookie);
+  const guest2 = await connect(wsUrl, guest2Auth.cookie);
+
+  post(host, { type: "create_room", gameId: "uno" });
+  const { roomCode } = await host.next();
+  post(guest, { type: "join_room", roomCode });
+  await guest.next();
+  await host.next();
+  post(guest2, { type: "join_room", roomCode });
+  await guest2.next();
+  await guest.next();
+  await host.next();
+  post(host, { type: "start_game" });
+  await host.next();
+  await guest.next();
+  await guest2.next();
+
+  // With an unshuffled 3-player deal, always playing index 0 cycles through
+  // every seat's plain number cards; the host (seat 0) empties first, 19
+  // plays in.
+  const players = [host, guest, guest2];
+  let view;
+  for (let i = 0; i < 19; i++) {
+    const seat = i % 3;
+    post(players[seat], { type: "game_message", payload: { kind: "play", cardIndex: 0 } });
+    const views = [];
+    for (const p of players) views.push((await p.next()).payload.view);
+    view = views[0];
+  }
+  assert.equal(view.over, true);
+  assert.equal(view.winnerSeat, 0);
+
+  const hostMe = await me(httpUrl, hostAuth.cookie);
+  const guestMe = await me(httpUrl, guestAuth.cookie);
+  const guest2Me = await me(httpUrl, guest2Auth.cookie);
+  assert.deepEqual(hostMe.body, { username: "host3", wins: 1, losses: 0, games: { uno: { wins: 1, losses: 0 } } });
+  assert.deepEqual(guestMe.body, { username: "guest3a", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
+  assert.deepEqual(guest2Me.body, { username: "guest3b", wins: 0, losses: 1, games: { uno: { wins: 0, losses: 1 } } });
+
+  host.close();
+  guest.close();
+  guest2.close();
+});
+
+test("a room does not start until the host sends start_game", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+  post(host, { type: "create_room" });
+  const { roomCode } = await host.next();
+  post(guest, { type: "join_room", roomCode });
+  assert.equal((await guest.next()).type, "room_joined");
+  assert.equal((await host.next()).type, "players_update");
+
+  post(guest, { type: "game_message", payload: { kind: "flip" } });
+  assert.deepEqual(await guest.next(), {
+    type: "error",
+    message: "Wait for another player to join before playing."
+  });
+
+  host.close();
+  guest.close();
+});
+
+test("rejects start_game from anyone but the host", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  const guest = await connect(wsUrl, (await register(httpUrl, "guest")).cookie);
+  post(host, { type: "create_room" });
+  const { roomCode } = await host.next();
+  post(guest, { type: "join_room", roomCode });
+  await guest.next();
+  await host.next();
+
+  post(guest, { type: "start_game" });
+  assert.deepEqual(await guest.next(), {
+    type: "error",
+    message: "Only the host can start the game."
+  });
+
+  host.close();
+  guest.close();
+});
+
+test("rejects start_game below the game's minimum player count", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const host = await connect(wsUrl, (await register(httpUrl, "host")).cookie);
+  post(host, { type: "create_room" });
+  await host.next();
+
+  post(host, { type: "start_game" });
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "This game needs at least 2 players."
+  });
+
+  host.close();
 });
 
 test("tells the guest which game the room is for", async () => {

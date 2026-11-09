@@ -38,7 +38,9 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 | type | payload | meaning |
 | --- | --- | --- |
 | `create_room` | `{ gameId? }` | player creates a room for a game (default `"war"`) and receives a 6-character room code |
-| `join_room` | `{ roomCode }` | player joins an existing room (max 2 players; the invite link `?room=CODE` joins automatically). The same account reconnects into a reserved seat. A second connection is rejected while the first socket is still open |
+| `join_room` | `{ roomCode }` | player joins an existing room, up to the game's `max` player count (the invite link `?room=CODE` joins automatically) |
+| `start_game` | `{}` | host-only; starts the room's game once at least `min` players have joined |
+| `restart_game` | `{}` | starts a fresh game in the same room after the previous game has finished |
 | `leave_room` | `{ roomCode? }` | player leaves their room immediately. `roomCode` lets a dropped player leave the reserved seat without rejoining |
 | `game_message` | `{ payload }` | carries a game action: `{ kind: "flip" }` in War, `{ kind: "move", cell }` in Tic-Tac-Toe |
 
@@ -46,8 +48,10 @@ Server holds all state in memory, keyed by room code. No database for this sprin
 
 | type | payload | meaning |
 | --- | --- | --- |
-| `room_created` / `room_joined` | `{ roomCode, gameId }` | confirms the player is in a room, and which game it is for |
-| `opponent_joined` / `opponent_reconnecting` / `opponent_reconnected` / `opponent_disconnected` / `room_left` | `{}` | room membership. A dropped socket keeps its seat for 60 seconds and the other player is told they are reconnecting; moves wait. The same account gets the current view back. If they do not return, or they press Leave, the game is discarded as before |
+| `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | confirms the player is in a room, which game it is for, the current roster (join order), and who the host is |
+| `players_update` | `{ players }` | roster changed while waiting for the host to start |
+| `player_reconnecting` / `player_reconnected` | `{ username }` | a dropped player still has their seat. Moves wait until they return or the 60-second grace period ends |
+| `player_left` / `room_left` / `room_closed` | `{ username }` / `{}` / `{ reason }` | someone left on purpose, or did not reconnect in time; any running game is discarded, and the room stays open for a replacement to join. An idle room is closed with `reason: "idle"` and connected clients return to the lobby |
 | `game_message` | `{ payload: { kind: "state", view } }` | authoritative state after every change; `view` is `{ yourCard, opponentCard, pile, yourCount, opponentCount, phase, inWar, warCards, lastRound, winner? }` and `phase` is `waiting \| flipped \| war \| roundOver \| gameOver` |
 | `game_message` | `{ payload: { kind: "commentary", text, round } }` | AI-generated line about the round that just resolved |
 | `error` | `{ message }` | room full, invalid move, etc. |

@@ -3,20 +3,23 @@
 export type ClientMessage =
   | { type: "create_room"; gameId: string }
   | { type: "join_room"; roomCode: string }
+  | { type: "start_game" }
+  | { type: "restart_game" }
   | { type: "game_message"; payload: GameAction }
   | { type: "leave_room"; roomCode?: string };
 
 export type ServerEvent =
   | { type: "connected" } // local: socket opened
   | { type: "disconnected" } // local: socket closed
-  | { type: "room_created"; roomCode: string; username?: string; gameId: string }
-  | { type: "room_joined"; roomCode: string; username?: string; opponentUsername?: string; gameId: string }
-  | { type: "opponent_joined"; username?: string }
-  | { type: "opponent_reconnecting" }
-  | { type: "opponent_reconnected" }
-  | { type: "opponent_disconnected" }
+  | { type: "room_created"; roomCode: string; gameId: string; host: string; players: string[]; min: number; max: number }
+  | { type: "room_joined"; roomCode: string; gameId: string; host: string; players: string[]; min: number; max: number }
+  | { type: "players_update"; players: string[] } // roster changed while the room waits for the host to start
+  | { type: "player_reconnecting"; username: string }
+  | { type: "player_reconnected"; username: string }
+  | { type: "player_left"; username: string } // someone left, or a reconnect grace period ran out; any running game was discarded
   | { type: "room_left" }
-  | { type: "game_message"; payload: unknown } // from the server (or relayed from the opponent), unchecked
+  | { type: "room_closed"; reason: "idle" }
+  | { type: "game_message"; payload: unknown } // from the server (or relayed from another player), unchecked
   | { type: "error"; message: string };
 
 // A game listed by GET /api/games.
@@ -24,7 +27,7 @@ export type GameSummary = {
   id: string;
   name: string;
   description: string;
-  players: number;
+  players: { min: number; max: number };
 };
 
 // A player's action inside game_message, e.g. { kind: "flip" } in War.
