@@ -43,6 +43,9 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
   private winner: number | null = null;
   private over = false;
   private round = 0;
+  private calledUno: boolean[];
+  private catchable: number | null = null;
+  private pendingDraw = 0;
 
   constructor(players: number, options: UnoEngineOptions = {}) {
     if (!Number.isInteger(players) || players < 2) {
@@ -53,6 +56,7 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
 
     const deck = this.shuffle(createDeck());
     this.hands = Array.from({ length: players }, () => [] as Card[]);
+    this.calledUno = Array.from({ length: players }, () => false);
     let i = 0;
     for (let round = 0; round < 7; round++) {
       for (let seat = 0; seat < players; seat++) this.hands[seat].push(deck[i++]);
@@ -71,6 +75,9 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
   apply(seat: number, action: UnoAction): UnoResult {
     if (seat < 0 || seat >= this.players) return { ok: false, error: "Invalid seat" };
     if (this.over) return { ok: false, error: "The game is over." };
+    // Calling and catching UNO can happen out of turn.
+    if (action.kind === "uno") return this.callUno(seat);
+    if (action.kind === "catch") return this.catchPlayer(seat);
     if (seat !== this.currentSeat) return { ok: false, error: "It's not your turn." };
 
     if (action.kind === "draw") return this.draw(seat);
@@ -89,6 +96,9 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
       yourTurn: !this.over && this.currentSeat === seat,
       drawPileCount: this.drawPile.length,
       discardPileCount: this.discardPile.length,
+      calledUno: this.calledUno.slice(),
+      catchable: this.catchable,
+      pendingDraw: this.pendingDraw,
       round: this.round,
       winner: this.winner,
       over: this.over,
@@ -96,9 +106,20 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
   }
 
   private draw(seat: number): UnoResult {
+    if (this.pendingDraw > 0) {
+      // Taking a stacked penalty: draw it all and lose the turn.
+      this.drawCardsInto(seat, this.pendingDraw);
+      this.pendingDraw = 0;
+      this.catchable = null;
+      this.advanceTurn(1);
+      this.round++;
+      return { ok: true };
+    }
     const card = this.takeFromDrawPile();
     if (!card) return { ok: false, error: "No cards left to draw." };
     this.hands[seat].push(card);
+    this.calledUno[seat] = false;
+    this.catchable = null;
     this.advanceTurn(1);
     this.round++;
     return { ok: true };
@@ -110,11 +131,20 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
       return { ok: false, error: "Pick a card from your hand." };
     }
     const card = hand[cardIndex];
+    if (this.pendingDraw > 0 && !this.canStack(card)) {
+      return {
+        ok: false,
+        error: this.discardTop().rank === "wildDrawFour"
+          ? `Stack a Wild Draw Four or draw ${this.pendingDraw} cards.`
+          : `Stack a Draw Two or Wild Draw Four, or draw ${this.pendingDraw} cards.`,
+      };
+    }
     if (!this.canPlay(card)) return { ok: false, error: "That card doesn't match the discard pile." };
     if (isWild(card) && !chosenColor) return { ok: false, error: "Choose a color for that card." };
 
     hand.splice(cardIndex, 1);
     this.discardPile.push(card);
+    this.catchable = hand.length === 1 && !this.calledUno[seat] ? seat : null;
     this.activeColor = isWild(card) ? chosenColor! : card.color!;
     this.round++;
 
@@ -125,6 +155,27 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
     }
 
     this.applyEffect(card.rank);
+    return { ok: true };
+  }
+
+  private callUno(seat: number): UnoResult {
+    const count = this.hands[seat].length;
+    if (count > 2 || (count === 2 && seat !== this.currentSeat)) {
+      return { ok: false, error: "You can call UNO when you're about to play your second-to-last card." };
+    }
+    if (this.calledUno[seat]) return { ok: false, error: "You already called UNO." };
+    this.calledUno[seat] = true;
+    if (this.catchable === seat) this.catchable = null;
+    this.round++;
+    return { ok: true };
+  }
+
+  private catchPlayer(seat: number): UnoResult {
+    const target = this.catchable;
+    if (target === null || target === seat) return { ok: false, error: "Nobody to catch right now." };
+    this.drawCardsInto(target, 2);
+    this.catchable = null;
+    this.round++;
     return { ok: true };
   }
 
@@ -139,21 +190,25 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
         // official Uno plays this as a Skip, so the same player goes again.
         this.advanceTurn(this.players === 2 ? 2 : 1);
         break;
-      case "drawTwo": {
-        const victim = this.seatAfter(1);
-        this.drawCardsInto(victim, 2);
-        this.advanceTurn(2);
+      // The next player draws on their own turn, unless they stack.
+      case "drawTwo":
+        this.pendingDraw += 2;
+        this.advanceTurn(1);
         break;
-      }
-      case "wildDrawFour": {
-        const victim = this.seatAfter(1);
-        this.drawCardsInto(victim, 4);
-        this.advanceTurn(2);
+      case "wildDrawFour":
+        this.pendingDraw += 4;
+        this.advanceTurn(1);
         break;
-      }
       default:
         this.advanceTurn(1);
     }
+  }
+
+  // While a penalty waits: a Draw Two only goes on a Draw Two, and a Wild Draw
+  // Four goes on either.
+  private canStack(card: Card): boolean {
+    if (card.rank === "wildDrawFour") return true;
+    return card.rank === "drawTwo" && this.discardTop().rank === "drawTwo";
   }
 
   private canPlay(card: Card): boolean {
@@ -184,6 +239,7 @@ export class UnoEngine implements GameEngine<UnoState, UnoAction, UnoResult> {
       const card = this.takeFromDrawPile();
       if (!card) return;
       this.hands[seat].push(card);
+      this.calledUno[seat] = false;
     }
   }
 

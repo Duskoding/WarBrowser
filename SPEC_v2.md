@@ -34,7 +34,7 @@ Each game has a server module and a browser module with the same string id. The 
 - **`GameModule`** (`src/games/GameModule.ts`) is the server plugin contract. It declares `id`, `name`, `description`, a `{ min, max }` player range, and optional `rules`. It creates an engine with `createEngine`, handles game payloads with `handleAction`, and maps engine state to a per-seat client view with `toView`. A module may request commentary by supplying a prompt to the shared commentator.
 - **`GuiModule`** (`gui/src/games/GuiModule.ts`) is the browser plugin contract. `mount(root, context)` creates the game screen inside its shadow root and returns a screen with `applyState(view)` and `render()`, plus optional `commentary()` and `destroy()`. `isFinished(view)` tells the shared shell when to refresh match statistics. Game styles stay in the module's own CSS.
 
-Both registries must list a new game: `src/games/index.ts` and `gui/src/games/index.ts`. `GET /api/games` is generated from the server registry and drives the lobby.
+Both registries must list a new game: `src/games/index.ts` and `gui/src/games/index.ts`. `GET /api/games` is generated from the server registry and drives the lobby. Each game's `rules` (short steps) appear under its lobby tile behind a **How to play** link; every registered game sets them, and the games-list server test checks that.
 
 ## Room lifecycle
 
@@ -43,7 +43,7 @@ Both registries must list a new game: `src/games/index.ts` and `gui/src/games/in
 3. The host sends `start_game` once at least `players.min` seats are occupied. The server creates the module's engine and broadcasts the initial state.
 4. Clients send game actions inside `game_message`. The server validates the action, applies it, and broadcasts a fresh per-seat view.
 5. After a finished match, either seated player may send `restart_game` to create a fresh engine in the same room.
-6. Leaving or disconnecting discards a running game and keeps the room available for a replacement. Rooms with no client message close after the configured idle timeout, subject to reconnect grace.
+6. A dropped connection keeps that seat for 60 seconds and pauses moves. Leave, or the end of that grace period, discards a running game and keeps the room available for a replacement. Rooms with no client message close after the configured idle timeout, and an active reconnect grace period takes precedence.
 
 ## HTTP and WebSocket protocol
 
@@ -63,8 +63,9 @@ WebSocket messages are JSON at `/ws`. Creating or joining a room requires a vali
 | `create_room` | `{ gameId? }` | Create a room for the selected game; omitted `gameId` defaults to `"war"`. |
 | `join_room` | `{ roomCode }` | Join an existing room up to its module's maximum player count. |
 | `start_game` | `{}` | Host-only; start once the module's minimum player count has joined. |
-| `restart_game` | `{}` | Start a fresh match after the current match finishes. |
-| `leave_room` | `{}` | Leave the current room. |
+| `restart_game` | `{}` | Start a fresh match immediately after the current match finishes. |
+| `rematch` | `{}` | Ask to play again. A new match starts only after every seated player has asked, and only once the current match has finished. |
+| `leave_room` | `{ roomCode? }` | Leave the current room immediately. `roomCode` lets a dropped player leave the reserved seat without rejoining. |
 | `game_message` | `{ payload }` | Carry a game-specific action, such as `{ kind: "flip" }` in War or `{ kind: "move", cell: 0–8 }` in Tic-Tac-Toe. |
 
 ### Server → client
@@ -73,7 +74,9 @@ WebSocket messages are JSON at `/ws`. Creating or joining a room requires a vali
 | --- | --- | --- |
 | `room_created` / `room_joined` | `{ roomCode, gameId, host, players, min, max }` | Confirm room membership, selected game, host, roster, and player range. |
 | `players_update` | `{ players }` | Update the waiting-room roster before the match starts. |
-| `player_left` | `{ username }` | A player left or disconnected; a running game is discarded. |
+| `player_reconnecting` / `player_reconnected` | `{ username }` | A dropped player still has their seat. Moves wait until they return or the 60-second grace period ends. |
+| `player_left` | `{ username }` | A player left on purpose, or did not reconnect in time. A running game is discarded. |
+| `rematch_requested` | `{ username }` | A seated player asked to play again, and the room is still waiting on the others. |
 | `room_left` | `{}` | The current client left its room. |
 | `room_closed` | `{ reason: "idle" }` | The room expired after inactivity. |
 | `game_message` | `{ payload: { kind: "state", view } }` | Authoritative state mapped for the receiving seat. |
@@ -93,7 +96,7 @@ Views are game-specific and may include private information for the receiving se
 ## Adding a game
 
 1. Add `src/games/<id>/` with a `GameEngine` implementation and a `GameModule` export.
-2. Register the server module in `src/games/index.ts`; its metadata and optional rules then appear in `GET /api/games`.
+2. Register the server module in `src/games/index.ts`; its metadata and `rules` then appear in `GET /api/games` and the lobby's How to play link. Give it `rules`: the games-list test fails for a game without them.
 3. Add `gui/src/games/<id>/<id>.ts` exporting a `GuiModule`, with styles beside it. Render only inside the supplied shadow root and use `setBackground` for page background changes.
 4. Register the screen in `gui/src/games/index.ts`.
 5. Add engine tests next to the game and run `npm test`.
