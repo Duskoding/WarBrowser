@@ -122,6 +122,12 @@ A game is two pieces with the same id: the rules on the server and the screen in
 
    Each game is drawn inside its own shadow root, so its HTML ids and CSS (even broad rules like `button { … }`) only apply inside that game, and the lobby's CSS doesn't change it. Shared defaults come from `gui/src/games/base.css`. To change the page background, call `setBackground(...)`; the lobby resets it when the game closes. Don't style `body` or other elements outside `root`.
 4. **List the screen** in `clientGames` in `gui/src/games/index.ts`.
+   **Accessibility** (#82), so the game works with a keyboard and a screen reader:
+   - Make every control a `<button>` (or other real form control), never a clickable `<div>` or `<span>`.
+   - Give the status line `role="status"` so "Your turn" and "You win" are announced.
+   - When a button's `aria-label` replaces what's drawn on it, put the state in the label too (for example, "Square 5: O" or "Column 4: yours, theirs, 4 empty").
+   - Don't show ownership by color alone: add a shape or pattern, as Connect Four's discs and Dots and Boxes' boxes do.
+   - Keyboard focus between moves is handled by the shell (`gui/src/gameFocus.ts`). It keeps focus in the game when your buttons are disabled or rebuilt, so don't move focus yourself.
 5. **Test:** add rules tests next to the game (like `src/games/tictactoe/tictactoe.test.ts`) and run `npm test`.
 
 Win/loss records are shared across all games for now.

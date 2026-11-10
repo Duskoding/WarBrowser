@@ -33,3 +33,6 @@
 .disc { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%; vertical-align: -0.1em; }
 .disc.you { background: var(--you); }
 .disc.opponent { background: var(--opponent); }
+/* Not color alone (#82): the opponent's discs also have a dark center. */
+.c4-cell.opponent,
+.disc.opponent { background-image: radial-gradient(circle, rgb(0 0 0 / 0.45) 0 26%, transparent 28%); }

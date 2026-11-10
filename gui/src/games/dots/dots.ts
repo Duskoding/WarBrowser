@@ -31,7 +31,7 @@ export const dots: GuiModule = {
       <div class="game dots">
         <p class="players" data-id="players"></p>
         <div class="score"><span class="you-score">You <strong data-id="you"></strong></span><span class="them-score">Them <strong data-id="them"></strong></span></div>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <div class="dots-board" data-id="board"></div>
         <aside class="commentary" data-id="commentary">Commentary appears when a box is closed.</aside>
       </div>
@@ -103,10 +103,14 @@ export const dots: GuiModule = {
         const last = v.lastLine;
         button.classList.toggle("last", !!last && last.dir === dir && last.row === row && last.col === col);
         button.disabled = !v.yourTurn || owner !== null;
+        const where = `${dir === "h" ? "Horizontal" : "Vertical"} line, row ${row + 1}, column ${col + 1}`;
+        button.setAttribute("aria-label", owner ? `${where}, drawn by ${owner === "you" ? "you" : "your opponent"}` : where);
       }
       boxCells.forEach((box, i) => {
         const owner = v.boxes[i];
         box.className = "box" + (owner ? ` ${owner}` : "");
+        box.setAttribute("role", "img");
+        box.setAttribute("aria-label", `Box ${i + 1}: ${owner === "you" ? "yours" : owner ? "theirs" : "open"}`);
       });
     }
 

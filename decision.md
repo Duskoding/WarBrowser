@@ -350,3 +350,22 @@
 - **Decision:** Merging Play again (`rematch`, which waits for every seated player) keeps the 60-second reconnect grace period. Play again is rejected with "A player is reconnecting." while a seat is reserved, and the button can be pressed again after that error. `leave_room` can still include `roomCode`.
 - **Made by:** agent
 - **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
+
+## 2026-11-10 — Keyboard and screen-reader pass on all game screens (#82)
+
+- **Decision:**
+  - **Focus between moves is handled once, in the shell.** Every game lost keyboard focus to the page after a move, because the game disables or rebuilds its buttons while the move is on its way. `gui/src/gameFocus.ts`, called from `mountGame` and after each render in `gui/src/main.ts`, remembers the last control used in the game and puts focus back on it, or on the nearest usable control. While nothing is usable (the other player's turn), focus waits on the `#game-root` container, so the next Tab still lands in the game. It never moves focus that the player put somewhere else on the page. The container is used rather than the shadow host because a host with `tabindex="-1"` removes its whole shadow tree from the Tab order.
+  - **Per game:**
+    - Every status line gets `role="status"`, replacing Uno's `aria-live`.
+    - War's table is a `<div>` instead of a second `<main>`.
+    - Tic-Tac-Toe and Connect Four boards use `role="group"` instead of an incomplete `role="grid"`.
+    - Labels now carry board state:
+      - Tic-Tac-Toe: each square's mark.
+      - Connect Four: each column's discs, bottom up.
+      - Dots and Boxes: whether a line is drawn and by whom, and each box's owner.
+      - Battleship: the result of each shot.
+    - Ownership no longer relies on color alone: the opponent's Connect Four discs have a dark center, and their Dots and Boxes boxes (and the score legend) are striped.
+  - **Accessibility checklist:** added to "Adding a game" in the README.
+- **Made by:** user (Ariella, assigned #82) asked for the pass; findings and fixes by agent
+- **Reason:** axe-core reported critical ARIA errors in two boards and landmark errors in War, only one game announced status changes, and all twelve games dropped keyboard focus after every move. One shell fix covers every current and future game for focus; the rest are small per-game changes in each game's own files.
+- **Not done:** keyboard placement of Battleship ships (drag and rotate need a pointer; Shuffle and Ready work by keyboard), and a manual pass with a real screen reader.

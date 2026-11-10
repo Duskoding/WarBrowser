@@ -136,7 +136,7 @@ export const poker: GuiModule = {
         <strong data-id="you-name">You</strong>
         <span class="stack" data-id="you-stack"></span>
       </section>
-      <p class="status" data-id="status"></p>
+      <p class="status" data-id="status" role="status"></p>
       <p class="last-action" data-id="last"></p>
       <div class="controls" data-id="controls">
         <button type="button" data-id="fold">Fold</button>

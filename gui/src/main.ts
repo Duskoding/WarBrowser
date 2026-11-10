@@ -1,3 +1,4 @@
+import { keepGameFocus } from "./gameFocus";
 import { connect, createRoom, disconnect, isConnected, joinRoom, leaveRoom, onEvent, rematch, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
@@ -363,6 +364,9 @@ function guarded(action: () => void) {
   }
 }
 
+// Puts keyboard focus back into the game after a move (see gameFocus.ts).
+let restoreGameFocus: (() => void) | null = null;
+
 function mountGame() {
   const client = roomGameId ? clientGames[roomGameId] : undefined;
   if (!client || screen) return;
@@ -373,6 +377,7 @@ function mountGame() {
   // Adopted stylesheets survive the game replacing root.innerHTML.
   root.adoptedStyleSheets = [baseSheet, gameSheet(client.id, client.styles)];
   $("game-root").replaceChildren(host);
+  restoreGameFocus = keepGameFocus($("game-root"), root);
   guarded(() => {
     screen = client.mount(root, { send: sendGame, setBackground });
   });
@@ -381,6 +386,7 @@ function mountGame() {
 function unmountGame() {
   const current = screen;
   screen = null;
+  restoreGameFocus = null;
   if (current?.destroy) guarded(() => current.destroy!());
   $("game-root").replaceChildren();
   setBackground(null);
@@ -408,6 +414,7 @@ function handleGamePayload(payload: unknown) {
       screen?.applyState(p.view);
       screen?.render();
     });
+    restoreGameFocus?.();
     gameOver = finished;
     if (!finished) {
       hideSplash();

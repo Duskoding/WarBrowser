@@ -30,7 +30,7 @@ export const rps: GuiModule = {
     root.innerHTML = `
       <div class="rps">
         <p class="rps-players" data-id="players"></p>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <div class="rps-score" data-id="score"></div>
         <div class="rps-choices" role="group" aria-label="Choose your move">
           ${(["rock", "paper", "scissors"] as Choice[])

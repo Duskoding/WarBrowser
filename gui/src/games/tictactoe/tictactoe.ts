@@ -21,8 +21,8 @@ export const ticTacToe: GuiModule = {
     root.innerHTML = `
       <div class="ttt">
         <p class="ttt-players" data-id="players"></p>
-        <p class="status" data-id="status"></p>
-        <div class="ttt-board" role="grid" aria-label="Board">
+        <p class="status" data-id="status" role="status"></p>
+        <div class="ttt-board" role="group" aria-label="Board">
           ${Array.from({ length: 9 }, (_, i) => `<button class="ttt-cell" data-cell="${i}" aria-label="Square ${i + 1}"></button>`).join("")}
         </div>
         <aside class="commentary" data-id="commentary">Commentary will appear here.</aside>
@@ -55,6 +55,7 @@ export const ticTacToe: GuiModule = {
       cells.forEach((cell, i) => {
         const mark = v.board[i];
         cell.textContent = mark ?? "";
+        cell.setAttribute("aria-label", `Square ${i + 1}: ${mark ? `${mark}${mark === v.yourMark ? " (you)" : ""}` : "empty"}`);
         cell.classList.toggle("mine", mark === v.yourMark);
         cell.classList.toggle("winning", v.line?.includes(i) ?? false);
         cell.disabled = !v.yourTurn || mark !== null;

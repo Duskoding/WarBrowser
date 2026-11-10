@@ -24,7 +24,7 @@ export const nim: GuiModule = {
     root.innerHTML = `
       <div class="game nim">
         <p class="players" data-id="players"></p>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <p class="note" data-id="hint">Tap a stone to take it and every stone above it, from one pile.</p>
         <div class="nim-piles" data-id="piles"></div>
         <aside class="commentary" data-id="commentary">Commentary appears when someone takes the last stone.</aside>

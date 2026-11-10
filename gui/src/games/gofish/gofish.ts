@@ -47,7 +47,7 @@ export const gofish: GuiModule = {
           <div class="gf-pond"><p class="label">Pond</p><div data-id="pond"></div></div>
           <div><p class="label">Your books</p><div class="row" data-id="your-books"></div></div>
         </div>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <p class="note" data-id="last"></p>
         <p class="label">Ask for a rank you hold</p>
         <div class="row" data-id="asks"></div>

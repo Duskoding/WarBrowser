@@ -37,7 +37,7 @@ export const crazy8: GuiModule = {
           <div class="c8-discard" data-id="top"></div>
           <p class="c8-suit" data-id="suit"></p>
         </div>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <p class="note" data-id="last"></p>
         <div class="row">
           <button class="small-btn ghost-btn" data-id="pass">Pass</button>

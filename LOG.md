@@ -134,3 +134,20 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** none (follow-up to #36)
 - **Changed:** `src/games/uno/` engine, types, prompt and module: `uno` and `catch` actions, stacked draw penalties, and view fields `calledUno`, `catchable`, `pendingDraw`; the two Draw Two / Draw Four engine tests now take the penalty on the victim's turn, plus 12 new rule tests. `gui/src/games/uno/`: UNO! and Catch buttons, the +N badge, status text, move-log lines, and stacking-aware card highlighting. Uno's How to play steps, README and decision.md.
 - **Remaining:** none known. Anyone changing the Uno engine should keep the client's `canPlay` in `gui/src/games/uno/uno.ts` in step with the engine's `canPlay`/`canStack`.
+
+## 2026-11-10 — Keyboard and screen-reader pass (#82)
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** #82
+- **Changed:**
+  - New `gui/src/gameFocus.ts`, wired into `gui/src/main.ts`, plus one CSS rule in `gui/src/style.css`.
+  - `role="status"` on the status line in all 12 game screens.
+  - War's table is a `<div>`; Tic-Tac-Toe and Connect Four boards use `role="group"`.
+  - Board-state `aria-label`s in Tic-Tac-Toe, Connect Four, Dots and Boxes and Battleship.
+  - Non-color cues in `connect4.css` and `dots.css`.
+  - Accessibility checklist in README and SPEC_v2.
+  - Checked with axe-core on all 12 game screens (0 violations left), a keyboard-only Enter test in every game (focus now stays in the game), a keyboard-only Tic-Tac-Toe game, and labels read back after real moves.
+- **Remaining:**
+  - Keyboard placement for Battleship ships.
+  - A test with a real screen reader (NVDA or VoiceOver); everything so far was checked through the accessibility tree.
+  - War's table sits left of center on wide screens. That was already the case on `main` before this change and is unrelated to accessibility.

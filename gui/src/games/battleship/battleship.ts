@@ -33,7 +33,7 @@ export const battleship: GuiModule = {
     root.innerHTML = `
       <div class="game bs">
         <p class="players" data-id="players"></p>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <div class="row" data-id="setup">
           <button class="small-btn ghost-btn" data-id="shuffle">Shuffle my fleet</button>
           <button class="small-btn ghost-btn" data-id="rotate">Rotate</button>
@@ -195,6 +195,8 @@ export const battleship: GuiModule = {
         const shot = v.outgoing[cell];
         button.className = "bs-cell" + (shot ? ` ${shot}` : "") + (sunkEnemy.has(cell) ? " sunk" : "");
         button.disabled = !v.yourTurn || !!shot;
+        const where = `Row ${Math.floor(cell / v.size) + 1}, column ${(cell % v.size) + 1}`;
+        button.setAttribute("aria-label", shot ? `${where}: ${sunkEnemy.has(cell) ? "sunk" : shot}` : where);
       });
       paintMine(v);
     }
