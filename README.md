@@ -173,3 +173,5 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 2. On the first computer, register or log in, choose a game to create a room, and copy the displayed six-character room code or the invite link.
 3. On the second computer, register or log in with a different account, then enter the code (or open the link) and join the room.
 4. Choose a game and play it through its normal actions. Confirm that both browsers receive the same authoritative result while each player's private information remains hidden from the other player. If a key is set and the game supplies commentary, confirm that a line appears after a supported event.
+
+Every pull request must pass the Tests check before it is merged.
