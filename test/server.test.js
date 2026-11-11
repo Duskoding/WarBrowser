@@ -84,8 +84,14 @@ async function connect(url, cookie) {
 
 const post = (socket, message) => socket.send(JSON.stringify(message));
 
-async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId, commentaryLimits = {}) {
-  const { wsUrl, httpUrl } = await startServer({ commentator, engineOptions, commentaryLimits });
+async function startRoom(commentator = silentCommentator, engineOptions = {}, gameId, extra = {}) {
+  const { reconnectGraceMs, ...commentaryLimits } = extra;
+  const { wsUrl, httpUrl } = await startServer({
+    commentator,
+    engineOptions,
+    commentaryLimits,
+    reconnectGraceMs
+  });
   const hostAuth = await register(httpUrl, "host");
   const guestAuth = await register(httpUrl, "guest");
   const host = await connect(wsUrl, hostAuth.cookie);
@@ -400,13 +406,19 @@ test("still relays other game messages to the opponent", async () => {
   guest.close();
 });
 
-test("a new game is dealt when a player rejoins", async () => {
-  const { wsUrl, httpUrl, host, guest, roomCode } = await startRoom();
+test("a new game is dealt when a player rejoins after the grace period", async () => {
+  const { wsUrl, httpUrl, host, guest, roomCode } = await startRoom(
+    silentCommentator,
+    {},
+    undefined,
+    { reconnectGraceMs: 40 }
+  );
   post(host, { type: "game_message", payload: { kind: "flip" } });
   await host.next();
   await guest.next();
 
   guest.close();
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
   assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
 
   const newGuestAuth = await register(httpUrl, "guest2");
@@ -422,6 +434,91 @@ test("a new game is dealt when a player rejoins", async () => {
 
   host.close();
   newGuest.close();
+});
+
+test("keeps the game when a player drops and reconnects", async () => {
+  const { wsUrl, httpUrl, host, guest, roomCode, guestAuth } = await startRoom();
+  post(host, { type: "game_message", payload: { kind: "flip" } });
+  await host.next();
+  const before = (await guest.next()).payload.view;
+
+  guest.close();
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
+  post(host, { type: "game_message", payload: { kind: "flip" } });
+  assert.deepEqual(await host.next(), { type: "error", message: "A player is reconnecting." });
+
+  const stranger = await connect(wsUrl, (await register(httpUrl, "stranger")).cookie);
+  post(stranger, { type: "join_room", roomCode });
+  assert.deepEqual(await stranger.next(), { type: "error", message: "That room is full." });
+
+  const returning = await connect(wsUrl, guestAuth.cookie);
+  post(returning, { type: "join_room", roomCode });
+  assert.equal((await returning.next()).type, "room_joined");
+  const after = (await returning.next()).payload.view;
+  assert.equal(after.phase, before.phase);
+  assert.equal(after.yourCount, before.yourCount);
+  assert.deepEqual(after.yourCard, before.yourCard);
+  assert.deepEqual(after.opponentCard, before.opponentCard);
+  assert.deepEqual(await host.next(), { type: "player_reconnected", username: "guest" });
+  assert.equal((await host.next()).type, "game_message");
+
+  post(returning, { type: "game_message", payload: { kind: "flip" } });
+  assert.equal((await returning.next()).type, "game_message");
+
+  host.close();
+  returning.close();
+  stranger.close();
+});
+
+test("leaving on purpose ends the game immediately", async () => {
+  const { host, guest } = await startRoom();
+  post(guest, { type: "leave_room" });
+  assert.deepEqual(await guest.next(), { type: "room_left" });
+  assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
+  host.close();
+});
+
+test("a dropped player can leave without rejoining the game", async () => {
+  const { wsUrl, host, guest, roomCode, guestAuth } = await startRoom();
+  guest.close();
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
+
+  const returning = await connect(wsUrl, guestAuth.cookie);
+  post(returning, { type: "leave_room", roomCode });
+  assert.deepEqual(await returning.next(), { type: "room_left" });
+  assert.deepEqual(await host.next(), { type: "player_left", username: "guest" });
+
+  host.close();
+  returning.close();
+});
+
+test("a dropped host keeps the room until they return, and the game waits", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const hostAuth = await register(httpUrl, "host");
+  const guestAuth = await register(httpUrl, "guest");
+  const host = await connect(wsUrl, hostAuth.cookie);
+  post(host, { type: "create_room" });
+  const { roomCode } = await host.next();
+  host.close();
+
+  const guest = await connect(wsUrl, guestAuth.cookie);
+  post(guest, { type: "join_room", roomCode });
+  const joined = await guest.next();
+  assert.equal(joined.type, "room_joined");
+  assert.equal(joined.host, "host");
+  assert.deepEqual(joined.players, ["host", "guest"]);
+  assert.deepEqual(await guest.next(), { type: "player_reconnecting", username: "host" });
+
+  const returning = await connect(wsUrl, hostAuth.cookie);
+  post(returning, { type: "join_room", roomCode });
+  assert.equal((await returning.next()).type, "room_joined");
+  assert.deepEqual(await guest.next(), { type: "player_reconnected", username: "host" });
+  post(returning, { type: "start_game" });
+  assert.equal((await returning.next()).payload.kind, "state");
+  assert.equal((await guest.next()).payload.kind, "state");
+
+  returning.close();
+  guest.close();
 });
 
 test("serves the browser client and rejects unknown paths", async () => {
@@ -529,15 +626,19 @@ test("lists the available games", async () => {
   const { games } = await response.json();
   assert.deepEqual(
     games.map((game) => game.id),
-    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim"]
+    ["war", "tictactoe", "uno", "crazy8", "gofish", "rps", "goofspiel", "connect4", "dots", "battleship", "nim", "poker"]
   );
   for (const game of games) {
     assert.equal(typeof game.name, "string");
     assert.equal(typeof game.description, "string");
     assert.equal(typeof game.players.min, "number");
     assert.equal(typeof game.players.max, "number");
+    // Every game listed today has "How to play" rules for the lobby (#67).
+    assert.ok(Array.isArray(game.rules) && game.rules.length > 0, `${game.id} has rules`);
+    for (const rule of game.rules) assert.equal(typeof rule, "string");
   }
   assert.deepEqual(games.find((g) => g.id === "uno").players, { min: 2, max: 8 });
+  assert.ok(games.find((g) => g.id === "poker").rules.length >= 1);
 });
 
 test("rejects a room for a game that doesn't exist", async () => {
@@ -604,6 +705,77 @@ test("restarts a finished game in the same room", async () => {
   });
   host.close();
   guest.close();
+});
+
+test("ignores rematch while Tic-Tac-Toe is still in progress", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "tictactoe");
+  post(host, { type: "rematch" });
+  post(host, { type: "game_message", payload: { kind: "move", cell: 0 } });
+  const hostView = (await host.next()).payload.view;
+  const guestView = (await guest.next()).payload.view;
+  assert.equal(hostView.board[0], "X");
+  assert.equal(guestView.board[0], "X");
+  host.close();
+  guest.close();
+});
+
+test("rematch deals a new Tic-Tac-Toe board once both players ask, and records the next game", async () => {
+  const { httpUrl, host, guest, hostAuth, guestAuth } = await startRoom(
+    silentCommentator,
+    {},
+    "tictactoe"
+  );
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+
+  post(host, { type: "rematch" });
+  post(host, { type: "rematch" });
+  assert.deepEqual(await guest.next(), { type: "rematch_requested", username: "host" });
+
+  post(guest, { type: "rematch" });
+  const hostAgain = (await host.next()).payload.view;
+  const guestAgain = (await guest.next()).payload.view;
+  const empty = [null, null, null, null, null, null, null, null, null];
+  assert.deepEqual(hostAgain.board, empty);
+  assert.equal(hostAgain.result, undefined);
+  assert.equal(hostAgain.yourMark, "X");
+  assert.equal(hostAgain.yourTurn, true);
+  assert.deepEqual(guestAgain.board, empty);
+  assert.equal(guestAgain.result, undefined);
+  assert.equal(guestAgain.yourMark, "O");
+  assert.equal(guestAgain.yourTurn, false);
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 1, losses: 0, games: { tictactoe: { wins: 1, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 1, games: { tictactoe: { wins: 0, losses: 1 } } });
+
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  assert.deepEqual((await me(httpUrl, hostAuth.cookie)).body, { username: "host", wins: 2, losses: 0, games: { tictactoe: { wins: 2, losses: 0 } } });
+  assert.deepEqual((await me(httpUrl, guestAuth.cookie)).body, { username: "guest", wins: 0, losses: 2, games: { tictactoe: { wins: 0, losses: 2 } } });
+  host.close();
+  guest.close();
+});
+
+test("rematch waits while a player is reconnecting", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "tictactoe");
+  const moves = [[host, 0], [guest, 3], [host, 1], [guest, 4], [host, 2]];
+  for (const [player, cell] of moves) {
+    post(player, { type: "game_message", payload: { kind: "move", cell } });
+    await host.next();
+    await guest.next();
+  }
+  guest.close();
+  assert.deepEqual(await host.next(), { type: "player_reconnecting", username: "guest" });
+  post(host, { type: "rematch" });
+  assert.deepEqual(await host.next(), { type: "error", message: "A player is reconnecting." });
+  host.close();
 });
 
 test("sends Tic-Tac-Toe commentary after a replay", async () => {

@@ -1,5 +1,50 @@
 # Decision log
 
+## 2026-11-09 — Keep Play again beside the current game docs (#75)
+
+- **Decision:** Merge the documentation update from `main` into `issue-75-add-play-again` and keep both the Play again decisions and the architecture-doc decision. `rematch` stays the Play again path.
+- **Made by:** agent
+- **Reason:** `main` moved again with the game-architecture docs. The pull request has to contain that history and still wait for every seated player before a new game.
+
+## 2026-11-09 — Keep Play again beside Hold'em and the replay remount (#75)
+
+- **Decision:** Merge the later `main` (Hold'em and the replay screen remount) into `issue-75-add-play-again` without dropping `rematch`. A finished screen is remounted when the next game's first state arrives. The commentary-after-replay test stays on `restart_game`. Play again still waits for every seated player.
+- **Made by:** agent
+- **Reason:** Main moved again after the first conflict resolution. Issue #75's agreement rule and main's newer games both have to be on the branch for the pull request to merge.
+
+## 2026-11-09 — Keep both-player Play again on the newer room shell (#75)
+
+- **Decision:** When merging `origin/main` into `issue-75-add-play-again`, keep main's room shell, result splash, `createGame`, idle-room close, and the existing `restart_game` message. Play again and the splash Rematch button send `rematch`, which still waits until every seated player has asked. The button stays on screen after a click and reads "Waiting for your opponent…". If the result splash is open, the other player sees "Your opponent wants to play again."
+- **Made by:** agent
+- **Reason:** Main landed a one-player replay and a new lobby while this branch was open. Issue #75 still requires every seated player to agree, and the newer shell is where that button has to live.
+
+## 2026-11-09 — Count a finished game before Play again (#75)
+
+- **Decision:** Write the match record before sending the finished state. The room bar reloads wins and losses when that state arrives, and keeps those totals on screen when a new game starts in the same room. Each later game refreshes the totals again when it finishes.
+- **Made by:** agent, requested by Shulamit
+- **Reason:** The first game's result has to be visible even when the same players stay and play again, rather than waiting until they leave the room.
+
+## 2026-11-09 — Play again in the same room (#75)
+
+- **Decision:** Add a top-level `rematch` client message. When every player still seated in a finished game has sent it, the server replaces that room's engine with a new one from the same game's `createEngine` and sends each seat a fresh state. Seats stay as they are (the same player goes first). A request is ignored, with no error, until the current game has finished, and a second request from the same seat does not count twice. The others are told with `rematch_requested` (`username`); the room bar shows "Your opponent wants to play again." The player who clicked sees "Waiting for your opponent…" and the Play again button hides until the new game starts. The existing `recorded` flag is cleared with the new engine, so each finished game, including one after a rematch, is recorded once. The button lives only in the shared room bar. This work is on branch `issue-75-add-play-again` in its own worktree, taken from `origin/main`.
+- **Made by:** agent, with seats and the opponent notice chosen by Shulamit
+- **Reason:** Issue #75 asks for a new game in the same room without changing any game's rules. Shulamit asked to keep seats, to tell the other player, and to keep a single room screen. Rooms can hold more than two players, so every seated player must agree, which for Tic-Tac-Toe and War is both. Shulamit asked for these notes in `decisions.md`; they are recorded here because `decision.md` is the project's log and an earlier decision says not to rename it.
+
+## 2026-11-09 — Align README and specification with the current game architecture (#43)
+
+- **Decision:** Replace the stale single-game and `GameDefinition`/`ClientGame` descriptions with the current server-authoritative multi-game architecture. Document the live game registry from merged PR #70 and subsequent additions, and describe `GameEngine`, `GameModule`, and `GuiModule` as the extension contracts.
+- **Made by:** agent
+- **Reason:** README and `SPEC_v2.md` must describe the code that contributors and users actually run, including the lobby, room lifecycle, per-seat views, and the complete current game list.
+
+## 2026-11-09 — Port heads-up Hold'em onto the game plugin (#79)
+
+- **Decision:** Port the heads-up no-limit Hold'em engine from `claude/poker-game-requirements-j5u75v` onto the current `GameEngine` / `GameModule` / `GuiModule` contracts, starting from latest `main` rather than from open PR #70 (`claude/more-games`). That branch has `src/games/shared/cards.ts` and a `rules` field, but it is behind `main` (`players` is still a number, and it lacks the host-start and per-game stats work). Seats are `0` and `1` (`0` is the old spec's seat A). Actions use `kind`, including `next_hand`, so `apply` is the only engine entry point. A match `finished` result is reported only when one player has every chip, not at the end of each hand. Betting rules are unchanged from `SPEC_POKER.md`.
+- **Decision:** Use the shared deck already in `src/games/shared/cards.ts` on `main`. Poker imports it and does not replace that file or move Uno onto it.
+- **Decision:** Add an optional `rules?: string[]` on `GameModule`, include it in `GET /api/games` when a game sets it, and show those lines as a lobby **How to play** disclosure next to the game tile (a sibling of the button, so opening it does not cover the tile). The disclosure is generic lobby behavior, not poker code in `gui/src/main.ts` or `server.js`. Poker is `{ min: 2, max: 2 }` and is the only game that fills `rules` here.
+- **Decision:** Hole cards are visible to the other seat only after a showdown, which `SPEC_POKER.md` already requires. They stay hidden for the whole hand on a fold. Commentary is included, per Shulamit's request, but only from a `PublicMoment` that has no hole cards: the action, board, pot, stacks, and (at showdown) the hand name.
+- **Made by:** agent, with the commentary choice confirmed by Shulamit and the base-branch choice left to the agent
+- **Reason:** Issue #79 asks for the plugin port, the shared deck path, How to play rules, a private view, and commentary that cannot leak hole cards. Basing the work on current `main` keeps the port on the contract the server actually runs.
+
 ## 2026-11-09 — Remount game screens when replay starts
 
 - **Decision:** Treat the first non-finished state after a finished state as a new client match and remount the game screen before applying it.
@@ -254,6 +299,63 @@
 - **Decision:** When `LOG.md` and `decision.md` conflict with newer main, keep this branch's Nim and Battleship entries and main's later shell, felt, lobby, and rematch entries.
 - **Made by:** agent
 - **Reason:** Both sides are records of work that already happened. Dropping either would lose the history.
+
+## 2026-11-09 — Keep a dropped connection in the room (#78)
+
+- **Decision:** Any socket close while a player is in a room, including before the match starts, keeps that player's seat for 60 seconds instead of deleting the game. Moves are rejected until they return or the time runs out. Pressing Leave still ends the match immediately. After the grace period, the match is discarded the way a leave works today, and someone else can join for a new game. On the current roster protocol this is `player_reconnecting` / `player_reconnected`, and `player_left` when the grace period runs out or someone leaves on purpose. The open page retries the socket and rejoins; a second connection is still rejected while the first socket is open. `main` had already deleted the old preview client, so that copy is not brought back.
+- **Made by:** user (grace period and pausing play); agent (how rejoin works, and fitting it onto the roster protocol while resolving the merge with `main`)
+- **Reason:** A phone lock or a short network blip was ending the game for both players. The branch had to be merged with a `main` that starts games explicitly and no longer uses `opponent_disconnected`.
+
+## 2026-11-09 — Keep Hold'em and commentary limits while merging reconnect grace (#78)
+
+- **Decision:** The test helper accepts both commentary limits and `reconnectGraceMs`. The protocol list names Hold'em actions and the reconnect messages together.
+- **Made by:** agent
+- **Reason:** Main gained Hold'em while this branch was being merged. Both have to stay.
+
+## 2026-11-09 — Keep main's rewritten SPEC_v2 and the reconnect rows (#78)
+
+- **Decision:** When `SPEC_v2.md` conflicted with main's rewritten protocol tables, keep main's wording and add the reconnect rows: optional `roomCode` on `leave_room`, `player_reconnecting` / `player_reconnected`, and `player_left` only for an explicit leave or an expired grace period.
+- **Made by:** agent
+- **Reason:** Main had just rewritten the spec. The grace-period behavior still has to be in that document.
+
+## 2026-11-09 — "How to play" rules in the lobby (#67)
+
+- **Decision:** Add an optional `rules: string[]` to `GameModule`, returned by `GET /api/games`. The lobby shows a **How to play** link (a `<details>` element) under each tile that has rules; it sits beside the tile button rather than inside it, so opening it never creates a room. Only one game's rules are open at a time. With tiles side by side, the rules open as a panel over the tiles below so the grid doesn't reflow; on a phone they open in place. Rules are written for every game on `main`: War, Tic-Tac-Toe, Uno and Rock-Paper-Scissors are new; Crazy Eights, Go Fish, Goofspiel, Connect Four, Dots and Boxes and Battleship reuse the text from draft PR #70, checked against the engines merged in PR #88. All of them match each engine's actual behavior (for example, Uno's draw-one-and-end-turn house rule). The field name and lobby markup follow draft PR #70, so its games can keep their rules when ported.
+- **Made by:** user (Ariella, assigned #67) asked for it; design by agent
+- **Reason:** Players can learn a game before starting a room, and adding rules to a future game needs no lobby changes.
+
+## 2026-11-09 — Uno: calling UNO, catching, and stacking draw cards
+
+- **Decision:** Add two Uno rules that the engine (#84) had left out on purpose.
+  - **Calling UNO:** new `uno` and `catch` actions, allowed out of turn. You can call UNO on your turn with two cards (before playing one) or any time with one card. Play down to one card without calling it and any other player can catch you (+2 cards) until the next card is played or drawn. Drawing cards cancels a call.
+  - **Stacking:** Draw Two and Wild Draw Four no longer make the next player draw straight away. The penalty waits (`pendingDraw`), and that player can stack a Draw Two on a Draw Two, or a Wild Draw Four on either, to add to it and pass it on, or draw the whole total and lose their turn. A Draw Two can't go on a Wild Draw Four. While a penalty waits, no other card can be played.
+  - The view gains `calledUno`, `catchable` and `pendingDraw`. The Uno screen adds UNO! and Catch buttons, a +N badge on the draw pile, matching status text, and lines in the move log; Uno's How to play steps describe both rules.
+- **Made by:** user (Ariella): asked for UNO calls to work and for stacking with "+2 can't stack on a +4, +4 can stack on a +2"; implementation details by agent
+- **Reason:** Players expected to call UNO, and the team wants stacking. Both replace house-rule defaults noted in `src/games/uno/types.ts`, which is updated to match.
+
+## 2026-11-09 — One "How to play" implementation after merging poker (#98)
+
+- **Decision:** PR #98 (poker) added its own `rules` field and a plain `.how-to-play` dropdown in the lobby, which overlapped issue #67's version. When merging `main` into the #67 branch, keep the #67 lobby link (`howToPlay()` and the `.how-to` styles: keyboard focus style, one open at a time, panel layout on wide screens), remove the `.how-to-play` markup and styles, and keep poker's rules text, which now shows through the same link. `gameSummaries()` keeps #98's version, which leaves `rules` out when a game has none.
+- **Made by:** agent, resolving merge conflicts at the user's request (Ariella)
+- **Reason:** Two implementations would show two How to play links on the poker tile. #98's own decision entry notes that the rules contract belongs to #67.
+
+## 2026-11-09 — Keep How to play and reconnect grace in the same spec (#78)
+
+- **Decision:** Main's How to play rewrite of `SPEC_v2.md` stays, including the lobby rules note, and the reconnect rows stay with it.
+- **Made by:** agent
+- **Reason:** The spec conflict was main's rewrite against the grace-period rows. Both describe current behavior.
+
+## 2026-11-09 — Keep Play again and reconnect grace (#78)
+
+- **Decision:** Merging Play again (`rematch`, which waits for every seated player) keeps the 60-second reconnect grace period. Play again is rejected with "A player is reconnecting." while a seat is reserved, and the button can be pressed again after that error. `leave_room` can still include `roomCode`.
+- **Made by:** agent
+- **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
+
+## 2026-11-09 — Run tests in GitHub Actions (#74)
+
+- **Decision:** Run type checking and tests on pull requests and pushes to `main` using Node.js 24, with a 10-minute timeout.
+- **Made by:** agent (Codex), draft for Joelle Bensadon
+- **Reason:** Catch failing checks and tests that hang before changes are merged.
 
 ## 2026-11-09 — Document the contribution workflow (#76)
 

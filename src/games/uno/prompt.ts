@@ -16,17 +16,23 @@ export function cardName(card: Card): string {
 
 export function buildUnoPrompt(opts: {
   seat: number;
-  action: "play" | "draw";
+  action: "play" | "draw" | "uno" | "catch";
   card?: Card;
+  caught?: number; // the seat caught without calling UNO, for "catch"
+  drew?: number; // cards drawn, when more than one (a stacked penalty)
   over: boolean;
   winner: number | null;
   round: number;
 }): string {
   const who = `Player ${opts.seat + 1}`;
-  let result =
-    opts.action === "draw"
-      ? `${who} drew a card.`
-      : `${who} played the ${cardName(opts.card!)}.`;
+  let result: string;
+  if (opts.action === "draw") {
+    result = opts.drew && opts.drew > 1 ? `${who} had to draw ${opts.drew} cards from stacked draw cards.` : `${who} drew a card.`;
+  }
+  else if (opts.action === "uno") result = `${who} called UNO, down to their last card.`;
+  else if (opts.action === "catch") {
+    result = `${who} caught Player ${(opts.caught ?? -1) + 1} forgetting to call UNO; they draw two cards.`;
+  } else result = `${who} played the ${cardName(opts.card!)}.`;
   if (opts.over) result += ` Player ${(opts.winner ?? -1) + 1} won the game.`;
   return [
     "You are a lively sports commentator for a friendly browser card game.",

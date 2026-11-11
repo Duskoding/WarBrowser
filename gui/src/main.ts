@@ -1,4 +1,4 @@
-import { connect, createRoom, disconnect, joinRoom, leaveRoom, onEvent, restartGame, sendGame, startGame } from "./connection";
+import { connect, createRoom, disconnect, isConnected, joinRoom, leaveRoom, onEvent, rematch, sendGame, startGame } from "./connection";
 import { clientGames } from "./games";
 import baseGameStyles from "./games/base.css?inline";
 import type { GuiModuleScreen } from "./games/GuiModule";
@@ -87,6 +87,7 @@ app.innerHTML = `
       <p class="invite-link" id="invite-link"></p>
     </section>
     <div class="game-root" id="game-root"></div>
+    <p class="status" id="rematch-status" hidden></p>
     <button id="play-again" class="small" hidden>Play again</button>
   </main>
   <div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title" hidden>
@@ -129,9 +130,42 @@ let roomMin = 0;
 let roomMax = 0;
 let screen: GuiModuleScreen | null = null;
 let statsRefreshed = false;
+let linkDown = false;
+let autoRejoin = false;
+let pendingLeave = false;
+let reconnectAttempt = 0;
+let reconnectTimer: number | undefined;
+let reconnectingPlayers: string[] = [];
 // Wins in a row this visit; shown in the header and the result splash.
 let streak = 0;
 let gameOver = false;
+let rematchSent = false;
+let opponentWantsRematch = false;
+
+// A blip retries within the server's grace period. Opening the room link joins again once the old socket is gone.
+function stopReconnect() {
+  if (reconnectTimer !== undefined) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+  }
+  reconnectAttempt = 0;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer !== undefined) return;
+  if (reconnectAttempt >= 8) {
+    showToast("Could not reconnect.");
+    resetRoom();
+    if (me) setConnected(false);
+    return;
+  }
+  const delay = Math.min(8000, 500 * 2 ** reconnectAttempt);
+  reconnectAttempt += 1;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = undefined;
+    connect();
+  }, delay);
+}
 
 // ---- Toast ----
 let toastTimer: number | undefined;
@@ -261,9 +295,28 @@ function renderGameList() {
       );
       tile.addEventListener("click", () => createRoom(game.id));
       item.append(tile);
+      if (game.rules?.length) item.append(howToPlay(game));
       return item;
     })
   );
+}
+
+// A "How to play" link under a game's tile that expands its rules. It sits
+// next to the tile, not inside it, so opening it doesn't create a room.
+function howToPlay(game: GameSummary) {
+  const details = document.createElement("details");
+  details.className = "how-to";
+  details.name = "how-to"; // opening one game's rules closes the others
+  details.innerHTML = `<summary>How to play</summary><ol></ol>`;
+  details.querySelector("summary")!.setAttribute("aria-label", `How to play ${game.name}`);
+  details.querySelector("ol")!.append(
+    ...game.rules!.map((rule) => {
+      const li = document.createElement("li");
+      li.textContent = rule;
+      return li;
+    })
+  );
+  return details;
 }
 
 async function loadGames() {
@@ -332,6 +385,9 @@ function unmountGame() {
   $("game-root").replaceChildren();
   setBackground(null);
   statsRefreshed = false;
+  gameOver = false;
+  rematchSent = false;
+  opponentWantsRematch = false;
 }
 
 function handleGamePayload(payload: unknown) {
@@ -353,10 +409,13 @@ function handleGamePayload(payload: unknown) {
       screen?.render();
     });
     gameOver = finished;
-    // A rematch started by anyone in the room clears the result screen.
-    if (!finished) hideSplash();
-    $<HTMLButtonElement>("play-again").disabled = false;
-    if (!finished) statsRefreshed = false;
+    if (!finished) {
+      hideSplash();
+      rematchSent = false;
+      opponentWantsRematch = false;
+      // The next game gets its own refresh. Totals already on screen stay there.
+      statsRefreshed = false;
+    }
     if (finished && !statsRefreshed) {
       statsRefreshed = true;
       void celebrate();
@@ -468,13 +527,28 @@ function render() {
   const isHost = me !== null && roomHost === me.username;
   const canStart = isHost && !screen && roomPlayers.length >= roomMin;
   $<HTMLButtonElement>("start-game").hidden = !canStart;
-  $<HTMLButtonElement>("play-again").hidden = !gameOver;
+  const again = $<HTMLButtonElement>("play-again");
+  again.hidden = !gameOver;
+  again.disabled = rematchSent;
+  again.textContent = rematchSent ? "Waiting for your opponent…" : "Play again";
+  const rematchStatus = $("rematch-status");
+  const opponentNotice = opponentWantsRematch && !rematchSent;
+  rematchStatus.hidden = !gameOver || !opponentNotice;
+  rematchStatus.textContent = opponentNotice ? "Your opponent wants to play again." : "";
+  if (opponentNotice && !$("splash").hidden) {
+    $("splash-text").textContent = "Your opponent wants to play again.";
+  }
 
   let status = "";
-  if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
+  if (pendingLeave) status = "Leaving…";
+  else if (linkDown) status = "Reconnecting…";
+  else if (reconnectingPlayers.length) status = `${reconnectingPlayers.join(" and ")} is reconnecting…`;
+  else if (roomGameId && !(roomGameId in clientGames)) status = "This game isn't available in this version of the site.";
   else if (!screen && roomPlayers.length < roomMin) status = "Waiting for players — share the invite link";
   else if (!screen && !isHost) status = "Waiting for the host to start the game";
   else if (!screen && isHost) status = "Ready — start when you like, or wait for more players";
+  else if (rematchSent) status = "Waiting for your opponent…";
+  else if (opponentWantsRematch) status = "Your opponent wants to play again.";
   $("room-status").textContent = status;
   $("room-status").hidden = !status;
   $("room-status").classList.toggle("waiting", !screen && !canStart && status.startsWith("Waiting"));
@@ -498,7 +572,9 @@ function renderPlayers() {
   const items: HTMLElement[] = roomPlayers.map((name) => {
     const li = document.createElement("li");
     if (name === roomHost) li.className = "host";
-    li.append(avatar(name), text("span", name === me?.username ? `${name} (you)` : name));
+    const label = name === me?.username ? `${name} (you)` : name;
+    const shown = reconnectingPlayers.includes(name) ? `${label} · reconnecting` : label;
+    li.append(avatar(name), text("span", shown));
     return li;
   });
   const open = Math.max(0, roomMin - roomPlayers.length);
@@ -511,6 +587,11 @@ function renderPlayers() {
 }
 
 function resetRoom() {
+  stopReconnect();
+  autoRejoin = false;
+  pendingLeave = false;
+  linkDown = false;
+  reconnectingPlayers = [];
   hideSplash();
   unmountGame();
   gameOver = false;
@@ -567,6 +648,9 @@ function afterLogin() {
 }
 
 async function signOut() {
+  stopReconnect();
+  autoRejoin = false;
+  pendingLeave = false;
   await logout();
   me = null;
   resetRoom();
@@ -580,30 +664,64 @@ onEvent((e) => {
   switch (e.type) {
     case "connected": {
       setConnected(true);
+      if (pendingLeave && roomCode) {
+        leaveRoom(roomCode);
+        break;
+      }
+      if (autoRejoin && roomCode) {
+        linkDown = true;
+        joinRoom(roomCode);
+        break;
+      }
+      linkDown = false;
       // Opened from an invite link → join straight away.
       const linked = new URLSearchParams(location.search).get("room");
-      if (linked) joinRoom(linked);
+      if (linked && roomCode === null) joinRoom(linked);
       break;
     }
     case "disconnected":
+      if (me && roomCode) {
+        linkDown = true;
+        if (!pendingLeave) autoRejoin = true;
+        scheduleReconnect();
+        break;
+      }
       resetRoom();
       if (me) setConnected(false);
       break;
     case "room_created":
+      reconnectAttempt = 0;
       enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
     case "room_joined":
+      reconnectAttempt = 0;
+      autoRejoin = false;
+      linkDown = false;
       enterRoom(e.roomCode, e.gameId, e.host, e.players, e.min, e.max);
       break;
     case "players_update":
       roomPlayers = e.players;
       break;
+    case "player_reconnecting":
+      if (!reconnectingPlayers.includes(e.username)) reconnectingPlayers = [...reconnectingPlayers, e.username];
+      showToast(`${e.username} is reconnecting.`);
+      break;
+    case "player_reconnected":
+      reconnectingPlayers = reconnectingPlayers.filter((username) => username !== e.username);
+      showToast(`${e.username} reconnected.`);
+      break;
     case "player_left":
+      reconnectingPlayers = reconnectingPlayers.filter((username) => username !== e.username);
       roomPlayers = roomPlayers.filter((username) => username !== e.username);
       hideSplash();
       unmountGame();
       gameOver = false;
+      rematchSent = false;
+      opponentWantsRematch = false;
       showToast(`${e.username} left the room.`);
+      break;
+    case "rematch_requested":
+      opponentWantsRematch = true;
       break;
     case "room_left":
       resetRoom();
@@ -617,8 +735,19 @@ onEvent((e) => {
       break;
     case "error":
       showToast(e.message);
-      // A bad invite link shouldn't keep retrying.
-      if (!roomCode) resetRoom();
+      if (e.message === "A player is reconnecting.") rematchSent = false;
+      if (e.message === "You are already in this room." && autoRejoin) {
+        linkDown = true;
+        disconnect();
+        scheduleReconnect();
+        break;
+      }
+      if (
+        e.message === "Room not found." ||
+        e.message === "That room is full." ||
+        e.message === "That game has already started." ||
+        !roomCode
+      ) resetRoom();
       break;
   }
   render();
@@ -630,14 +759,29 @@ $("join-form").addEventListener("submit", (ev) => {
   const code = codeInput.value.trim().toUpperCase();
   if (code) joinRoom(code);
 });
-$("leave-room").addEventListener("click", leaveRoom);
+$("leave-room").addEventListener("click", () => {
+  if (!roomCode) {
+    resetRoom();
+    return;
+  }
+  pendingLeave = true;
+  autoRejoin = false;
+  stopReconnect();
+  if (isConnected()) leaveRoom(roomCode);
+  else {
+    linkDown = true;
+    connect();
+  }
+  render();
+});
 $("share-room").addEventListener("click", () => share("invite"));
 $("splash-share").addEventListener("click", () => share("brag"));
 $("splash-close").addEventListener("click", hideSplash);
 $("splash-rematch").addEventListener("click", () => {
   hideSplash();
-  $<HTMLButtonElement>("play-again").disabled = true;
-  restartGame();
+  rematch();
+  rematchSent = true;
+  render();
 });
 $("splash-lobby").addEventListener("click", () => {
   hideSplash();
@@ -651,8 +795,10 @@ document.addEventListener("keydown", (ev) => {
 });
 $("start-game").addEventListener("click", startGame);
 $("play-again").addEventListener("click", () => {
-  $<HTMLButtonElement>("play-again").disabled = true;
-  restartGame();
+  hideSplash();
+  rematch();
+  rematchSent = true;
+  render();
 });
 function selectInviteLink() {
   const el = $("invite-link");

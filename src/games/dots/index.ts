@@ -1,6 +1,6 @@
 import type { GameModule } from "../GameModule.ts";
 import { COMMENTARY_INTRO, names, outcomeFor, playerLabel } from "../shared/view.ts";
-import { DotsEngine, type DotsAction, type DotsResult, type DotsState } from "./DotsEngine.ts";
+import { DotsEngine, SIZE, type DotsAction, type DotsResult, type DotsState } from "./DotsEngine.ts";
 
 export function buildDotsPrompt(seat: number, closed: number, scores: [number, number], over: boolean): string {
   let text = `${playerLabel(seat)} closed ${closed === 1 ? "a box" : `${closed} boxes`} with one line. Score ${scores[0]}-${scores[1]}.`;
@@ -19,6 +19,12 @@ export const dots: GameModule<DotsState, DotsAction, DotsResult> = {
   name: "Dots and Boxes",
   description: "Draw lines between dots. Close a box to score it and go again.",
   players: { min: 2, max: 2 },
+  rules: [
+    `The board is a ${SIZE} × ${SIZE} grid of boxes. Players take turns; the room's host goes first.`,
+    "On your turn, draw one line between two neighbouring dots.",
+    "If your line closes a box, the box is yours and you take another turn.",
+    `When all ${SIZE * SIZE} boxes are closed, the player with more boxes wins.`,
+  ],
 
   createEngine() {
     return new DotsEngine();

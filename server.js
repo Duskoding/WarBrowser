@@ -169,7 +169,8 @@ export function createWarServer({
   database = ":memory:",
   engineOptions = {},
   roomIdleTimeoutMs = Number(process.env.ROOM_IDLE_TIMEOUT_MS ?? defaultRoomIdleTimeoutMs),
-  commentaryLimits = {}
+  commentaryLimits = {},
+  reconnectGraceMs = 60 * 1000
 } = {}) {
   const postgres = database === "postgres" || database === process.env.DATABASE_URL;
   const db = postgres ? pool : typeof database === "string" ? openDatabase(database) : database;
@@ -373,7 +374,8 @@ export function createWarServer({
   }
 
   function createGame(roomCode, room) {
-    const seated = [...room.sockets];
+    const byId = new Map([...room.sockets].map((player) => [player.user.id, player]));
+    const seated = room.order.map((id) => byId.get(id)).filter((player) => player);
     const context = {
       commentator: commentaryLimiter.forRoom(roomCode),
       options: engineOptions,
@@ -385,10 +387,58 @@ export function createWarServer({
       context,
       seats: new Map(seated.map((player, seat) => [player, seat])),
       players: seated.map((player) => player.user),
-      recorded: false
+      recorded: false,
+      rematch: new Set()
     };
     games.set(roomCode, game);
     return game;
+  }
+
+  function rosterNames(room) {
+    const names = new Map();
+    for (const player of room.sockets) names.set(player.user.id, player.user.username);
+    for (const entry of room.reserved.values()) names.set(entry.user.id, entry.user.username);
+    return room.order.map((id) => names.get(id)).filter((name) => name);
+  }
+
+  function hostSocket(room) {
+    const names = new Map([...room.sockets].map((player) => [player.user.id, player]));
+    for (const id of room.order) {
+      const player = names.get(id);
+      if (player) return player;
+    }
+    return undefined;
+  }
+
+  function refreshGrace(room) {
+    let until = 0;
+    for (const entry of room.reserved.values()) until = Math.max(until, entry.expiresAt);
+    room.reconnectGraceUntil = until;
+  }
+
+  function clearReservations(room) {
+    for (const entry of room.reserved.values()) clearTimeout(entry.timer);
+    room.reserved.clear();
+    room.reconnectGraceUntil = 0;
+  }
+
+  // A leave, or a grace period that ran out, discards the match and keeps the room if someone is still connected.
+  function depart(room, roomCode, username) {
+    games.delete(roomCode);
+    room.started = false;
+    clearReservations(room);
+    const connected = new Set([...room.sockets].map((player) => player.user.id));
+    room.order = room.order.filter((id) => connected.has(id));
+    for (const player of room.sockets) {
+      if (username) send(player, { type: "player_left", username });
+    }
+    if (room.sockets.size === 0) {
+      clearRoomIdleTimer(room);
+      rooms.delete(roomCode);
+    } else {
+      room.lastMessageAt = Date.now();
+      scheduleRoomIdleTimeout(roomCode, room);
+    }
   }
 
   function leaveRoom(socket) {
@@ -399,20 +449,104 @@ export function createWarServer({
     socket.roomCode = undefined;
     if (!room) return;
 
+    const game = games.get(roomCode);
+    if (game) game.seats.delete(socket);
     room.sockets.delete(socket);
-    games.delete(roomCode);
-    room.started = false;
-    clearRoomIdleTimer(room);
-    const username = socket.user?.username;
+    if (socket.user) {
+      const held = room.reserved.get(socket.user.id);
+      if (held) clearTimeout(held.timer);
+      room.reserved.delete(socket.user.id);
+      room.order = room.order.filter((id) => id !== socket.user.id);
+    }
+    depart(room, roomCode, socket.user?.username);
+  }
+
+  function expireReservation(roomCode, userId) {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    const held = room.reserved.get(userId);
+    if (!held) return;
+    clearTimeout(held.timer);
+    room.reserved.delete(userId);
+    depart(room, roomCode, held.user.username);
+  }
+
+  // A dropped socket keeps its place for reconnectGraceMs. An explicit leave does not come through here.
+  function holdSeat(socket) {
+    const roomCode = socket.roomCode;
+    if (!roomCode || !socket.user) return;
+    const room = rooms.get(roomCode);
+    socket.roomCode = undefined;
+    if (!room || !room.sockets.has(socket)) return;
+
+    const game = games.get(roomCode);
+    const seat = game && game.seats.has(socket) ? game.seats.get(socket) : null;
+    if (game) game.seats.delete(socket);
+    room.sockets.delete(socket);
+
+    const previous = room.reserved.get(socket.user.id);
+    if (previous) clearTimeout(previous.timer);
+    const expiresAt = Date.now() + reconnectGraceMs;
+    const timer = setTimeout(() => expireReservation(roomCode, socket.user.id), reconnectGraceMs);
+    timer.unref();
+    room.reserved.set(socket.user.id, { user: socket.user, seat, timer, expiresAt });
+    refreshGrace(room);
     for (const player of room.sockets) {
-      if (username) send(player, { type: "player_left", username });
+      send(player, { type: "player_reconnecting", username: socket.user.username });
     }
-    if (room.sockets.size === 0) {
-      rooms.delete(roomCode);
-    } else {
-      room.lastMessageAt = Date.now();
-      scheduleRoomIdleTimeout(roomCode, room);
+  }
+
+  function abandonOtherRooms(userId, exceptRoomCode) {
+    for (const [code, room] of [...rooms]) {
+      if (code === exceptRoomCode) continue;
+      for (const player of [...room.sockets]) {
+        if (player.user?.id === userId) leaveRoom(player);
+      }
+      const current = rooms.get(code);
+      if (!current) continue;
+      const held = current.reserved.get(userId);
+      if (!held) continue;
+      clearTimeout(held.timer);
+      current.reserved.delete(userId);
+      depart(current, code, held.user.username);
     }
+  }
+
+  function roomSummary(room, roomCode) {
+    const players = rosterNames(room);
+    return {
+      roomCode,
+      gameId: room.game.id,
+      host: players[0],
+      players,
+      min: room.game.players.min,
+      max: room.game.players.max
+    };
+  }
+
+  function tellReconnecting(socket, room) {
+    for (const entry of room.reserved.values()) {
+      send(socket, { type: "player_reconnecting", username: entry.user.username });
+    }
+  }
+
+  function restoreSeat(socket, room, roomCode, held) {
+    clearTimeout(held.timer);
+    room.reserved.delete(socket.user.id);
+    room.sockets.add(socket);
+    socket.roomCode = roomCode;
+    refreshGrace(room);
+    const game = games.get(roomCode);
+    if (game && held.seat !== null && held.seat !== undefined) {
+      game.seats.set(socket, held.seat);
+    }
+    markRoomActive(roomCode);
+    send(socket, { type: "room_joined", ...roomSummary(room, roomCode) });
+    for (const player of room.sockets) {
+      if (player !== socket) send(player, { type: "player_reconnected", username: socket.user.username });
+    }
+    tellReconnecting(socket, room);
+    if (game) sendStates(game);
   }
 
   function requireUser(socket) {
@@ -471,10 +605,13 @@ export function createWarServer({
           return;
         }
 
+        abandonOtherRooms(socket.user.id);
         const roomCode = createRoomCode(rooms);
         const room = {
           game: definition,
           sockets: new Set([socket]),
+          reserved: new Map(),
+          order: [socket.user.id],
           started: false,
           lastMessageAt: Date.now(),
           reconnectGraceUntil: 0,
@@ -512,14 +649,8 @@ export function createWarServer({
           send(socket, { type: "error", message: "Room not found." });
           return;
         }
-        if (room.sockets.size >= room.game.players.max) {
-          send(socket, { type: "error", message: "That room is full." });
-          return;
-        }
-        if (room.started) {
-          send(socket, { type: "error", message: "That game has already started." });
-          return;
-        }
+        abandonOtherRooms(socket.user.id, roomCode);
+
         for (const player of room.sockets) {
           if (player.user?.id === socket.user.id) {
             send(socket, { type: "error", message: "You are already in this room." });
@@ -527,25 +658,31 @@ export function createWarServer({
           }
         }
 
+        const held = room.reserved.get(socket.user.id);
+        if (held) {
+          restoreSeat(socket, room, roomCode, held);
+          return;
+        }
+        if (room.sockets.size + room.reserved.size >= room.game.players.max) {
+          send(socket, { type: "error", message: "That room is full." });
+          return;
+        }
+        if (room.started) {
+          send(socket, { type: "error", message: "That game has already started." });
+          return;
+        }
+
         room.sockets.add(socket);
         socket.roomCode = roomCode;
+        if (!room.order.includes(socket.user.id)) room.order.push(socket.user.id);
         markRoomActive(roomCode);
-        const [host] = room.sockets;
-        const players = [...room.sockets].map((player) => player.user.username);
-        send(socket, {
-          type: "room_joined",
-          roomCode,
-          gameId: room.game.id,
-          host: host.user.username,
-          players,
-          min: room.game.players.min,
-          max: room.game.players.max
-        });
+        send(socket, { type: "room_joined", ...roomSummary(room, roomCode) });
         for (const player of room.sockets) {
           if (player !== socket) {
-            send(player, { type: "players_update", players });
+            send(player, { type: "players_update", players: rosterNames(room) });
           }
         }
+        tellReconnecting(socket, room);
         return;
       }
 
@@ -555,7 +692,11 @@ export function createWarServer({
           send(socket, { type: "error", message: "Join a room first." });
           return;
         }
-        const [host] = room.sockets;
+        if (room.reserved.size > 0) {
+          send(socket, { type: "error", message: "A player is reconnecting." });
+          return;
+        }
+        const host = hostSocket(room);
         if (host !== socket) {
           send(socket, { type: "error", message: "Only the host can start the game." });
           return;
@@ -587,6 +728,10 @@ export function createWarServer({
           send(socket, { type: "error", message: "There is no finished game to replay." });
           return;
         }
+        if (room.reserved.size > 0) {
+          send(socket, { type: "error", message: "A player is reconnecting." });
+          return;
+        }
         if (!game.recorded) {
           send(socket, { type: "error", message: "Finish the current game before playing again." });
           return;
@@ -599,6 +744,10 @@ export function createWarServer({
       if (message.type === "game_message") {
         const room = rooms.get(socket.roomCode);
         const game = games.get(socket.roomCode);
+        if (room?.reserved.size > 0) {
+          send(socket, { type: "error", message: "A player is reconnecting." });
+          return;
+        }
         if (!room || !game) {
           send(socket, {
             type: "error",
@@ -630,13 +779,15 @@ export function createWarServer({
             send(socket, { type: "error", message: result.error });
             return;
           }
-          sendStates(game);
+          // Record before the finished view goes out, so the header can show the
+          // new totals immediately, including when the players then play again.
+          let recording = null;
           if (result.finished && !game.recorded) {
             game.recorded = true;
             const { winner } = result.finished;
             if (postgres) {
               const playerIds = game.players.map((player) => player.id);
-              void recordPostgresMatch(
+              recording = recordPostgresMatch(
                 db,
                 socket.roomCode,
                 playerIds,
@@ -651,18 +802,24 @@ export function createWarServer({
               recordWins(db, winnerId, loserIds, game.module.id);
             }
           }
-          if (result.commentary) {
-            const { round } = result.commentary;
-            const roomCode = socket.roomCode;
-            void Promise.resolve(result.commentary.text)
-              .catch(() => null)
-              .then((text) => {
-                if (!text || games.get(roomCode) !== game) return;
-                for (const player of game.seats.keys()) {
-                  send(player, { type: "game_message", payload: { kind: "commentary", text, round } });
-                }
-              });
-          }
+          const publish = () => {
+            if (games.get(socket.roomCode) !== game) return;
+            sendStates(game);
+            if (result.commentary) {
+              const { round } = result.commentary;
+              const roomCode = socket.roomCode;
+              void Promise.resolve(result.commentary.text)
+                .catch(() => null)
+                .then((text) => {
+                  if (!text || games.get(roomCode) !== game) return;
+                  for (const player of game.seats.keys()) {
+                    send(player, { type: "game_message", payload: { kind: "commentary", text, round } });
+                  }
+                });
+            }
+          };
+          if (recording) void recording.then(publish);
+          else publish();
           return;
         }
 
@@ -674,8 +831,45 @@ export function createWarServer({
         return;
       }
 
+      if (message.type === "rematch") {
+        const room = rooms.get(socket.roomCode);
+        const game = socket.roomCode ? games.get(socket.roomCode) : undefined;
+        if (room?.reserved.size > 0) {
+          send(socket, { type: "error", message: "A player is reconnecting." });
+          return;
+        }
+        // `recorded` is set only when the current engine has finished. Ignore
+        // rematch before that, and ignore a second request from the same seat.
+        if (!room || !game?.recorded || !game.seats.has(socket) || game.rematch.has(socket)) return;
+
+        markRoomActive(socket.roomCode);
+        game.rematch.add(socket);
+        if (game.rematch.size < game.seats.size) {
+          const username = socket.user.username;
+          for (const player of game.seats.keys()) {
+            if (player !== socket) send(player, { type: "rematch_requested", username });
+          }
+          return;
+        }
+
+        // Same room, same seats, new engine. The new game records its own match.
+        sendStates(createGame(socket.roomCode, room));
+        return;
+      }
+
       if (message.type === "leave_room") {
-        leaveRoom(socket);
+        if (!socket.roomCode && typeof message.roomCode === "string" && socket.user) {
+          const code = message.roomCode.trim().toUpperCase();
+          const room = rooms.get(code);
+          const held = room?.reserved.get(socket.user.id);
+          if (room && held) {
+            clearTimeout(held.timer);
+            room.reserved.delete(socket.user.id);
+            depart(room, code, held.user.username);
+          }
+        } else {
+          leaveRoom(socket);
+        }
         send(socket, { type: "room_left" });
         return;
       }
@@ -683,11 +877,14 @@ export function createWarServer({
       send(socket, { type: "error", message: "Unknown message type." });
     });
 
-    socket.on("close", () => leaveRoom(socket));
+    socket.on("close", () => holdSeat(socket));
   });
 
   httpServer.on("close", () => {
-    for (const room of rooms.values()) clearRoomIdleTimer(room);
+    for (const room of rooms.values()) {
+      clearRoomIdleTimer(room);
+      clearReservations(room);
+    }
     try {
       if (postgres) void db.end(); else db.close();
     } catch {
