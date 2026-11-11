@@ -151,3 +151,10 @@ Add one short entry for each work session so the next person or agent can resume
   - Keyboard placement for Battleship ships.
   - A test with a real screen reader (NVDA or VoiceOver); everything so far was checked through the accessibility tree.
 - **Also fixed (user's request):** War's table sat left of center on wide screens, which was already the case on `main`. `.table` in `war.css` now has `margin: 0.75rem auto 0`.
+
+## 2026-11-11 — Fix flat Connect Four board in some browsers
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** none (reported by the user from a live game)
+- **Changed:** `gui/src/games/connect4/connect4.css`: disc slots get `display: block; width: 100%` (plus a padding fallback where `aspect-ratio` isn't supported) instead of relying on flex stretching inside each column `<button>`. In browsers that don't stretch flex items inside buttons, every slot was drawn at 0x0 and the board looked like a flat strip. Reproduced in Chromium by turning stretching off: slots went from 57x57 to 0x0, and with the fix they stay 57x57.
+- **Remaining:** Confirm on https://warbrowser.onrender.com/ in the browser that showed the bug.

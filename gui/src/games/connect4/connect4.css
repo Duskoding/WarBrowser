@@ -20,11 +20,18 @@
 }
 .c4-col:not(:disabled):hover { background: rgb(255 255 255 / 0.15); }
 .c4-col:disabled { opacity: 1; cursor: default; }
+/* Sized directly rather than by stretching: some browsers don't stretch flex
+   items inside a <button>, which drew every slot at 0x0. */
 .c4-cell {
+  display: block;
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
   background: #0f2e66;
   box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.4);
+}
+@supports not (aspect-ratio: 1) {
+  .c4-cell { height: 0; padding-top: 100%; }
 }
 .c4-cell.you { background: var(--you); }
 .c4-cell.opponent { background: var(--opponent); }
