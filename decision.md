@@ -351,6 +351,12 @@
 - **Made by:** agent
 - **Reason:** Main gained Play again after this branch. A dropped player still has a seat, so a new game should not start without them.
 
+## 2026-11-09 — Run tests in GitHub Actions (#74)
+
+- **Decision:** Run type checking and tests on pull requests and pushes to `main` using Node.js 24, with a 10-minute timeout.
+- **Made by:** agent (Codex), draft for Joelle Bensadon
+- **Reason:** Catch failing checks and tests that hang before changes are merged.
+
 ## 2026-11-10 — Keyboard and screen-reader pass on all game screens (#82)
 
 - **Decision:**
