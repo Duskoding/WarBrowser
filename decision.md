@@ -375,3 +375,9 @@
 - **Made by:** user (Ariella, assigned #82) asked for the pass; findings and fixes by agent
 - **Reason:** axe-core reported critical ARIA errors in two boards and landmark errors in War, only one game announced status changes, and all twelve games dropped keyboard focus after every move. One shell fix covers every current and future game for focus; the rest are small per-game changes in each game's own files.
 - **Not done:** keyboard placement of Battleship ships (drag and rotate need a pointer; Shuffle and Ready work by keyboard), and a manual pass with a real screen reader.
+
+## 2026-11-11 — Center War's table
+
+- **Decision:** Center War's table in the game area with `margin: 0.75rem auto 0` on `.table` in `gui/src/games/war/war.css`. It sat at the left edge on screens wider than 40rem; phones are unchanged.
+- **Made by:** user (Ariella) asked for the fix; agent implemented it
+- **Reason:** A layout bug already on `main` (the table has a fixed maximum width but no horizontal centering), found during the #82 pass.

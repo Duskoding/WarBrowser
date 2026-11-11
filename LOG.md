@@ -150,4 +150,4 @@ Add one short entry for each work session so the next person or agent can resume
 - **Remaining:**
   - Keyboard placement for Battleship ships.
   - A test with a real screen reader (NVDA or VoiceOver); everything so far was checked through the accessibility tree.
-  - War's table sits left of center on wide screens. That was already the case on `main` before this change and is unrelated to accessibility.
+- **Also fixed (user's request):** War's table sat left of center on wide screens, which was already the case on `main`. `.table` in `war.css` now has `margin: 0.75rem auto 0`.
