@@ -158,3 +158,10 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** none (reported by the user from a live game)
 - **Changed:** `gui/src/games/connect4/connect4.css`: disc slots get `display: block; width: 100%` (plus a padding fallback where `aspect-ratio` isn't supported) instead of relying on flex stretching inside each column `<button>`. In browsers that don't stretch flex items inside buttons, every slot was drawn at 0x0 and the board looked like a flat strip. Reproduced in Chromium by turning stretching off: slots went from 57x57 to 0x0, and with the fix they stay 57x57.
 - **Remaining:** Confirm on https://warbrowser.onrender.com/ in the browser that showed the bug.
+
+## 2026-11-11 — Security review and crash fixes
+
+- **Who:** agent (Claude Code), for the repository owner
+- **Issues:** none filed
+- **Changed:** Reviewed the server, auth, database, engines and client for security problems. Fixed four inputs that stopped the server process (oversized or malformed WebSocket frame, `GET //`, failed session lookup on upgrade, deeply nested relayed payload) in `server.js`, with four regression tests in `test/server.test.js`. README and SPEC_v2 describe the new behavior, including the 32-level limit on relayed payloads. Checked each crash against a running server before and after, the upgrade one against a local PostgreSQL 16.
+- **Remaining:** Findings reported to the owner and not yet fixed: shuffles use `Math.random()`; PostgreSQL TLS does not verify the certificate (`src/db.ts`, `scripts/migrate-users.mjs`); no rate limits on login, registration, sockets or room-code guesses; password reset needs no current password and keeps other sessions; PostgreSQL usernames are case-sensitive; `join_room` leaves the player's other rooms before it checks the join can succeed; leaving a game records no loss; a WebSocket keeps its login after logout; no `Origin` checks; session tokens are stored unhashed; no security headers.

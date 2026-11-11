@@ -37,6 +37,7 @@ const defaultDatabasePath = fileURLToPath(new URL("./data/warbrowser.sqlite", im
 const roomCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const maxMessageBytes = 16 * 1024;
 const maxJsonBytes = 8 * 1024;
+const maxRelayDepth = 32;
 const defaultRoomIdleTimeoutMs = 30 * 60 * 1000;
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -63,6 +64,22 @@ function createRoomCode(rooms) {
     ).join("");
   } while (rooms.has(roomCode));
   return roomCode;
+}
+
+// Null when the request target is not a valid URL, such as "//".
+function requestPathname(request) {
+  try {
+    return new URL(request.url, "http://localhost").pathname;
+  } catch {
+    return null;
+  }
+}
+
+// JSON.parse accepts deeper nesting than JSON.stringify can write back out.
+function nestedDeeperThan(value, limit) {
+  if (value === null || typeof value !== "object") return false;
+  if (limit === 0) return true;
+  return Object.values(value).some((child) => nestedDeeperThan(child, limit - 1));
 }
 
 function send(socket, message) {
@@ -287,7 +304,12 @@ export function createWarServer({
   }
 
   const httpServer = createServer(async (request, response) => {
-    const pathname = new URL(request.url, "http://localhost").pathname;
+    const pathname = requestPathname(request);
+    if (pathname === null) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Bad request");
+      return;
+    }
     if (pathname.startsWith("/api/")) {
       try {
         await handleApi(request, response, pathname);
@@ -564,8 +586,7 @@ export function createWarServer({
   }
 
   httpServer.on("upgrade", (request, socket, head) => {
-    const pathname = new URL(request.url, "http://localhost").pathname;
-    if (pathname !== "/ws") {
+    if (requestPathname(request) !== "/ws") {
       socket.destroy();
       return;
     }
@@ -573,12 +594,15 @@ export function createWarServer({
       userFromRequest(db, request, postgres).then(({ user }) => {
         websocket.user = user;
         websocketServer.emit("connection", websocket, request);
-      }).catch(() => websocket.destroy());
+      }).catch((error) => {
+        console.error("Failed to open a WebSocket:", error);
+        websocket.terminate();
+      });
     });
   });
 
   websocketServer.on("connection", (socket) => {
-    socket.on("message", (rawMessage) => {
+    const handleMessage = (rawMessage) => {
       let message;
       try {
         message = JSON.parse(rawMessage.toString());
@@ -818,11 +842,19 @@ export function createWarServer({
                 });
             }
           };
-          if (recording) void recording.then(publish);
+          if (recording) {
+            void recording
+              .then(publish)
+              .catch((error) => console.error("Failed to publish a game update:", error));
+          }
           else publish();
           return;
         }
 
+        if (nestedDeeperThan(message.payload, maxRelayDepth)) {
+          send(socket, { type: "error", message: "Game message is nested too deeply." });
+          return;
+        }
         for (const player of room.sockets) {
           if (player !== socket) {
             send(player, { type: "game_message", payload: message.payload });
@@ -875,8 +907,19 @@ export function createWarServer({
       }
 
       send(socket, { type: "error", message: "Unknown message type." });
-    });
+    };
 
+    socket.on("message", (rawMessage) => {
+      try {
+        handleMessage(rawMessage);
+      } catch (error) {
+        console.error("Failed to handle a WebSocket message:", error);
+        send(socket, { type: "error", message: "Unable to handle that message." });
+      }
+    });
+    // ws reports an oversized or malformed frame here, then closes the socket.
+    // Without a listener the error would stop the whole server.
+    socket.on("error", () => {});
     socket.on("close", () => holdSeat(socket));
   });
 

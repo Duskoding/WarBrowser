@@ -381,3 +381,14 @@
 - **Decision:** Center War's table in the game area with `margin: 0.75rem auto 0` on `.table` in `gui/src/games/war/war.css`. It sat at the left edge on screens wider than 40rem; phones are unchanged.
 - **Made by:** user (Ariella) asked for the fix; agent implemented it
 - **Reason:** A layout bug already on `main` (the table has a fixed maximum width but no horizontal centering), found during the #82 pass.
+
+## 2026-11-11 — Bad input must not stop the server
+
+- **Decision:** Four inputs each stopped the whole server process, ending every game in progress: a WebSocket message over 16 KB or a malformed frame, a request target that is not a valid URL (`GET //`), a failed session lookup during the WebSocket upgrade (for example a `session` cookie holding a NUL byte under PostgreSQL), and a `game_message` payload nested thousands of levels deep that the server tried to relay. Fix them in `server.js` only:
+  - Each socket gets an `error` listener; `ws` already closes the socket itself.
+  - An invalid request target gets `400`, or a dropped connection on upgrade.
+  - The upgrade's failure path calls `terminate()` (it called `destroy()`, which `ws` does not have) and logs the error.
+  - A relayed payload may be nested at most 32 levels deep (`maxRelayDepth`); a deeper one gets an `error`. The limit applies only to relayed payloads, since payloads a game handles are never written back out.
+  - The message handler runs inside a `try`/`catch` that logs and replies with an `error`, so a future bug in a handler or game module costs one message instead of the server.
+- **Made by:** user (asked for the fix after the security review); implementation details, the 32-level limit and the error wording by agent
+- **Reason:** Three of the four needed no login, so anyone could take the site down with one request. A fixed depth limit behaves the same on every Node version, where relying on `JSON.stringify` to throw would not. 32 levels is far more than any game screen sends.

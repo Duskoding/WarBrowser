@@ -1029,3 +1029,52 @@ test("Battleship never sends a player the opponent's fleet", async () => {
   host.close();
   guest.close();
 });
+
+test("stays up after a WebSocket message over the size limit", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  const socket = await connect(wsUrl);
+  socket.send("x".repeat(20_000));
+  const [code] = await once(socket, "close");
+  assert.equal(code, 1009);
+  assert.equal((await fetch(`${httpUrl}/api/games`)).status, 200);
+});
+
+test("answers 400 to a request target that is not a valid URL", async () => {
+  const { wsUrl, httpUrl } = await startServer();
+  assert.equal((await fetch(`${httpUrl}//`)).status, 400);
+
+  const socket = new WebSocket(wsUrl.replace(/\/ws$/, "//"));
+  await once(socket, "error");
+  assert.equal((await fetch(`${httpUrl}/api/games`)).status, 200);
+});
+
+test("closes a WebSocket when the session lookup fails", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const database = {
+    prepare() {
+      throw new Error("database unavailable");
+    },
+    close() {}
+  };
+  const { wsUrl, httpUrl } = await startServer({ database });
+  const socket = new WebSocket(wsUrl, { headers: { Cookie: "session=anything" } });
+  socket.on("error", () => {});
+  await once(socket, "close");
+  assert.equal((await fetch(`${httpUrl}/api/games`)).status, 200);
+});
+
+test("rejects a relayed game message that is nested too deeply", async () => {
+  const { host, guest } = await startRoom(silentCommentator, {}, "tictactoe");
+  const depth = 8000;
+  host.send(`{"type":"game_message","payload":${"[".repeat(depth)}${"]".repeat(depth)}}`);
+  assert.deepEqual(await host.next(), {
+    type: "error",
+    message: "Game message is nested too deeply."
+  });
+
+  post(host, { type: "game_message", payload: { kind: "wave", to: { seat: 1 } } });
+  assert.deepEqual(await guest.next(), {
+    type: "game_message",
+    payload: { kind: "wave", to: { seat: 1 } }
+  });
+});

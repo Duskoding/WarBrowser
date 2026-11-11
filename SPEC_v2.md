@@ -85,6 +85,8 @@ WebSocket messages are JSON at `/ws`. Creating or joining a room requires a vali
 
 Views are game-specific and may include private information for the receiving seat, but must never expose another player's hidden information. Clients cannot send `state` or `commentary`; only the server can.
 
+Bad input never stops the server. A WebSocket message over 16 KB or a malformed frame closes only that socket. A request target that is not a valid URL gets `400`. A socket whose session cannot be looked up is closed. A `game_message` payload the game does not handle is relayed to the other players only if it is nested at most 32 levels deep; a deeper one gets an `error`. Any other failure while handling a message gets an `error` reply.
+
 ## War rules
 
 - A standard 52-card deck is split 26/26 between two players.
