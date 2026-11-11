@@ -175,3 +175,5 @@ On the free plan the service sleeps when idle, games are kept in memory, and the
 4. Choose a game and play it through its normal actions. Confirm that both browsers receive the same authoritative result while each player's private information remains hidden from the other player. If a key is set and the game supplies commentary, confirm that a line appears after a supported event.
 
 Every pull request must pass the Tests check before it is merged.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to work on an issue and get a change into `main`.

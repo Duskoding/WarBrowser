@@ -356,3 +356,9 @@
 - **Decision:** Run type checking and tests on pull requests and pushes to `main` using Node.js 24, with a 10-minute timeout.
 - **Made by:** agent (Codex), draft for Joelle Bensadon
 - **Reason:** Catch failing checks and tests that hang before changes are merged.
+
+## 2026-11-09 — Document the contribution workflow (#76)
+
+- **Decision:** Add `CONTRIBUTING.md` as the team's guide for issues, branches, testing, pull requests, and reviews. Link it from the README.
+- **Made by:** agent (Codex), draft for Joelle Bensadon
+- **Reason:** Give contributors one place to find the steps for getting a change into `main`.
