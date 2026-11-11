@@ -78,7 +78,8 @@ export const war: GuiModule = {
   styles,
   isFinished: (view) => (view as WarView).phase === "gameOver",
   mount(root, { send, setBackground }) {
-    const table = document.createElement("main");
+    // A <div>, not <main>: the page already has a main landmark (#82).
+    const table = document.createElement("div");
     table.className = "table";
     table.innerHTML = `
       <section class="player them">
@@ -87,7 +88,7 @@ export const war: GuiModule = {
         <div class="stakes" id="them-stakes" hidden aria-label="Opponent war cards"></div>
       </section>
       <div class="middle">
-        <p class="status" id="status"></p>
+        <p class="status" id="status" role="status"></p>
         <p class="pile" id="pile"></p>
       </div>
       <section class="player you">

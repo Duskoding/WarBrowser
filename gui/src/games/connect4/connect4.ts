@@ -18,6 +18,18 @@ type ConnectFourView = {
   opponentName?: string;
 };
 
+// "Column 3: yours, theirs, 4 empty", listing discs from the bottom up.
+function columnLabel(v: ConnectFourView, col: number): string {
+  const discs: string[] = [];
+  for (let row = v.rows - 1; row >= 0; row--) {
+    const owner = v.board[row * v.cols + col];
+    if (owner === null) break;
+    discs.push(owner === "you" ? "yours" : "theirs");
+  }
+  const empty = v.rows - discs.length;
+  return `Column ${col + 1}: ${[...discs, empty ? `${empty} empty` : "full"].join(", ")}`;
+}
+
 export const connect4: GuiModule = {
   id: "connect4",
   styles: shared + styles,
@@ -27,8 +39,8 @@ export const connect4: GuiModule = {
     root.innerHTML = `
       <div class="game c4">
         <p class="players" data-id="players"></p>
-        <p class="status" data-id="status"></p>
-        <div class="c4-board" data-id="board" role="grid" aria-label="Board"></div>
+        <p class="status" data-id="status" role="status"></p>
+        <div class="c4-board" data-id="board" role="group" aria-label="Board"></div>
         <aside class="commentary" data-id="commentary">Commentary appears when the game ends.</aside>
       </div>
     `;
@@ -80,6 +92,7 @@ export const connect4: GuiModule = {
           cellEl.classList.toggle("winning", v.line?.includes(cell) ?? false);
         });
         button.disabled = !v.yourTurn || full;
+        button.setAttribute("aria-label", columnLabel(v, col));
       });
     }
 

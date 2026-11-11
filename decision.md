@@ -356,3 +356,28 @@
 - **Decision:** Run type checking and tests on pull requests and pushes to `main` using Node.js 24, with a 10-minute timeout.
 - **Made by:** agent (Codex), draft for Joelle Bensadon
 - **Reason:** Catch failing checks and tests that hang before changes are merged.
+
+## 2026-11-10 — Keyboard and screen-reader pass on all game screens (#82)
+
+- **Decision:**
+  - **Focus between moves is handled once, in the shell.** Every game lost keyboard focus to the page after a move, because the game disables or rebuilds its buttons while the move is on its way. `gui/src/gameFocus.ts`, called from `mountGame` and after each render in `gui/src/main.ts`, remembers the last control used in the game and puts focus back on it, or on the nearest usable control. While nothing is usable (the other player's turn), focus waits on the `#game-root` container, so the next Tab still lands in the game. It never moves focus that the player put somewhere else on the page. The container is used rather than the shadow host because a host with `tabindex="-1"` removes its whole shadow tree from the Tab order.
+  - **Per game:**
+    - Every status line gets `role="status"`, replacing Uno's `aria-live`.
+    - War's table is a `<div>` instead of a second `<main>`.
+    - Tic-Tac-Toe and Connect Four boards use `role="group"` instead of an incomplete `role="grid"`.
+    - Labels now carry board state:
+      - Tic-Tac-Toe: each square's mark.
+      - Connect Four: each column's discs, bottom up.
+      - Dots and Boxes: whether a line is drawn and by whom, and each box's owner.
+      - Battleship: the result of each shot.
+    - Ownership no longer relies on color alone: the opponent's Connect Four discs have a dark center, and their Dots and Boxes boxes (and the score legend) are striped.
+  - **Accessibility checklist:** added to "Adding a game" in the README.
+- **Made by:** user (Ariella, assigned #82) asked for the pass; findings and fixes by agent
+- **Reason:** axe-core reported critical ARIA errors in two boards and landmark errors in War, only one game announced status changes, and all twelve games dropped keyboard focus after every move. One shell fix covers every current and future game for focus; the rest are small per-game changes in each game's own files.
+- **Not done:** keyboard placement of Battleship ships (drag and rotate need a pointer; Shuffle and Ready work by keyboard), and a manual pass with a real screen reader.
+
+## 2026-11-11 — Center War's table
+
+- **Decision:** Center War's table in the game area with `margin: 0.75rem auto 0` on `.table` in `gui/src/games/war/war.css`. It sat at the left edge on screens wider than 40rem; phones are unchanged.
+- **Made by:** user (Ariella) asked for the fix; agent implemented it
+- **Reason:** A layout bug already on `main` (the table has a fixed maximum width but no horizontal centering), found during the #82 pass.

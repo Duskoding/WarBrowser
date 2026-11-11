@@ -110,10 +110,10 @@ export const uno: GuiModule = {
             <span class="swatch"></span><span class="direction" data-id="direction"></span>
           </div>
         </div>
-        <p class="status" data-id="status" aria-live="polite"></p>
+        <p class="status" data-id="status" role="status"></p>
         <div class="actions">
           <button class="uno-call" data-id="uno" hidden>UNO!</button>
-          <button class="ghost" data-id="catch" hidden></button>
+          <button class="ghost" data-id="catch" hidden>Catch!</button>
         </div>
         <div class="picker" data-id="picker" hidden>
           <p>Choose a color</p>

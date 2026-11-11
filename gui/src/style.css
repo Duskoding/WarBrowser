@@ -487,6 +487,8 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 .player-count { margin: -0.4rem 0 0; font-size: 0.8rem; color: var(--muted); }
 #start-game { padding: 0.85rem 2.6rem; font-size: 1.1rem; }
 .game-root { width: 100%; display: flex; justify-content: center; }
+/* Focus rests here between turns (gameFocus.ts); no ring for that. */
+.game-root:focus { outline: none; }
 .game-host { width: 100%; animation: rise 0.35s ease both; }
 
 /* ---- Result splash ---- */

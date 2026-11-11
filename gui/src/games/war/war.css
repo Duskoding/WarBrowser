@@ -71,7 +71,7 @@ button.ghost:hover:not(:disabled) {
 /* ---- Table ---- */
 .table {
   width: min(40rem, 100%);
-  margin-top: 0.75rem;
+  margin: 0.75rem auto 0; /* centered in the game area on wide screens */
   display: flex;
   flex-direction: column;
   align-items: center;

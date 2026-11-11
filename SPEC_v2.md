@@ -97,6 +97,7 @@ Views are game-specific and may include private information for the receiving se
 
 1. Add `src/games/<id>/` with a `GameEngine` implementation and a `GameModule` export.
 2. Register the server module in `src/games/index.ts`; its metadata and `rules` then appear in `GET /api/games` and the lobby's How to play link. Give it `rules`: the games-list test fails for a game without them.
+   Its screen should follow the accessibility checklist under "Adding a game" in `README.md`: real buttons, a `role="status"` status line, state in `aria-label`s, and no meaning carried by color alone. The shell keeps keyboard focus inside the game between moves.
 3. Add `gui/src/games/<id>/<id>.ts` exporting a `GuiModule`, with styles beside it. Render only inside the supplied shadow root and use `setBackground` for page background changes.
 4. Register the screen in `gui/src/games/index.ts`.
 5. Add engine tests next to the game and run `npm test`.

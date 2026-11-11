@@ -37,7 +37,7 @@ export const goofspiel: GuiModule = {
           <div class="goof-slot prize"><p class="label" data-id="prize-label">Prize</p><div class="row" data-id="prize"></div></div>
           <div class="goof-slot"><p class="label">Your bid</p><div data-id="your-bid"></div></div>
         </div>
-        <p class="status" data-id="status"></p>
+        <p class="status" data-id="status" role="status"></p>
         <p class="note" data-id="last"></p>
         <p class="label">Your hand — click a card to bid it</p>
         <div class="hand" data-id="hand"></div>
