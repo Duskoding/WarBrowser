@@ -381,3 +381,9 @@
 - **Decision:** Center War's table in the game area with `margin: 0.75rem auto 0` on `.table` in `gui/src/games/war/war.css`. It sat at the left edge on screens wider than 40rem; phones are unchanged.
 - **Made by:** user (Ariella) asked for the fix; agent implemented it
 - **Reason:** A layout bug already on `main` (the table has a fixed maximum width but no horizontal centering), found during the #82 pass.
+
+## 2026-11-17 — Keyboard placement for Battleship ships (#82)
+
+- **Decision:** During setup, Battleship shows one button per ship. Focusing or clicking a button picks that ship and highlights it on your grid. With it focused, the arrow keys move it one square and R rotates it, using the same fit and overlap checks as dragging; the server still validates every layout through the existing `place` action. Each ship button's label gives its position ("Carrier, 5 squares, down from row 5, column 2"), and each accepted move is announced in the status line. The buttons are built once per fleet so focus survives each state update, and they're hidden once you're ready. Dragging with a mouse or finger is unchanged.
+- **Made by:** user (Ariella) asked for the remaining issues to be fixed; design by agent
+- **Reason:** This was the one part of any game that needed a pointer (listed as remaining on #82). The game screen alone handles it, with no protocol or engine changes.

@@ -39,6 +39,8 @@ export const battleship: GuiModule = {
           <button class="small-btn ghost-btn" data-id="rotate">Rotate</button>
           <button class="small-btn" data-id="ready">Ready</button>
         </div>
+        <div class="row bs-ships" data-id="ships" role="group"
+          aria-label="Your ships: pick one, then use the arrow keys to move it and R to rotate it"></div>
         <div class="bs-boards">
           <section class="bs-side">
             <p class="label">Enemy waters <span data-id="left"></span></p>
@@ -68,6 +70,10 @@ export const battleship: GuiModule = {
     let notice = "";
     let drag: Drag | null = null;
     let preview: { cells: number[]; ok: boolean } | null = null;
+    // Keyboard placement (#82): one button per ship; arrow keys move it, R rotates.
+    let shipButtons = new Map<string, HTMLButtonElement>();
+    // Said in the status line once the server confirms a keyboard move.
+    let announce = "";
 
     function isAcross(cells: number[], n: number) {
       if (cells.length < 2) return true;
@@ -103,7 +109,7 @@ export const battleship: GuiModule = {
       if (!v || v.phase !== "setup" || v.yourReady || drag) return;
       const ship = v.yourShips.find((item) => item.name === selected);
       if (!ship) {
-        notice = "Select a ship on your grid, then press Rotate.";
+        notice = "Pick a ship, on your grid or from the buttons below, then press Rotate.";
         render();
         return;
       }
@@ -113,17 +119,85 @@ export const battleship: GuiModule = {
       const col = origin % v.size;
       const cells = cellsFrom(row, col, ship.cells.length, !isAcross(ship.cells, v.size), v.size);
       if (!cells || overlaps(ship.name, cells)) {
-        notice = "That rotation doesn't fit. Drag the ship somewhere it can turn.";
+        notice = "That rotation doesn't fit. Move the ship somewhere it can turn.";
         render();
         return;
       }
       notice = "";
+      announce = `${ship.name} turned to point ${isAcross(cells, v.size) ? "across" : "down"}.`;
       sendFleet(v.yourShips.map((item) => (item.name === ship.name ? { name: ship.name, cells } : { name: item.name, cells: item.cells.slice() })));
+    }
+
+    // Moves the selected ship one square, if it stays on the board and clear of the others.
+    function moveSelected(dRow: number, dCol: number) {
+      const v = view;
+      if (!v || v.phase !== "setup" || v.yourReady || drag) return;
+      const ship = v.yourShips.find((item) => item.name === selected);
+      if (!ship) return;
+      const origin = Math.min(...ship.cells);
+      const row = Math.floor(origin / v.size) + dRow;
+      const col = (origin % v.size) + dCol;
+      const cells = cellsFrom(row, col, ship.cells.length, isAcross(ship.cells, v.size), v.size);
+      if (!cells) notice = `The ${ship.name} is at the edge of the board.`;
+      else if (overlaps(ship.name, cells)) notice = "Another ship is in the way.";
+      else {
+        notice = "";
+        announce = `${ship.name} moved to row ${row + 1}, column ${col + 1}.`;
+        sendFleet(v.yourShips.map((item) => (item.name === ship.name ? { name: ship.name, cells } : { name: item.name, cells: item.cells.slice() })));
+        return;
+      }
+      render();
+    }
+
+    const STEPS: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1]
+    };
+
+    function onShipKey(name: string, ev: KeyboardEvent) {
+      const step = STEPS[ev.key];
+      if (!step && ev.key.toLowerCase() !== "r") return;
+      ev.preventDefault();
+      selected = name;
+      if (step) moveSelected(step[0], step[1]);
+      else rotateSelected();
+    }
+
+    function shipLabel(v: BattleshipView, ship: Ship) {
+      const origin = Math.min(...ship.cells);
+      const where = `row ${Math.floor(origin / v.size) + 1}, column ${(origin % v.size) + 1}`;
+      return `${ship.name}, ${ship.cells.length} squares, ${isAcross(ship.cells, v.size) ? "across" : "down"} from ${where}`;
+    }
+
+    // Built once per fleet so a focused ship button survives each state update.
+    function buildShipButtons(v: BattleshipView) {
+      if (shipButtons.size === v.fleet.length && v.fleet.every((spec) => shipButtons.has(spec.name))) return;
+      shipButtons = new Map(
+        v.fleet.map((spec) => {
+          const button = document.createElement("button");
+          button.className = "small-btn ghost-btn bs-ship";
+          button.textContent = `${spec.name} (${spec.size})`;
+          const pick = () => {
+            if (selected === spec.name) return;
+            selected = spec.name;
+            notice = `${spec.name} selected. Arrow keys move it, R rotates it.`;
+            render();
+          };
+          button.addEventListener("click", pick);
+          button.addEventListener("focus", pick);
+          button.addEventListener("keydown", (ev) => onShipKey(spec.name, ev));
+          return [spec.name, button];
+        }),
+      );
+      $("ships").replaceChildren(...shipButtons.values());
     }
 
     function paintMine(v: BattleshipView) {
       const shipAt = new Map<number, boolean>();
-      const chosen = new Set(v.yourShips.find((ship) => ship.name === selected)?.cells ?? []);
+      const placing = v.phase === "setup" && !v.yourReady;
+      const chosen = new Set(placing ? (v.yourShips.find((ship) => ship.name === selected)?.cells ?? []) : []);
       v.yourShips.forEach((ship) => {
         if (drag?.name === ship.name) return;
         ship.cells.forEach((cell) => shipAt.set(cell, !!ship.sunk));
@@ -176,7 +250,9 @@ export const battleship: GuiModule = {
       if (v.phase === "setup") {
         status = v.yourReady
           ? "Waiting for your opponent to place their fleet…"
-          : notice || "Drag a ship to move it, or shuffle, then press Ready" + (v.opponentReady ? " (they're ready)" : "");
+          : notice ||
+            "Drag a ship, or pick one below and use the arrow keys (R rotates). Then press Ready" +
+              (v.opponentReady ? " (they're ready)" : "");
       } else if (v.phase === "playing") {
         status = v.yourTurn ? "Your turn: fire at enemy waters" : "Opponent is aiming…";
       }
@@ -186,6 +262,16 @@ export const battleship: GuiModule = {
 
       const placing = v.phase === "setup" && !v.yourReady;
       $("setup").hidden = !placing;
+      $("ships").hidden = !placing;
+      if (placing) {
+        buildShipButtons(v);
+        for (const ship of v.yourShips) {
+          const button = shipButtons.get(ship.name);
+          if (!button) continue;
+          button.setAttribute("aria-pressed", String(selected === ship.name));
+          button.setAttribute("aria-label", shipLabel(v, ship));
+        }
+      }
       $<HTMLButtonElement>("ready").disabled = !placing;
       $<HTMLButtonElement>("rotate").disabled = !placing;
       $("left").textContent = v.phase === "setup" ? "" : `· ${v.enemyShipsLeft} of ${v.fleet.length} ships left`;
@@ -282,7 +368,9 @@ export const battleship: GuiModule = {
     return {
       applyState(next) {
         view = next as BattleshipView;
-        notice = "";
+        // A keyboard move's confirmation is shown once the server accepts it.
+        notice = announce;
+        announce = "";
       },
       render,
       commentary: commentaryBox($("commentary"))
