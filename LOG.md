@@ -158,3 +158,13 @@ Add one short entry for each work session so the next person or agent can resume
 - **Issues:** none (reported by the user from a live game)
 - **Changed:** `gui/src/games/connect4/connect4.css`: disc slots get `display: block; width: 100%` (plus a padding fallback where `aspect-ratio` isn't supported) instead of relying on flex stretching inside each column `<button>`. In browsers that don't stretch flex items inside buttons, every slot was drawn at 0x0 and the board looked like a flat strip. Reproduced in Chromium by turning stretching off: slots went from 57x57 to 0x0, and with the fix they stay 57x57.
 - **Remaining:** Confirm on https://warbrowser.onrender.com/ in the browser that showed the bug.
+
+## 2026-11-17 — Battleship keyboard placement
+
+- **Who:** agent (Claude Code), on behalf of Ariella (GitHub Duskoding)
+- **Issues:** #82, and verifying #64
+- **Changed:**
+  - `gui/src/games/battleship/battleship.ts` and `.css`: ship buttons during setup; arrow keys move the selected ship and R rotates it; position labels and status announcements. The selected-ship highlight now clears once the battle starts.
+  - Battleship's How to play text in `src/games/battleship/index.ts`.
+  - Checked: a keyboard-only setup (Tab to a ship, arrow keys, R, Tab to the next ship, Ready, then focus lands on the enemy grid), mouse dragging (unchanged from `main`), and phone width.
+- **Remaining:** #82 needs only a test with a real screen reader (NVDA or VoiceOver), which a person has to do.
